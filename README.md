@@ -33,3 +33,11 @@ python convert.py --input "input.pdf" --output "out.md"
 python batch_convert.py --input-dir "./input_pdfs" --output-dir "./out_md"
 ```
 
+## 命令行增强（推荐）
+
+如果你希望“已生成的输出自动跳过、失败可继续、可选覆盖”，可以用下面这条：
+
+```powershell
+python batch_convert.py --input-dir "C:\Users\lenovo\Documents\水利\附件1、2020年黄河、渭河、沁河超标准洪水预案\附件1、2020年黄河、渭河、沁河超标准洪水预案" --output-dir "./out_md" --skip-existing --on-error continue --log-file "./out_md/convert.log"
+```
+
