@@ -3,7 +3,11 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest.mock import MagicMock
 
-from src.pdf_vl_transcribe import _normalize_gfm_tables, transcribe_pdf_with_vl
+from src.pdf_vl_transcribe import (
+    _is_suspicious_table,
+    _normalize_gfm_tables,
+    transcribe_pdf_with_vl,
+)
 
 
 class TestPdfVlTranscribe(unittest.TestCase):
@@ -51,6 +55,20 @@ class TestPdfVlTranscribe(unittest.TestCase):
         self.assertEqual(client.generate_multimodal.call_count, 2)
         self.assertIn("# ", out)
         self.assertIn("第 1 / 2 页", out)
+
+    def test_is_suspicious_table(self) -> None:
+        bad = (
+            "| A | B | C |\n"
+            "| --- | --- | --- |\n"
+            "| 1 | 2 |\n"
+        )
+        good = (
+            "| A | B |\n"
+            "| --- | --- |\n"
+            "| 1 | 2 |\n"
+        )
+        self.assertTrue(_is_suspicious_table(bad))
+        self.assertFalse(_is_suspicious_table(good))
 
 
 if __name__ == "__main__":

@@ -72,6 +72,8 @@ python main.py --profile stable-chinese --input-dir ./data/input --output-dir ./
 仍 OOM 或内存不足时，在 profile 基础上再加 **`--low-memory`**（会强制 OCR 为 `fast`，表格精度可能下降）或 **`--no-tables`**。
 
 **PDF 方案 A（按页 Qwen-VL 验证，不经过 Docling）**：仅对 **`.pdf`** 生效。用 **PyMuPDF** 逐页渲染为 PNG，**每页一次**多模态 API 转写为 Markdown；需 **`DASHSCOPE_API_KEY`**（与 `--llm-base-url` 地域一致）。成本与 **页数** 成正比，试跑请配合 **`--max-num-pages`** / **`--max-files`**。支持 **页级并发** `--pdf-vl-workers`（如 10）。
+默认**不嵌入整页截图**到 Markdown（避免把“整页图”误当文档插图）；如需调试可加 `--pdf-vl-embed-page-images`。
+默认启用“可疑表格二次 LLM 校对（带验收回退）”，可用 `--no-pdf-vl-table-second-pass` 关闭，或用 `--pdf-vl-table-second-pass-max-tables` 控制每页最多复核表格数。
 
 ```powershell
 $env:DASHSCOPE_API_KEY="..."

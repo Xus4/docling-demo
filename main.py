@@ -355,6 +355,23 @@ def main() -> int:
         metavar="N",
         help="pdf-vl-primary 页级并发调用数（建议 1~10；qwen3.5-plus 可尝试 10）。",
     )
+    parser.add_argument(
+        "--pdf-vl-embed-page-images",
+        action="store_true",
+        help="将每页渲染图嵌入输出 Markdown（默认关闭；通常不是文档插图）。",
+    )
+    parser.add_argument(
+        "--no-pdf-vl-table-second-pass",
+        action="store_true",
+        help="关闭 pdf-vl 的可疑表格二次 LLM 校对（默认开启）。",
+    )
+    parser.add_argument(
+        "--pdf-vl-table-second-pass-max-tables",
+        type=int,
+        default=3,
+        metavar="N",
+        help="每页最多二次校对多少个可疑表格（默认 3）。",
+    )
 
     args = parser.parse_args()
     apply_cli_profile(args, sys.argv)
@@ -451,6 +468,9 @@ def main() -> int:
         return 2
     if args.pdf_vl_workers > 32:
         log.warning("--pdf-vl-workers 过高，建议 <= 10（特殊情况下不超过 32）")
+    if args.pdf_vl_table_second_pass_max_tables < 1:
+        log.error("--pdf-vl-table-second-pass-max-tables 必须 >= 1")
+        return 2
 
     if args.profile != "default":
         log.info(
@@ -513,6 +533,9 @@ def main() -> int:
         pdf_vl_primary=bool(args.pdf_vl_primary),
         pdf_vl_dpi=float(args.pdf_vl_dpi),
         pdf_vl_workers=int(args.pdf_vl_workers),
+        pdf_vl_embed_page_images=bool(args.pdf_vl_embed_page_images),
+        pdf_vl_table_second_pass=not bool(args.no_pdf_vl_table_second_pass),
+        pdf_vl_table_second_pass_max_tables=int(args.pdf_vl_table_second_pass_max_tables),
     )
     converter = IndustrialDocConverter(cfg)
 

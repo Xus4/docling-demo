@@ -130,6 +130,10 @@ class ConverterConfig:
     pdf_vl_primary: bool = False
     pdf_vl_dpi: float = 150.0
     pdf_vl_workers: int = 1
+    pdf_vl_table_second_pass: bool = True
+    pdf_vl_table_second_pass_max_tables: int = 3
+    # 是否在 markdown 中嵌入每页渲染图（默认关闭，避免把整页截图当“插图”）
+    pdf_vl_embed_page_images: bool = False
 
 
 def _escape_dimension_like_asterisks(text: str) -> str:
@@ -619,8 +623,12 @@ class IndustrialDocConverter:
                 client=client,
                 model=self.config.llm_model,
                 pdf_path=source,
+                markdown_out_path=markdown_out,
                 dpi=self.config.pdf_vl_dpi,
                 workers=self.config.pdf_vl_workers,
+                embed_page_images=self.config.pdf_vl_embed_page_images,
+                table_second_pass=self.config.pdf_vl_table_second_pass,
+                table_second_pass_max_tables=self.config.pdf_vl_table_second_pass_max_tables,
                 max_pages=self.config.max_num_pages,
                 temperature=self.config.llm_temperature,
                 max_tokens=self.config.llm_max_tokens,
