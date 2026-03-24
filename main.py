@@ -66,6 +66,26 @@ def apply_cli_profile(args: argparse.Namespace, argv: list[str]) -> None:
             args.llm_table_refine = True
 
 
+def apply_model_tuning(args: argparse.Namespace, argv: list[str]) -> None:
+    """
+    针对 qwen3.5-plus + pdf-vl-primary 的默认调优（显式传参优先）。
+    """
+    if not bool(getattr(args, "pdf_vl_primary", False)):
+        return
+    model_name = str(getattr(args, "llm_model", "")).lower()
+    if "qwen3.5-plus" not in model_name:
+        return
+
+    if not _argv_contains_flag(argv, "--llm-temperature"):
+        args.llm_temperature = 0.0
+    if not _argv_contains_flag(argv, "--llm-max-tokens"):
+        # 模型单次最大输出约 64K tokens；页级转写适当抬高，减少长页/表格截断
+        args.llm_max_tokens = 16384
+    if not _argv_contains_flag(argv, "--pdf-vl-workers"):
+        # RPM 很高，可并发；默认给到 10（用户可按网速/配额下调）
+        args.pdf_vl_workers = 10
+
+
 def _configure_logging(log_file: Path | None, verbose: bool) -> None:
     level = logging.DEBUG if verbose else logging.INFO
     handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
@@ -261,8 +281,19 @@ def main() -> int:
     parser.add_argument(
         "--llm-max-tokens",
         type=int,
-        default=2048,
-        help="LLM max_tokens（限制单次输出长度）。",
+        default=8192,
+        help=(
+            "LLM max_tokens（单次 completion 上限）。qwen3.5-plus 等约可到 64K；"
+            "Docling 后清洗默认 8K；与 --pdf-vl-primary 且 qwen3.5-plus 时自动调到 16K（未显式传参时）。"
+        ),
+    )
+    parser.add_argument(
+        "--llm-enable-thinking",
+        action="store_true",
+        help=(
+            "启用 Qwen3.5 等模型的思考模式（正文走 content，思考走 reasoning_content，"
+            "会额外消耗 completion token；文档转写默认关闭）。"
+        ),
     )
     parser.add_argument(
         "--llm-allow-rerun",
@@ -301,8 +332,33 @@ def main() -> int:
         help="每个 table block 前最多取多少行作为上下文文本。",
     )
 
+    # ---- PDF 方案 A：按页 VL 转写（验证）----
+    parser.add_argument(
+        "--pdf-vl-primary",
+        action="store_true",
+        help=(
+            "仅对 PDF：按页渲染为图片，逐页调用 Qwen-VL 转写为 Markdown（需 DASHSCOPE_API_KEY）。"
+            "不经过 Docling；与 --enable-llm 可同时用于对整篇结果再清洗。"
+        ),
+    )
+    parser.add_argument(
+        "--pdf-vl-dpi",
+        type=float,
+        default=150.0,
+        metavar="DPI",
+        help="pdf-vl-primary 渲染 DPI（约 100~200；越高越清晰但越慢、请求体越大）。",
+    )
+    parser.add_argument(
+        "--pdf-vl-workers",
+        type=int,
+        default=1,
+        metavar="N",
+        help="pdf-vl-primary 页级并发调用数（建议 1~10；qwen3.5-plus 可尝试 10）。",
+    )
+
     args = parser.parse_args()
     apply_cli_profile(args, sys.argv)
+    apply_model_tuning(args, sys.argv)
 
     log_path: Path | None = None if args.no_log_file else args.log_file
     _configure_logging(log_path, args.verbose)
@@ -386,16 +442,31 @@ def main() -> int:
             "--scan-max-scale 仅在 --scan 时生效；当前未使用 --scan，该参数将被忽略"
         )
 
+    if args.pdf_vl_primary and args.pdf_vl_dpi < 72:
+        log.warning("--pdf-vl-dpi 过低可能影响识别，建议 100~200")
+    if args.pdf_vl_primary and args.pdf_vl_dpi > 400:
+        log.warning("--pdf-vl-dpi 过高可能导致请求过大或超时，建议 72~200")
+    if args.pdf_vl_workers < 1:
+        log.error("--pdf-vl-workers 必须 >= 1")
+        return 2
+    if args.pdf_vl_workers > 32:
+        log.warning("--pdf-vl-workers 过高，建议 <= 10（特殊情况下不超过 32）")
+
     if args.profile != "default":
         log.info(
             "CLI profile=%s：scan=%s pipeline_concurrency=%s ocr_quality=%s "
-            "enable_llm=%s llm_table_refine=%s",
+            "enable_llm=%s llm_table_refine=%s pdf_vl_primary=%s pdf_vl_workers=%s "
+            "llm_temperature=%s llm_max_tokens=%s",
             args.profile,
             args.scan,
             args.pipeline_concurrency,
             args.ocr_quality,
             args.enable_llm,
             args.llm_table_refine,
+            args.pdf_vl_primary,
+            args.pdf_vl_workers,
+            args.llm_temperature,
+            args.llm_max_tokens,
         )
     if args.profile in ("stable-chinese", "stable-chinese-llm") and args.low_memory:
         log.warning(
@@ -428,6 +499,7 @@ def main() -> int:
         llm_base_url=args.llm_base_url,
         llm_temperature=float(args.llm_temperature),
         llm_max_tokens=args.llm_max_tokens,
+        llm_enable_thinking=bool(args.llm_enable_thinking),
         llm_allow_rerun=bool(args.llm_allow_rerun),
         llm_vl_image_mode=str(args.llm_vl_image_mode),
 
@@ -437,6 +509,10 @@ def main() -> int:
             args.llm_table_max_images_per_table
         ),
         llm_table_context_lines=int(args.llm_table_context_lines),
+
+        pdf_vl_primary=bool(args.pdf_vl_primary),
+        pdf_vl_dpi=float(args.pdf_vl_dpi),
+        pdf_vl_workers=int(args.pdf_vl_workers),
     )
     converter = IndustrialDocConverter(cfg)
 

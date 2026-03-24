@@ -36,6 +36,9 @@ class DashScopeClientConfig:
     timeout_sec: float = 180.0
     max_retries: int = 3
     retry_backoff_sec: float = 1.5
+    # Qwen3.5 / Qwen3-VL：思考模式会把正文放在 reasoning_content，content 可能为空。
+    # 百炼文档：通过 extra_body.enable_thinking 控制；文档/转写默认关闭思考。
+    enable_thinking: bool = False
 
 
 class DashScopeClient:
@@ -49,6 +52,24 @@ class DashScopeClient:
 
     def __init__(self, cfg: DashScopeClientConfig) -> None:
         self.cfg = cfg
+
+    def _openai_chat_completions_payload(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        temperature: Optional[float],
+        max_tokens: Optional[int],
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"model": model, "messages": messages}
+        if temperature is not None:
+            payload["temperature"] = float(temperature)
+        if max_tokens is not None:
+            payload["max_tokens"] = int(max_tokens)
+        # 百炼：Python SDK 里写在 extra_body 的字段，最终会并入请求 JSON 顶层。
+        # 直接用 httpx 时若只包一层 extra_body，网关可能不展开，导致 enable_thinking 仍走模型默认（易变成思考模式）。
+        payload["enable_thinking"] = bool(self.cfg.enable_thinking)
+        return payload
 
     @staticmethod
     def _endpoint_kind_from_url(url: str) -> str:
@@ -201,15 +222,80 @@ class DashScopeClient:
         raise last_exc
 
     @staticmethod
+    def _openai_message_to_text(
+        msg: dict[str, Any], usage: Optional[dict[str, Any]] = None
+    ) -> str:
+        """
+        OpenAI 兼容：content 可能是 str，也可能是 [{type:text,text:...}]。
+
+        思考模式下正文应在 content；reasoning_content 为链式思考，**不作为** Markdown 正文回填，
+        避免把几千字分析灌进输出（见 usage.completion_tokens_details）。
+        """
+        content = msg.get("content")
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, dict):
+                    if item.get("type") == "text" and isinstance(item.get("text"), str):
+                        parts.append(item["text"])
+                    elif isinstance(item.get("text"), str):
+                        parts.append(item["text"])
+                elif isinstance(item, str):
+                    parts.append(item)
+            joined = "".join(parts)
+            if joined.strip():
+                return joined
+        elif isinstance(content, str) and content.strip():
+            return content
+
+        rc = msg.get("reasoning_content")
+        if isinstance(rc, str) and rc.strip():
+            ctd = (usage or {}).get("completion_tokens_details") or {}
+            _log.warning(
+                "Qwen 思考链：content 为空但 reasoning_content 非空 "
+                "(text_tokens=%s, reasoning_tokens=%s)。"
+                " 请确认请求 JSON 顶层含 enable_thinking=false（OpenAI SDK 对应 extra_body；"
+                "本客户端默认关闭）；或提高 max_tokens；勿将 reasoning 当作正文。",
+                ctd.get("text_tokens"),
+                ctd.get("reasoning_tokens"),
+            )
+        return ""
+
+    @staticmethod
+    def _native_message_content_to_text(content: Any) -> str:
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list) and content:
+            texts: list[str] = []
+            for part in content:
+                if isinstance(part, dict) and isinstance(part.get("text"), str):
+                    texts.append(part["text"])
+            if texts:
+                return "\n".join(texts)
+            first = content[0]
+            if isinstance(first, dict) and isinstance(first.get("text"), str):
+                return first["text"]
+        return ""
+
+    @staticmethod
     def _extract_text(response_json: dict[str, Any]) -> str:
-        # OpenAI 兼容：choices[0].message.content 为 str
+        # OpenAI 兼容：choices[0].message
         try:
             ch = response_json.get("choices") or []
             if ch:
                 msg = ch[0].get("message") or {}
-                content = msg.get("content")
-                if isinstance(content, str):
-                    return content
+                text = DashScopeClient._openai_message_to_text(
+                    msg, usage=response_json.get("usage")
+                )
+                if text.strip():
+                    return text
+                fr = ch[0].get("finish_reason")
+                if fr or msg:
+                    _log.warning(
+                        "LLM assistant 文本为空：finish_reason=%s message_keys=%s",
+                        fr,
+                        list(msg.keys()),
+                    )
         except Exception:
             pass
         # DashScope 原生
@@ -217,15 +303,9 @@ class DashScopeClient:
             choices = response_json["output"]["choices"]
             msg = choices[0]["message"]
             content = msg.get("content")
-            # multimodal:
-            #   content: [{"text": "..."}]
-            if isinstance(content, list) and content:
-                first = content[0]
-                if isinstance(first, dict) and isinstance(first.get("text"), str):
-                    return first["text"]
-            # fallback: sometimes content is a plain string
-            if isinstance(content, str):
-                return content
+            t = DashScopeClient._native_message_content_to_text(content)
+            if t.strip():
+                return t
         except Exception:
             pass
         # as a final fallback, return pretty json to help debugging
@@ -244,11 +324,12 @@ class DashScopeClient:
         if _is_openai_compatible_base_url(base):
             url = base + "/chat/completions"
             om = self._messages_to_openai_format(messages)
-            payload: dict[str, Any] = {"model": model, "messages": om}
-            if temperature is not None:
-                payload["temperature"] = float(temperature)
-            if max_tokens is not None:
-                payload["max_tokens"] = int(max_tokens)
+            payload = self._openai_chat_completions_payload(
+                model=model,
+                messages=om,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
             response_json = self._post_json(url, payload)
             return self._extract_text(response_json)
         url = base + "/services/aigc/text-generation/generation"
@@ -277,11 +358,12 @@ class DashScopeClient:
         if _is_openai_compatible_base_url(base):
             url = base + "/chat/completions"
             om = self._messages_to_openai_format(messages)
-            payload = {"model": model, "messages": om}
-            if temperature is not None:
-                payload["temperature"] = float(temperature)
-            if max_tokens is not None:
-                payload["max_tokens"] = int(max_tokens)
+            payload = self._openai_chat_completions_payload(
+                model=model,
+                messages=om,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
             response_json = self._post_json(url, payload)
             return self._extract_text(response_json)
         url = base + "/services/aigc/multimodal-generation/generation"

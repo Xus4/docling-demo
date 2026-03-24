@@ -40,11 +40,15 @@ class QualityCheckResult:
 
 def _normalize_markdown_output(text: str) -> str:
     t = (text or "").strip()
+    if not t:
+        return ""
     if t.startswith("```"):
         # remove a single fence wrapper if present
         # e.g. ```markdown ... ```
-        t = re.sub(r"^```[a-zA-Z0-9_-]*\s*\n?", "", t)
-        t = re.sub(r"\n?```$", "", t)
+        inner = re.sub(r"^```[a-zA-Z0-9_-]*\s*\n?", "", t)
+        inner = re.sub(r"\n?```$", "", inner).strip()
+        # 避免模型只输出空 fence 时把正文剥成空串
+        return inner if inner else t
     return t
 
 

@@ -112,7 +112,7 @@ class ConverterConfig:
     llm_model: str = "qwen3-vl-plus"
     llm_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     llm_temperature: float = 0.2
-    llm_max_tokens: Optional[int] = 2048
+    llm_max_tokens: Optional[int] = 8192
     llm_timeout_sec: float = 180.0
     llm_max_retries: int = 3
     llm_vl_image_mode: Literal["local_abs", "url"] = "local_abs"
@@ -124,6 +124,12 @@ class ConverterConfig:
     llm_table_context_lines: int = 2
     llm_allow_rerun: bool = False
     llm_rerun_max_attempts: int = 1
+    # Qwen3.5：思考模式会占用 completion token，content 可能为空；默认关闭（extra_body.enable_thinking）
+    llm_enable_thinking: bool = False
+    # ---- PDF 方案 A：按页渲染 + Qwen-VL 转写（不经过 Docling）----
+    pdf_vl_primary: bool = False
+    pdf_vl_dpi: float = 150.0
+    pdf_vl_workers: int = 1
 
 
 def _escape_dimension_like_asterisks(text: str) -> str:
@@ -406,6 +412,7 @@ class IndustrialDocConverter:
             base_url=self.config.llm_base_url,
             timeout_sec=self.config.llm_timeout_sec,
             max_retries=self.config.llm_max_retries,
+            enable_thinking=self.config.llm_enable_thinking,
         )
         client = DashScopeClient(client_cfg)
         return DoclingMarkdownRefiner(
@@ -416,6 +423,109 @@ class IndustrialDocConverter:
             temperature=self.config.llm_temperature,
             max_tokens=self.config.llm_max_tokens,
         )
+
+    def _create_dashscope_client(self) -> Optional["DashScopeClient"]:
+        """供 pdf-vl-primary 使用；仅需 API Key，不要求 enable_llm_refine。"""
+        try:
+            from src.dashscope_client import DashScopeClient, DashScopeClientConfig
+        except Exception as e:  # noqa: BLE001
+            _log.error("Import dashscope_client failed: %s", repr(e))
+            return None
+        api_key = os.getenv(self.config.llm_api_key_env)
+        if not api_key:
+            _log.error(
+                "需要环境变量 %s（pdf-vl-primary / LLM）",
+                self.config.llm_api_key_env,
+            )
+            return None
+        client_cfg = DashScopeClientConfig(
+            api_key=api_key,
+            base_url=self.config.llm_base_url,
+            timeout_sec=self.config.llm_timeout_sec,
+            max_retries=self.config.llm_max_retries,
+            enable_thinking=self.config.llm_enable_thinking,
+        )
+        return DashScopeClient(client_cfg)
+
+    def _apply_llm_refine_once_to_file(
+        self,
+        markdown_out: Path,
+        refiner: "DoclingMarkdownRefiner",
+    ) -> None:
+        """
+        单次 LLM 清洗 + 质检（不触发 Docling rerun）。
+        用于 pdf-vl-primary 产出的 Markdown。
+        """
+        from src.vl_markdown_utils import (
+            summarize_markdown_quality,
+            validate_image_refs_invariants,
+        )
+
+        docling_md_text = markdown_out.read_text(encoding="utf-8")
+        try:
+            if self.config.llm_table_refine:
+                refined_md = refiner.cleanup_tables_per_block(
+                    original_markdown=docling_md_text,
+                    markdown_out_path=markdown_out,
+                    vl_image_mode=self.config.llm_vl_image_mode,
+                    cleanup_max_images_per_table=self.config.llm_table_cleanup_max_images_per_table,
+                    cleanup_max_tables=self.config.llm_table_cleanup_max_tables,
+                    context_lines=self.config.llm_table_context_lines,
+                )
+            else:
+                image_inputs = refiner.prepare_image_inputs(
+                    original_md=docling_md_text,
+                    markdown_out_path=markdown_out,
+                    vl_image_mode=self.config.llm_vl_image_mode,
+                    cleanup_max_images=self.config.llm_cleanup_max_images,
+                )
+                refined_md = refiner.cleanup_markdown(
+                    original_markdown=docling_md_text,
+                    markdown_out_path=markdown_out,
+                    image_inputs=image_inputs,
+                )
+
+            refined_md = (refined_md or "").strip()
+            if not refined_md:
+                _log.warning("LLM cleanup returned empty output; fallback to pdf-vl md")
+                refined_md = docling_md_text
+            elif len(refined_md) < 50:
+                _log.warning(
+                    "LLM cleanup output too short (len=%s); fallback to pdf-vl md",
+                    len(refined_md),
+                )
+                refined_md = docling_md_text
+
+            orig_stats = summarize_markdown_quality(docling_md_text)
+            refined_stats = summarize_markdown_quality(refined_md)
+            if orig_stats.get("table_rows", 0) > 0 and refined_stats.get("table_rows", 0) == 0:
+                _log.warning(
+                    "LLM cleanup removed table rows; fallback to pdf-vl md (orig_table_rows=%s)",
+                    orig_stats.get("table_rows", 0),
+                )
+                refined_md = docling_md_text
+
+            ok, details = validate_image_refs_invariants(
+                original_md=docling_md_text,
+                refined_md=refined_md,
+            )
+            if not ok:
+                _log.warning("LLM refined md failed invariants; fallback to pdf-vl: %s", details)
+                refined_md = docling_md_text
+
+            markdown_out.write_text(refined_md, encoding="utf-8")
+
+            qc = refiner.quality_check(
+                original_markdown=docling_md_text,
+                refined_markdown=refined_md,
+            )
+            _log.info(
+                "pdf-vl LLM quality_check score=%s need_rerun=%s（pdf-vl 模式不执行 Docling rerun）",
+                qc.score,
+                qc.need_rerun,
+            )
+        except Exception as e:  # noqa: BLE001
+            _log.exception("LLM refine failed on pdf-vl output; keep pdf-vl md: %s", repr(e))
 
     def _apply_llm_rerun_suggestion(
         self,
@@ -489,6 +599,39 @@ class IndustrialDocConverter:
             if self.config.markdown_escape_dimension_asterisks:
                 text = _escape_dimension_like_asterisks(text)
             markdown_out.write_text(text, encoding="utf-8")
+            return
+
+        if suffix == ".pdf" and self.config.pdf_vl_primary:
+            from src.pdf_vl_transcribe import transcribe_pdf_with_vl
+
+            client = self._create_dashscope_client()
+            if client is None:
+                raise RuntimeError(
+                    f"pdf-vl-primary 需要环境变量 {self.config.llm_api_key_env} 且 httpx 可用"
+                )
+            _log.info(
+                "pdf-vl-primary：按页渲染 + Qwen-VL 转写，跳过 Docling；dpi=%s workers=%s max_pages=%s",
+                self.config.pdf_vl_dpi,
+                self.config.pdf_vl_workers,
+                self.config.max_num_pages,
+            )
+            md = transcribe_pdf_with_vl(
+                client=client,
+                model=self.config.llm_model,
+                pdf_path=source,
+                dpi=self.config.pdf_vl_dpi,
+                workers=self.config.pdf_vl_workers,
+                max_pages=self.config.max_num_pages,
+                temperature=self.config.llm_temperature,
+                max_tokens=self.config.llm_max_tokens,
+            )
+            if self.config.markdown_escape_dimension_asterisks:
+                md = _escape_dimension_like_asterisks(md)
+            markdown_out.write_text(md, encoding="utf-8")
+            if self.config.enable_llm_refine:
+                refiner = self._create_llm_refiner()
+                if refiner is not None:
+                    self._apply_llm_refine_once_to_file(markdown_out, refiner)
             return
 
         if suffix not in _DOCLING_SUFFIXES:

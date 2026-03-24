@@ -71,6 +71,17 @@ python main.py --profile stable-chinese --input-dir ./data/input --output-dir ./
 
 仍 OOM 或内存不足时，在 profile 基础上再加 **`--low-memory`**（会强制 OCR 为 `fast`，表格精度可能下降）或 **`--no-tables`**。
 
+**PDF 方案 A（按页 Qwen-VL 验证，不经过 Docling）**：仅对 **`.pdf`** 生效。用 **PyMuPDF** 逐页渲染为 PNG，**每页一次**多模态 API 转写为 Markdown；需 **`DASHSCOPE_API_KEY`**（与 `--llm-base-url` 地域一致）。成本与 **页数** 成正比，试跑请配合 **`--max-num-pages`** / **`--max-files`**。支持 **页级并发** `--pdf-vl-workers`（如 10）。
+
+```powershell
+$env:DASHSCOPE_API_KEY="..."
+python main.py --pdf-vl-primary --pdf-vl-dpi 150 --pdf-vl-workers 10 --llm-model qwen3.5-plus `
+  --input-dir ./data/input --output-dir ./data/output --max-files 1 --max-num-pages 2
+```
+
+使用 **`qwen3.5-plus` + `--pdf-vl-primary`** 时，程序默认会自动调优（显式传参优先）：`--llm-temperature 0.0`、`--llm-max-tokens 16384`、`--pdf-vl-workers 10`。
+若还需对整篇 VL 结果做二次清洗，可加 **`--enable-llm`**（会额外调用 API）。
+
 **识别精度（`--ocr-quality`）**：此前为防 OOM 把扫描件 **`images_scale` 压得很低**（`fast` 档），会明显拖垮 OCR/表格。若已能跑通，建议对扫描规范类 PDF 使用 **`--scan --ocr-quality high`**（更高渲染分辨率、TableFormer **ACCURATE**、EasyOCR 阈值与中文优先语言顺序、扫描页整页 OCR）。**不启用** EasyOCR 的 `craft` 识别网络（默认安装常缺 `craft.yaml` 会报错）。更省内存用 **`fast`**。**`--low-memory`** 会强制等价于 **`fast`**。
 
 扫描件优先尝试（精度优先，若 OOM 再改回 `balanced` 或加 `--pipeline-concurrency low`）：
@@ -152,6 +163,8 @@ python main.py --input-dir ./data/input --output-dir ./data/output `
 
 - LLM 只处理 Docling 产物的 `.md`（不处理 `XLSX`，XLSX 仍走 pandas 导出）。
 - 由于 Qwen-VL 会读取图片上下文，Docling 输出中需要有 `![](<path>)` 图片引用；本项目默认最多把前 `6` 张图片喂给模型。
+- **Qwen3.5 思考模式**：HTTP 请求体顶层发送 **`enable_thinking: false`**（与 OpenAI Python SDK 的 `extra_body={"enable_thinking": false}` 等价展开），避免只出 `reasoning_content` 而 `content` 为空。若需深度思考，可加 **`--llm-enable-thinking`**（会额外消耗 completion token）。
+- **输出长度**：`--llm-max-tokens` 控制单次 **completion** 上限（与「最大输入/上下文」不同）；qwen3.5-plus 单路约可到 **64K**，页级转写若仍截断可再调高。
 
 ### 成本与安全
 
