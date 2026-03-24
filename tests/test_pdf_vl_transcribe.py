@@ -3,10 +3,21 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest.mock import MagicMock
 
-from src.pdf_vl_transcribe import transcribe_pdf_with_vl
+from src.pdf_vl_transcribe import _normalize_gfm_tables, transcribe_pdf_with_vl
 
 
 class TestPdfVlTranscribe(unittest.TestCase):
+    def test_normalize_gfm_tables_aligns_columns(self) -> None:
+        raw = (
+            "| A | B | C |\n"
+            "| --- | --- | --- |\n"
+            "| 1 | 2 |\n"
+            "| 3 | 4 | 5 | 6 |\n"
+        )
+        got = _normalize_gfm_tables(raw)
+        self.assertIn("| 1 | 2 |  |", got)
+        self.assertIn("| 3 | 4 | 5 | 6 |", got)
+
     def test_transcribe_calls_multimodal_per_page(self) -> None:
         try:
             import fitz
