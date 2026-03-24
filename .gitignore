@@ -1,2 +1,7 @@
 /.venv
 /out_md
+/out_md_2
+__pycache__/
+*.pyc
+/data/output/*
+!/data/output/.gitkeep
