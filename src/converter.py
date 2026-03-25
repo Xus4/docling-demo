@@ -19,6 +19,8 @@ from docling.datamodel.pipeline_options import (
 )
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.types.doc import ImageRefMode
+from docling_core.types.doc.document import DOCUMENT_TOKENS_EXPORT_LABELS
+from docling_core.types.doc.labels import DocItemLabel
 
 try:
     from docling.datamodel.pipeline_options import TableFormerMode
@@ -26,6 +28,12 @@ except ImportError:  # pragma: no cover - older docling
     TableFormerMode = None  # type: ignore[misc, assignment]
 
 _log = logging.getLogger(__name__)
+
+# Docling 默认 Markdown 导出标签，但排除版面模型识别的页眉/页脚（仍保留正文里的 section_header/title 等）
+_MARKDOWN_LABELS_WITHOUT_PAGE_HEADER_FOOTER: set[DocItemLabel] = (
+    DOCUMENT_TOKENS_EXPORT_LABELS
+    - {DocItemLabel.PAGE_HEADER, DocItemLabel.PAGE_FOOTER}
+)
 
 # Extensions routed to Docling (paginated / office / web / image)
 _DOCLING_SUFFIXES = {
@@ -105,6 +113,8 @@ class ConverterConfig:
     easyocr_bitmap_area_threshold: Optional[float] = None
     # 将「长宽高/尺寸」类写法中的 * 转义为 \*（全文，不仅表格），避免 2.0*2.0*2 被当成 Markdown 强调
     markdown_escape_dimension_asterisks: bool = True
+    # 导出 Markdown 时排除 DocItemLabel.PAGE_HEADER / PAGE_FOOTER（依赖版面模型标注）
+    markdown_exclude_page_header_footer: bool = True
 
     # ---- LLM post-process（DashScope 千问/Qwen-VL）----
     enable_llm_refine: bool = False
@@ -126,6 +136,8 @@ class ConverterConfig:
     llm_rerun_max_attempts: int = 1
     # Qwen3.5：思考模式会占用 completion token，content 可能为空；默认关闭（extra_body.enable_thinking）
     llm_enable_thinking: bool = False
+    # OpenAI 兼容：content 为空（含仅 reasoning）时最多请求次数，用尽仍空则抛错（见 DashScopeClient）
+    llm_empty_content_max_attempts: int = 3
     # ---- PDF 方案 A：按页渲染 + Qwen-VL 转写（不经过 Docling）----
     pdf_vl_primary: bool = False
     pdf_vl_dpi: float = 150.0
@@ -417,6 +429,7 @@ class IndustrialDocConverter:
             timeout_sec=self.config.llm_timeout_sec,
             max_retries=self.config.llm_max_retries,
             enable_thinking=self.config.llm_enable_thinking,
+            empty_content_max_attempts=self.config.llm_empty_content_max_attempts,
         )
         client = DashScopeClient(client_cfg)
         return DoclingMarkdownRefiner(
@@ -448,6 +461,7 @@ class IndustrialDocConverter:
             timeout_sec=self.config.llm_timeout_sec,
             max_retries=self.config.llm_max_retries,
             enable_thinking=self.config.llm_enable_thinking,
+            empty_content_max_attempts=self.config.llm_empty_content_max_attempts,
         )
         return DashScopeClient(client_cfg)
 
@@ -682,10 +696,10 @@ class IndustrialDocConverter:
                 kwargs["max_num_pages"] = self.config.max_num_pages
 
             result = conv.convert(str(source), **kwargs)
-            result.document.save_as_markdown(
-                markdown_out,
-                image_mode=ImageRefMode.REFERENCED,
-            )
+            md_kw: dict = {"image_mode": ImageRefMode.REFERENCED}
+            if self.config.markdown_exclude_page_header_footer:
+                md_kw["labels"] = _MARKDOWN_LABELS_WITHOUT_PAGE_HEADER_FOOTER
+            result.document.save_as_markdown(markdown_out, **md_kw)
 
             if self.config.markdown_escape_dimension_asterisks:
                 md = markdown_out.read_text(encoding="utf-8")

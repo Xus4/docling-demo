@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from src.dashscope_client import DashScopeClient, DashScopeClientConfig
 
@@ -45,6 +46,71 @@ class TestDashScopeExtract(unittest.TestCase):
         self.assertEqual(p.get("max_reasoning_tokens"), 128)
         self.assertNotIn("extra_body", p)
 
+    def test_chat_payload_thinking_off_zero_reasoning(self) -> None:
+        cfg = DashScopeClientConfig(
+            api_key="k",
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            enable_thinking=False,
+            max_reasoning_tokens=256,
+        )
+        c = DashScopeClient(cfg)
+        p = c._openai_chat_completions_payload(
+            model="qwen3.5-plus",
+            messages=[],
+            temperature=0.0,
+            max_tokens=100,
+        )
+        self.assertIs(p.get("enable_thinking"), False)
+        self.assertEqual(p.get("max_reasoning_tokens"), 0)
+
+    def test_chat_payload_force_disable_thinking(self) -> None:
+        cfg = DashScopeClientConfig(
+            api_key="k",
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            enable_thinking=True,
+            max_reasoning_tokens=512,
+        )
+        c = DashScopeClient(cfg)
+        p = c._openai_chat_completions_payload(
+            model="qwen",
+            messages=[],
+            temperature=None,
+            max_tokens=10,
+            force_disable_thinking=True,
+        )
+        self.assertIs(p.get("enable_thinking"), False)
+        self.assertEqual(p.get("max_reasoning_tokens"), 0)
+
+    def test_openai_generate_raises_after_empty_attempts(self) -> None:
+        cfg = DashScopeClientConfig(
+            api_key="k",
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            empty_content_max_attempts=2,
+        )
+        c = DashScopeClient(cfg)
+        empty = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "reasoning_content": "only here",
+                    }
+                }
+            ],
+            "id": "req-empty",
+        }
+        with patch.object(c, "_post_json", return_value=empty) as post:
+            with self.assertRaises(RuntimeError) as ctx:
+                c._openai_chat_completions_generate(
+                    "m",
+                    [{"role": "user", "content": "hi"}],
+                    temperature=0.1,
+                    max_tokens=50,
+                )
+        self.assertIn("仍为空", str(ctx.exception))
+        self.assertEqual(post.call_count, 2)
+
     def test_reasoning_only_response_detection(self) -> None:
         resp = {
             "choices": [
@@ -66,7 +132,8 @@ class TestDashScopeExtract(unittest.TestCase):
         ]
         out = DashScopeClient._append_guard_to_messages(msgs)
         self.assertNotEqual(out[0]["content"], "sys")
-        self.assertIn("必须在最终答案通道输出", out[0]["content"])
+        self.assertIn("content", out[0]["content"])
+        self.assertIn("禁止把可交付正文只写在推理", out[0]["content"])
 
 
 if __name__ == "__main__":

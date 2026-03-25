@@ -39,21 +39,25 @@ class DashScopeClientConfig:
     # Qwen3.5 / Qwen3-VL：思考模式会把正文放在 reasoning_content，content 可能为空。
     # 百炼文档：通过 extra_body.enable_thinking 控制；文档/转写默认关闭思考。
     enable_thinking: bool = False
-    # 保留思考能力的同时限制长度，避免只产生 reasoning_content 而正文为空。
+    # 仅 enable_thinking=True 时生效；关闭思考时请求里会强制 max_reasoning_tokens=0。
     max_reasoning_tokens: Optional[int] = 256
+    # OpenAI 兼容：assistant.content 为空（含仅 reasoning_content 有字）时额外重试次数（含首次共 N 次请求）
+    empty_content_max_attempts: int = 3
 
 
 class DashScopeClient:
     _FINAL_OUTPUT_GUARD = (
         "\n\n输出要求（必须遵守）："
-        "\n- 必须在最终答案通道输出可直接使用的最终文本（content）。"
-        "\n- 不要只输出思考过程。"
-        "\n- 不要输出解释你如何思考。"
+        "\n- 最终可用的 Markdown/正文必须写在 assistant 的 content 中，且为非空字符串。"
+        "\n- 禁止把可交付正文只写在推理/思考字段（reasoning）；推理字段不能替代 content。"
+        "\n- 不要输出「步骤 1」「分析表格结构」等过程说明，直接输出结果。"
+        "\n- 不要只输出思考过程；不要解释你如何思考。"
     )
 
     _RETRY_FORCE_FINAL = (
-        "\n\n你上一次只返回了思考过程。现在请只返回最终可用结果，"
-        "必须输出在 content 字段中；禁止输出思考过程。"
+        "\n\n【重试指令】上一次违反协议：content 为空但推理字段有内容，或正文未写入 content。"
+        "\n本次回复必须使 content 为非空最终 Markdown；禁止再用推理字段承载正文；"
+        "禁止输出思考过程。"
     )
 
     """
@@ -74,6 +78,7 @@ class DashScopeClient:
         messages: list[dict[str, Any]],
         temperature: Optional[float],
         max_tokens: Optional[int],
+        force_disable_thinking: bool = False,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {"model": model, "messages": messages}
         if temperature is not None:
@@ -82,9 +87,18 @@ class DashScopeClient:
             payload["max_tokens"] = int(max_tokens)
         # 百炼：Python SDK 里写在 extra_body 的字段，最终会并入请求 JSON 顶层。
         # 直接用 httpx 时若只包一层 extra_body，网关可能不展开，导致 enable_thinking 仍走模型默认（易变成思考模式）。
-        payload["enable_thinking"] = bool(self.cfg.enable_thinking)
-        if self.cfg.max_reasoning_tokens is not None:
-            payload["max_reasoning_tokens"] = int(self.cfg.max_reasoning_tokens)
+        if force_disable_thinking:
+            payload["enable_thinking"] = False
+            payload["max_reasoning_tokens"] = 0
+        else:
+            thinking = bool(self.cfg.enable_thinking)
+            payload["enable_thinking"] = thinking
+            if thinking:
+                if self.cfg.max_reasoning_tokens is not None:
+                    payload["max_reasoning_tokens"] = int(self.cfg.max_reasoning_tokens)
+            else:
+                # 关闭思考时仍可能消耗 reasoning_tokens 导致 content 为空，显式压零
+                payload["max_reasoning_tokens"] = 0
         return payload
 
     @classmethod
@@ -371,6 +385,80 @@ class DashScopeClient:
         return str(response_json)
 
     @staticmethod
+    def _extract_openai_assistant_text(response_json: dict[str, Any]) -> str:
+        """仅从 OpenAI 兼容 choices[0].message 取正文；失败返回空串（不用整段 JSON 兜底）。"""
+        try:
+            ch = response_json.get("choices") or []
+            if not ch:
+                return ""
+            msg = (ch[0] or {}).get("message") or {}
+            return DashScopeClient._openai_message_to_text(
+                msg, usage=response_json.get("usage")
+            )
+        except Exception:
+            return ""
+
+    def _openai_chat_completions_generate(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        *,
+        temperature: Optional[float],
+        max_tokens: Optional[int],
+    ) -> str:
+        """
+        OpenAI 兼容 /chat/completions：带输出约束与「空 content」重试。
+
+        Qwen3.5 等模型可能把全文写进 reasoning_content；此处禁止接受该结果，
+        在 empty_content_max_attempts 次内强制关闭思考并重试，仍失败则抛错。
+        """
+        url = self.cfg.base_url.rstrip("/") + "/chat/completions"
+        n = max(1, min(10, int(self.cfg.empty_content_max_attempts)))
+        last_json: Optional[dict[str, Any]] = None
+
+        for attempt in range(n):
+            retry_hint = attempt > 0
+            guarded = self._append_guard_to_messages(messages, retry_hint=retry_hint)
+            om = self._messages_to_openai_format(guarded)
+            force_off = attempt > 0
+            temp = temperature
+            if attempt > 0:
+                if temp is None:
+                    temp = 0.0
+                else:
+                    temp = min(float(temp), 0.2)
+
+            payload = self._openai_chat_completions_payload(
+                model=model,
+                messages=om,
+                temperature=temp,
+                max_tokens=max_tokens,
+                force_disable_thinking=force_off,
+            )
+            response_json = self._post_json(url, payload)
+            last_json = response_json
+            text = self._extract_openai_assistant_text(response_json)
+            if text.strip():
+                return text
+
+            rid = response_json.get("id") or response_json.get("request_id")
+            ro = self._is_reasoning_only_openai_response(response_json)
+            _log.warning(
+                "OpenAI 兼容接口无可用正文: attempt=%s/%s reasoning_only=%s request_id=%s",
+                attempt + 1,
+                n,
+                ro,
+                rid,
+            )
+
+        last_id = (last_json or {}).get("id") or (last_json or {}).get("request_id")
+        raise RuntimeError(
+            "DashScope OpenAI 兼容接口在 "
+            f"{n} 次尝试后 assistant.content 仍为空（reasoning_content 不计入正文）。"
+            f" last_request_id={last_id!r}"
+        )
+
+    @staticmethod
     def _is_reasoning_only_openai_response(response_json: dict[str, Any]) -> bool:
         """判断是否出现了 reasoning_content 非空但 content 为空的响应。"""
         try:
@@ -400,72 +488,6 @@ class DashScopeClient:
         except Exception:
             return False
 
-    def generate_text(
-        self,
-        model: str,
-        messages: list[dict[str, Any]],
-        *,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        result_format: str = "message",
-    ) -> str:
-        base = self.cfg.base_url.rstrip("/")
-        if _is_openai_compatible_base_url(base):
-            url = base + "/chat/completions"
-            guarded_messages = (
-                self._append_guard_to_messages(messages)
-                if self.cfg.enable_thinking
-                else messages
-            )
-            om = self._messages_to_openai_format(guarded_messages)
-            payload = self._openai_chat_completions_payload(
-                model=model,
-                messages=om,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            response_json = self._post_json(url, payload)
-            text = self._extract_text(response_json)
-            if text.strip():
-                return text
-            if self.cfg.enable_thinking and self._is_reasoning_only_openai_response(
-                response_json
-            ):
-                _log.warning(
-                    "Reasoning-only response detected; retry once with forced-final-output hint."
-                )
-                retry_messages = self._append_guard_to_messages(messages, retry_hint=True)
-                retry_payload = self._openai_chat_completions_payload(
-                    model=model,
-                    messages=self._messages_to_openai_format(retry_messages),
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
-                # 兜底重试时进一步压缩思考 token 预算，提高正文落到 content 的概率。
-                if self.cfg.max_reasoning_tokens is None:
-                    retry_payload["max_reasoning_tokens"] = 128
-                else:
-                    retry_payload["max_reasoning_tokens"] = max(
-                        32, min(int(self.cfg.max_reasoning_tokens), 128)
-                    )
-                retry_json = self._post_json(url, retry_payload)
-                retry_text = self._extract_text(retry_json)
-                if retry_text.strip():
-                    return retry_text
-            return text
-        url = base + "/services/aigc/text-generation/generation"
-        payload = {
-            "model": model,
-            "input": {"messages": messages},
-            "parameters": {"result_format": result_format},
-        }
-        if temperature is not None:
-            payload["parameters"]["temperature"] = float(temperature)
-        if max_tokens is not None:
-            payload["parameters"]["max_tokens"] = int(max_tokens)
-        response_json = self._post_json(url, payload)
-        return self._extract_text(response_json)
-
     def generate_multimodal(
         self,
         model: str,
@@ -477,47 +499,12 @@ class DashScopeClient:
     ) -> str:
         base = self.cfg.base_url.rstrip("/")
         if _is_openai_compatible_base_url(base):
-            url = base + "/chat/completions"
-            guarded_messages = (
-                self._append_guard_to_messages(messages)
-                if self.cfg.enable_thinking
-                else messages
-            )
-            om = self._messages_to_openai_format(guarded_messages)
-            payload = self._openai_chat_completions_payload(
-                model=model,
-                messages=om,
+            return self._openai_chat_completions_generate(
+                model,
+                messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-            response_json = self._post_json(url, payload)
-            text = self._extract_text(response_json)
-            if text.strip():
-                return text
-            if self.cfg.enable_thinking and self._is_reasoning_only_openai_response(
-                response_json
-            ):
-                _log.warning(
-                    "Reasoning-only response detected; retry once with forced-final-output hint."
-                )
-                retry_messages = self._append_guard_to_messages(messages, retry_hint=True)
-                retry_payload = self._openai_chat_completions_payload(
-                    model=model,
-                    messages=self._messages_to_openai_format(retry_messages),
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
-                if self.cfg.max_reasoning_tokens is None:
-                    retry_payload["max_reasoning_tokens"] = 128
-                else:
-                    retry_payload["max_reasoning_tokens"] = max(
-                        32, min(int(self.cfg.max_reasoning_tokens), 128)
-                    )
-                retry_json = self._post_json(url, retry_payload)
-                retry_text = self._extract_text(retry_json)
-                if retry_text.strip():
-                    return retry_text
-            return text
         url = base + "/services/aigc/multimodal-generation/generation"
         payload = {
             "model": model,

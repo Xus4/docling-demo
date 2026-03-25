@@ -249,6 +249,11 @@ def main() -> int:
         action="store_true",
         help="关闭导出后对「数字*数字」类尺寸写法的 * 转义（默认开启，避免 2.0*2.0*2 被 Markdown 当成强调）",
     )
+    parser.add_argument(
+        "--keep-page-header-footer",
+        action="store_true",
+        help="保留 Docling 识别为页眉/页脚的文本块（默认在导出 Markdown 时排除）",
+    )
 
     # ---- LLM post-process（DashScope/Qwen-VL）----
     parser.add_argument(
@@ -293,6 +298,16 @@ def main() -> int:
         help=(
             "启用 Qwen3.5 等模型的思考模式（正文走 content，思考走 reasoning_content，"
             "会额外消耗 completion token；文档转写默认关闭）。"
+        ),
+    )
+    parser.add_argument(
+        "--llm-empty-content-retries",
+        type=int,
+        default=3,
+        metavar="N",
+        help=(
+            "OpenAI 兼容接口下 content 为空（含仅 reasoning 有字）时最多请求次数（默认 3）；"
+            "用尽仍空则报错，不接受空正文。"
         ),
     )
     parser.add_argument(
@@ -471,6 +486,9 @@ def main() -> int:
     if args.pdf_vl_table_second_pass_max_tables < 1:
         log.error("--pdf-vl-table-second-pass-max-tables 必须 >= 1")
         return 2
+    if not (1 <= int(args.llm_empty_content_retries) <= 10):
+        log.error("--llm-empty-content-retries 须在 1~10 之间")
+        return 2
 
     if args.profile != "default":
         log.info(
@@ -507,6 +525,7 @@ def main() -> int:
         easyocr_confidence=args.ocr_confidence,
         easyocr_bitmap_area_threshold=args.ocr_bitmap_threshold,
         markdown_escape_dimension_asterisks=not args.no_escape_dimension_asterisks,
+        markdown_exclude_page_header_footer=not args.keep_page_header_footer,
         images_scale=2.0 if rich else args.images_scale,
         generate_page_images=rich,
         generate_picture_images=not args.low_memory,
@@ -520,6 +539,7 @@ def main() -> int:
         llm_temperature=float(args.llm_temperature),
         llm_max_tokens=args.llm_max_tokens,
         llm_enable_thinking=bool(args.llm_enable_thinking),
+        llm_empty_content_max_attempts=int(args.llm_empty_content_retries),
         llm_allow_rerun=bool(args.llm_allow_rerun),
         llm_vl_image_mode=str(args.llm_vl_image_mode),
 

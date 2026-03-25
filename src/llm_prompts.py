@@ -1,12 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class CleanupPromptInputs:
-    original_markdown: str
-
 
 def build_cleanup_messages(original_markdown: str) -> list[dict]:
     """
