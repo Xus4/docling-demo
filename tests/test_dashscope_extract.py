@@ -1,7 +1,11 @@
 import unittest
 from unittest.mock import patch
 
-from src.dashscope_client import DashScopeClient, DashScopeClientConfig
+from src.dashscope_client import (
+    DashScopeClient,
+    DashScopeClientConfig,
+    _is_openai_compatible_base_url,
+)
 
 
 class TestDashScopeExtract(unittest.TestCase):
@@ -134,6 +138,26 @@ class TestDashScopeExtract(unittest.TestCase):
         self.assertNotEqual(out[0]["content"], "sys")
         self.assertIn("content", out[0]["content"])
         self.assertIn("禁止把可交付正文只写在推理", out[0]["content"])
+
+    def test_openai_compat_url_detection_ollama(self) -> None:
+        self.assertTrue(
+            _is_openai_compatible_base_url("http://localhost:11434/v1")
+        )
+        self.assertTrue(_is_openai_compatible_base_url("http://127.0.0.1:11434/v1/"))
+
+    def test_openai_compat_url_detection_dashscope_native(self) -> None:
+        self.assertFalse(
+            _is_openai_compatible_base_url(
+                "https://dashscope.aliyuncs.com/api/v1"
+            )
+        )
+
+    def test_openai_compat_url_detection_dashscope_openai(self) -> None:
+        self.assertTrue(
+            _is_openai_compatible_base_url(
+                "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -25,7 +25,23 @@ _EXT_TO_MIME: dict[str, str] = {
 
 
 def _is_openai_compatible_base_url(base_url: str) -> bool:
-    return "compatible-mode" in (base_url or "").lower()
+    """
+    是否对多模态请求走 OpenAI 兼容 ``/chat/completions``（而非百炼原生 multimodal 专线路径）。
+
+    - 百炼 OpenAI 兼容：URL 含 ``compatible-mode``。
+    - 百炼原生 DashScope：``…/api/v1`` → 走 ``/services/aigc/multimodal-generation/…``。
+    - Ollama / vLLM 等：基址常为 ``…/v1``，与 OpenAI 官方一致，应走 ``/v1/chat/completions``。
+    """
+    u = (base_url or "").lower().rstrip("/")
+    if not u:
+        return False
+    if "compatible-mode" in u:
+        return True
+    # 百炼原生：…/api/v1 必须用专用接口，不能拼 /chat/completions
+    if "dashscope" in u and u.endswith("/api/v1"):
+        return False
+    # 常见 OpenAI 兼容服务（含 Ollama 默认 http://localhost:11434/v1）
+    return u.endswith("/v1")
 
 
 @dataclass(frozen=True)
