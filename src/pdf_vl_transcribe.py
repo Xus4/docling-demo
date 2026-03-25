@@ -36,7 +36,9 @@ _VL_SYSTEM = (
     "6) 表格严格要求：每个数据行列数必须与表头一致；不确定的单元格留空，不要串列或跨列。\n"
     "7) 单元格内若包含竖线字符，请写成 \\|，不要新增列。\n"
     "8) 不要重复自我校验或思考过程，只输出最终 Markdown。\n"
-    "9) 模型应答时：可交付正文必须出现在 content；禁止把整页转写只放在推理/思考字段。"
+    "9) 模型应答时：可交付正文必须出现在 content；禁止把整页转写只放在推理/思考字段。\n"
+    "10) 表格含勾选/对钩（✓、√、手写勾）时：请逐格核对每一列，尤其最右侧若干列与靠近表格右边缘、"
+    "下边缘的单元格；凡可见勾选须写入对应格，避免只读左侧而漏读右上/右侧勾选格。"
 )
 
 _VL_USER_TMPL = (
@@ -157,6 +159,9 @@ def _is_suspicious_table(tb_md: str) -> bool:
     ncols = table_column_count(tb_md)
     if ncols <= 1:
         return False
+    # 列数较多的核查/登记表：右侧勾选列漏检更常见，走二次校对（与页图对照）
+    if ncols >= 8:
+        return True
     for row in lines:
         cols = len(_split_gfm_row(row))
         if cols != ncols:
@@ -173,11 +178,38 @@ def _is_suspicious_table(tb_md: str) -> bool:
     return False
 
 
+def _table_cleanup_messages_with_page_image(
+    *,
+    original_table_markdown: str,
+    context_text: str,
+    page_image_path: Path,
+) -> list[dict]:
+    """
+    与 Docling 流程中 cleanup_tables_per_block 一致：表格纠错请求附带本页渲染图，
+    便于对照最右列/靠边格的勾选符号（二次校对此前未传图，无法补漏）。
+    """
+    messages = build_table_cleanup_messages(
+        original_table_markdown=original_table_markdown,
+        context_text=context_text,
+    )
+    user_text = ""
+    for m in messages:
+        if m.get("role") == "user":
+            user_text = str(m.get("content") or "")
+            break
+    user_message = {
+        "role": "user",
+        "content": [{"image": str(page_image_path)}] + [{"text": user_text}],
+    }
+    return [m for m in messages if m.get("role") != "user"] + [user_message]
+
+
 def _review_suspicious_tables_with_llm(
     *,
     client: DashScopeClient,
     model: str,
     page_md: str,
+    page_image_path: Path,
     temperature: Optional[float],
     max_tokens: Optional[int],
     max_tables: int,
@@ -195,9 +227,10 @@ def _review_suspicious_tables_with_llm(
             continue
         context_start = max(0, tb.start_line - 2)
         context_text = "\n".join(lines[context_start : tb.start_line]).strip()
-        messages = build_table_cleanup_messages(
+        messages = _table_cleanup_messages_with_page_image(
             original_table_markdown=tb.markdown,
             context_text=context_text,
+            page_image_path=page_image_path,
         )
         raw = client.generate_multimodal(
             model,
@@ -341,6 +374,7 @@ def transcribe_pdf_with_vl(
                         client=client,
                         model=model,
                         page_md=page_md,
+                        page_image_path=image_path,
                         temperature=temperature,
                         max_tokens=max_tokens,
                         max_tables=max(1, int(table_second_pass_max_tables)),
