@@ -1,6 +1,9 @@
 """
 Batch entry: mirror ``data/input/**`` into ``data/output/**`` as Markdown.
 
+多模型对比：在 ``--output-dir`` 下按模型分子目录（``--output-by-model``），例如
+``data/output/qwen3-vl-plus/...`` 与 ``data/output/qwen3.5-plus/...``。
+
 一键验证（项目根目录）::
 
     python main.py --input-dir ./data/input --output-dir ./data/output
@@ -14,10 +17,12 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+DEFAULT_LOG_FILE = ROOT / "data" / "output" / "convert.log"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -29,6 +34,27 @@ for _stream in (sys.stdout, sys.stderr):
             pass
 
 from src.converter import ConverterConfig, IndustrialDocConverter
+
+
+def _sanitize_model_dir(name: str) -> str:
+    """将模型名转为可用作目录名的片段（跨平台安全）。"""
+    s = str(name).strip()
+    for bad in '/\\:*?"<>|':
+        s = s.replace(bad, "_")
+    s = re.sub(r"\s+", "_", s)
+    s = re.sub(r"_+", "_", s).strip("._")
+    return s[:120] if s else "model"
+
+
+def _effective_output_dir(args: argparse.Namespace, output_root: Path) -> Path:
+    """
+    若开启 --output-by-model：在 output_root 下按模型名（或纯 Docling 基线 docling/）分子目录。
+    """
+    if not bool(getattr(args, "output_by_model", False)):
+        return output_root
+    if args.enable_llm or args.pdf_vl_primary:
+        return output_root / _sanitize_model_dir(str(args.llm_model))
+    return output_root / "docling"
 
 
 def _argv_contains_flag(argv: list[str], flag: str) -> bool:
@@ -125,12 +151,21 @@ def main() -> int:
         "--output-dir",
         type=Path,
         default=ROOT / "data" / "output",
-        help="Markdown 与抽取图片输出根目录",
+        help="Markdown 与抽取图片输出根目录；配合 --output-by-model 时作为父目录，其下按模型名再分子目录",
+    )
+    parser.add_argument(
+        "--output-by-model",
+        action="store_true",
+        help=(
+            "启用后在 --output-dir 下按模型分类输出："
+            "使用 --enable-llm 或 --pdf-vl-primary 时子目录名为 --llm-model 的净化名；"
+            "否则为子目录 docling（仅 Docling/表格等，未走大模型）。便于多模型质量对比。"
+        ),
     )
     parser.add_argument(
         "--log-file",
         type=Path,
-        default=ROOT / "data" / "output" / "convert.log",
+        default=DEFAULT_LOG_FILE,
         help="日志文件路径",
     )
     parser.add_argument(
@@ -210,6 +245,11 @@ def main() -> int:
         type=int,
         default=0,
         help="最多处理多少个文件；0 表示不限制",
+    )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="若目标 .md 已存在则跳过该文件，不重复转换",
     )
     parser.add_argument(
         "--max-file-size",
@@ -392,15 +432,25 @@ def main() -> int:
     apply_cli_profile(args, sys.argv)
     apply_model_tuning(args, sys.argv)
 
-    log_path: Path | None = None if args.no_log_file else args.log_file
+    output_root = args.output_dir.resolve()
+    output_dir = _effective_output_dir(args, output_root)
+    if not args.no_log_file:
+        if args.output_by_model and args.log_file.resolve() == DEFAULT_LOG_FILE.resolve():
+            log_path: Path | None = output_dir / "convert.log"
+        else:
+            log_path = args.log_file
+    else:
+        log_path = None
     _configure_logging(log_path, args.verbose)
     log = logging.getLogger("main")
 
     input_dir: Path = args.input_dir.resolve()
-    output_dir: Path = args.output_dir.resolve()
     if not input_dir.is_dir():
         log.error("输入目录不存在: %s", input_dir)
         return 2
+
+    if args.output_by_model:
+        log.info("按模型分类输出：父目录=%s，本趟写入=%s", output_root, output_dir)
 
     device = "cpu" if args.cpu else args.device.strip()
     if device.lower().startswith("cuda"):
@@ -568,7 +618,7 @@ def main() -> int:
         return 0
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    ok, failed = 0, 0
+    ok, failed, skipped = 0, 0, 0
     total = len(files)
 
     for i, src in enumerate(files, start=1):
@@ -576,6 +626,10 @@ def main() -> int:
         md_out = (output_dir / rel).with_suffix(".md")
         pct = 100.0 * i / total
         log.info("[%s/%s] (%.1f%%) %s", i, total, pct, src)
+        if args.skip_existing and md_out.is_file():
+            log.info("         (跳过，已存在: %s)", md_out)
+            skipped += 1
+            continue
         try:
             converter.convert_path_to_markdown(src, md_out)
             log.info("         => %s", md_out)
@@ -589,7 +643,13 @@ def main() -> int:
             failed += 1
             converter.invalidate_converter_cache()
 
-    log.info("完成: 成功 %s, 失败 %s, 输出目录 %s", ok, failed, output_dir)
+    log.info(
+        "完成: 成功 %s, 失败 %s, 跳过 %s, 输出目录 %s",
+        ok,
+        failed,
+        skipped,
+        output_dir,
+    )
     return 0 if failed == 0 else 1
 
 

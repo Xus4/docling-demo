@@ -17,7 +17,7 @@ from docling.datamodel.pipeline_options import (
     TableStructureOptions,
     TesseractOcrOptions,
 )
-from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.document_converter import DocumentConverter, PdfFormatOption, WordFormatOption
 from docling_core.types.doc import ImageRefMode
 from docling_core.types.doc.document import DOCUMENT_TOKENS_EXPORT_LABELS
 from docling_core.types.doc.labels import DocItemLabel
@@ -392,6 +392,8 @@ class IndustrialDocConverter:
                 ],
                 format_options={
                     InputFormat.PDF: pdf_fmt,
+                    # DOCX：显式注册 Word 管线（与 Docling 默认一致）
+                    InputFormat.DOCX: WordFormatOption(),
                     InputFormat.PPTX: pdf_fmt,
                     InputFormat.IMAGE: pdf_fmt,
                 },

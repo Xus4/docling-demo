@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 from src.pdf_vl_transcribe import (
     _is_suspicious_table,
     _normalize_gfm_tables,
+    _table_cleanup_messages_with_page_image,
     transcribe_pdf_with_vl,
 )
 
@@ -69,6 +70,28 @@ class TestPdfVlTranscribe(unittest.TestCase):
         )
         self.assertTrue(_is_suspicious_table(bad))
         self.assertFalse(_is_suspicious_table(good))
+
+    def test_wide_table_is_suspicious(self) -> None:
+        """列数≥8 的核查表走二次校对（与页图对照），减轻右侧勾选漏检。"""
+        header = "| " + " | ".join([f"c{i}" for i in range(8)]) + " |"
+        sep = "| " + " | ".join(["---"] * 8) + " |"
+        row = "| " + " | ".join([str(i) for i in range(8)]) + " |"
+        wide = f"{header}\n{sep}\n{row}\n"
+        self.assertTrue(_is_suspicious_table(wide))
+
+    def test_table_cleanup_messages_include_page_image(self) -> None:
+        img = Path("/tmp/page.png")
+        msgs = _table_cleanup_messages_with_page_image(
+            original_table_markdown="| a | b |\n| --- | --- |\n| 1 | 2 |\n",
+            context_text="ctx",
+            page_image_path=img,
+        )
+        user_msgs = [m for m in msgs if m.get("role") == "user"]
+        self.assertEqual(len(user_msgs), 1)
+        content = user_msgs[0]["content"]
+        self.assertIsInstance(content, list)
+        self.assertEqual(content[0].get("image"), str(img))
+        self.assertIn("原始表格", content[1].get("text", ""))
 
 
 if __name__ == "__main__":
