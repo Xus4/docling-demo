@@ -430,9 +430,18 @@ def main() -> int:
 
     parser.add_argument(
         "--llm-table-caption",
+        dest="llm_table_caption",
         action="store_true",
-        help="为每个 Markdown 表格生成一段语义补偿说明，并插入到表格下方。",
+        default=True,
+        help="为每个 Markdown 表格生成表格信息转述，并插入到表格下方。",
     )
+    parser.add_argument(
+        "--no-llm-table-caption",
+        dest="llm_table_caption",
+        action="store_false",
+        help="关闭表格信息转述。",
+    )
+
     parser.add_argument(
         "--llm-table-caption-max-tables",
         type=int,
@@ -442,7 +451,7 @@ def main() -> int:
     parser.add_argument(
         "--llm-table-caption-max-chars",
         type=int,
-        default=220,
+        default=500,
         help="每个表格说明的最大字符数。",
     )
     parser.add_argument(
@@ -451,6 +460,20 @@ def main() -> int:
         default=3,
         help="生成表格说明时，表格前后各带多少行上下文。",
     )
+
+    parser.add_argument(
+        "--pdf-caption-crop-figures",
+        action="store_true",
+        help="在 pdf-vl-primary 模式下，按 Markdown 中识别到的图题，从扫描页整页渲染图中裁出局部插图并写入 Markdown",
+    )
+    parser.add_argument(
+        "--pdf-caption-crop-max-per-page",
+        type=int,
+        default=4,
+        metavar="N",
+        help="每页最多按图题裁出多少张图（默认 4）",
+    )
+
 
 
     args = parser.parse_args()
@@ -637,6 +660,9 @@ def main() -> int:
         pdf_vl_embed_page_images=bool(args.pdf_vl_embed_page_images),
         pdf_vl_table_second_pass=not bool(args.no_pdf_vl_table_second_pass),
         pdf_vl_table_second_pass_max_tables=int(args.pdf_vl_table_second_pass_max_tables),
+        pdf_caption_crop_figures=bool(args.pdf_caption_crop_figures),
+        pdf_caption_crop_max_per_page=int(args.pdf_caption_crop_max_per_page),
+
     )
     converter = IndustrialDocConverter(cfg)
 
