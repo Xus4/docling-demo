@@ -138,6 +138,10 @@ class ConverterConfig:
     llm_enable_thinking: bool = False
     # OpenAI 兼容：content 为空（含仅 reasoning）时最多请求次数，用尽仍空则抛错（见 DashScopeClient）
     llm_empty_content_max_attempts: int = 3
+
+    llm_table_caption: bool = False
+    llm_table_caption_max_tables: int = 20
+    llm_table_caption_max_chars: int = 800
     # ---- PDF 方案 A：按页渲染 + Qwen-VL 转写（不经过 Docling）----
     pdf_vl_primary: bool = False
     pdf_vl_dpi: float = 150.0
@@ -656,6 +660,13 @@ class IndustrialDocConverter:
                 refiner = self._create_llm_refiner()
                 if refiner is not None:
                     self._apply_llm_refine_once_to_file(markdown_out, refiner)
+
+            if self.config.llm_table_caption:
+                final_md = markdown_out.read_text(encoding="utf-8")
+                final_md = self._append_table_captions_to_markdown(final_md)
+                if self.config.markdown_escape_dimension_asterisks:
+                    final_md = _escape_dimension_like_asterisks(final_md)
+                markdown_out.write_text(final_md, encoding="utf-8")
             return
 
         if suffix not in _DOCLING_SUFFIXES:
@@ -802,6 +813,16 @@ class IndustrialDocConverter:
                 _log.exception("LLM refine failed; fallback to docling md: %s", repr(e))
             break
 
+        # 所有 LLM refine / rerun 完成后，统一补表格语义说明
+        if self.config.llm_table_caption and markdown_out.exists():
+            try:
+                final_md = markdown_out.read_text(encoding="utf-8")
+                final_md = self._append_table_captions_to_markdown(final_md)
+                if self.config.markdown_escape_dimension_asterisks:
+                    final_md = _escape_dimension_like_asterisks(final_md)
+                markdown_out.write_text(final_md, encoding="utf-8")
+            except Exception as e:  # noqa: BLE001
+                _log.exception("Append table captions failed: %s", repr(e))
         self.config = original_cfg
         if last_qc_score is not None:
             _log.info("LLM quality_check last score=%s", last_qc_score)
@@ -817,3 +838,162 @@ class IndustrialDocConverter:
             suf = path.suffix.lower()
             if suf in _DOCLING_SUFFIXES | _XLSX_SUFFIXES:
                 yield path
+    
+    def _should_caption_table(self, table_markdown: str) -> bool:
+        """
+        过滤掉太短、太小、信息量太低的表格，避免无意义补偿。
+        """
+        if not table_markdown or not table_markdown.strip():
+            return False
+
+        lines = [x for x in table_markdown.splitlines() if x.strip()]
+        if len(lines) < 3:  # 至少 header + 分隔行 + 1 行数据
+            return False
+
+        first = lines[0].strip()
+        if not (first.startswith("|") and first.count("|") >= 2):
+            return False
+
+        cols = max(0, first.count("|") - 1)
+        if cols < 2:
+            return False
+
+        # 太短通常没有补充价值
+        if len(table_markdown.strip()) < 40:
+            return False
+
+        return True
+    
+
+    def _build_table_context_text(
+        self,
+        markdown_text: str,
+        start_line: int,
+        end_line: int,
+        context_lines: int = 2,
+    ) -> str:
+        lines = markdown_text.splitlines()
+        s = max(0, start_line - context_lines)
+        e = min(len(lines), end_line + 1 + context_lines)
+
+        before = "\n".join(lines[s:start_line]).strip()
+        after = "\n".join(lines[end_line + 1:e]).strip()
+
+        parts: list[str] = []
+        if before:
+            parts.append("【前文】\n" + before)
+        if after:
+            parts.append("【后文】\n" + after)
+        return "\n\n".join(parts).strip()
+    
+    def _append_table_captions_to_markdown(self, markdown_text: str) -> str:
+        if not self.config.llm_table_caption:
+            return markdown_text
+
+        from src.vl_markdown_utils import extract_markdown_table_blocks
+
+        client = self._create_dashscope_client()
+        if client is None:
+            _log.warning("llm_table_caption enabled but DashScope client unavailable; skip.")
+            return markdown_text
+
+        blocks = extract_markdown_table_blocks(markdown_text)
+        if not blocks:
+            return markdown_text
+
+        max_tables = max(0, int(self.config.llm_table_caption_max_tables))
+        if max_tables <= 0:
+            return markdown_text
+
+        lines = markdown_text.splitlines()
+        inserts: list[tuple[int, list[str]]] = []
+
+        handled = 0
+        for block in blocks:
+            if handled >= max_tables:
+                break
+            if not self._should_caption_table(block.markdown):
+                continue
+
+            context_text = self._build_table_context_text(
+                markdown_text,
+                start_line=block.start_line,
+                end_line=block.end_line,
+                context_lines=max(0, int(self.config.llm_table_context_lines)),
+            )
+
+            caption = self._generate_table_caption_text(
+                client=client,
+                table_markdown=block.markdown,
+                context_text=context_text,
+            )
+            if not caption:
+                continue
+
+            insert_after = block.end_line + 1
+            insert_block = [
+                "",
+                f"> **表格信息：** {caption}"
+                "",
+            ]
+            inserts.append((insert_after, insert_block))
+            handled += 1
+
+        if not inserts:
+            return markdown_text
+
+        # 倒序插入，避免行号漂移
+        for insert_after, insert_block in reversed(inserts):
+            lines[insert_after:insert_after] = insert_block
+
+        return "\n".join(lines)
+
+    def _generate_table_caption_text(
+        self,
+        *,
+        client: "DashScopeClient",
+        table_markdown: str,
+        context_text: str,
+    ) -> Optional[str]:
+        try:
+            from src.llm_prompts import build_table_caption_messages
+
+            messages = build_table_caption_messages(
+                table_markdown=table_markdown,
+                context_text=context_text,
+                max_chars=self.config.llm_table_caption_max_chars,
+            )
+            text = client.generate_multimodal(
+                model=self.config.llm_model,
+                messages=messages,
+                temperature=0.0,
+                max_tokens=min(256, int(self.config.llm_max_tokens or 256)),
+            )
+            text = (text or "").strip()
+
+            if not text:
+                return None
+
+            # 清掉模型可能带出来的代码块/多余前缀
+            text = re.sub(r"^```[a-zA-Z]*\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+            text = re.sub(r"^(该表列出了|该表说明了|该表展示了|该表反映了)", "", text).strip()
+
+            # 单段化，避免太长
+            text = re.sub(r"\n+", " ", text).strip()
+            if not text:
+                return None
+
+            max_chars = max(20, int(self.config.llm_table_caption_max_chars))
+            if len(text) > max_chars:
+                text = text[:max_chars].rstrip("，,;；。 ") + "。"
+
+            return text
+        except Exception as e:  # noqa: BLE001
+            _log.exception("Generate table caption failed: %s", repr(e))
+            return None
+    
+    
+
+
+

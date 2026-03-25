@@ -428,6 +428,31 @@ def main() -> int:
         help="每页最多二次校对多少个可疑表格（默认 3）。",
     )
 
+    parser.add_argument(
+        "--llm-table-caption",
+        action="store_true",
+        help="为每个 Markdown 表格生成一段语义补偿说明，并插入到表格下方。",
+    )
+    parser.add_argument(
+        "--llm-table-caption-max-tables",
+        type=int,
+        default=20,
+        help="每个文档最多为多少个表格生成语义补偿。",
+    )
+    parser.add_argument(
+        "--llm-table-caption-max-chars",
+        type=int,
+        default=220,
+        help="每个表格说明的最大字符数。",
+    )
+    parser.add_argument(
+        "--llm-table-caption-context-lines",
+        type=int,
+        default=3,
+        help="生成表格说明时，表格前后各带多少行上下文。",
+    )
+
+
     args = parser.parse_args()
     apply_cli_profile(args, sys.argv)
     apply_model_tuning(args, sys.argv)
@@ -598,7 +623,13 @@ def main() -> int:
         llm_table_cleanup_max_images_per_table=int(
             args.llm_table_max_images_per_table
         ),
-        llm_table_context_lines=int(args.llm_table_context_lines),
+
+
+        llm_table_caption=bool(args.llm_table_caption),
+        llm_table_caption_max_tables=int(args.llm_table_caption_max_tables),
+        llm_table_caption_max_chars=int(args.llm_table_caption_max_chars),
+        llm_table_context_lines=int(args.llm_table_caption_context_lines),
+
 
         pdf_vl_primary=bool(args.pdf_vl_primary),
         pdf_vl_dpi=float(args.pdf_vl_dpi),
