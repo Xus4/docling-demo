@@ -646,12 +646,13 @@ def main() -> int:
         llm_table_cleanup_max_images_per_table=int(
             args.llm_table_max_images_per_table
         ),
+        llm_table_context_lines=int(args.llm_table_context_lines),
 
 
         llm_table_caption=bool(args.llm_table_caption),
         llm_table_caption_max_tables=int(args.llm_table_caption_max_tables),
         llm_table_caption_max_chars=int(args.llm_table_caption_max_chars),
-        llm_table_context_lines=int(args.llm_table_caption_context_lines),
+        llm_table_caption_context_lines=int(args.llm_table_caption_context_lines),
 
 
         pdf_vl_primary=bool(args.pdf_vl_primary),

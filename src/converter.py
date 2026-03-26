@@ -142,6 +142,7 @@ class ConverterConfig:
     llm_table_caption: bool = False
     llm_table_caption_max_tables: int = 20
     llm_table_caption_max_chars: int = 800
+    llm_table_caption_context_lines: int = 3
     # ---- PDF 方案 A：按页渲染 + Qwen-VL 转写（不经过 Docling）----
     pdf_vl_primary: bool = False
     pdf_vl_dpi: float = 150.0
@@ -150,6 +151,9 @@ class ConverterConfig:
     pdf_vl_table_second_pass_max_tables: int = 3
     # 是否在 markdown 中嵌入每页渲染图（默认关闭，避免把整页截图当“插图”）
     pdf_vl_embed_page_images: bool = False
+    pdf_caption_crop_figures: bool = False
+    pdf_caption_crop_max_per_page: int = 4
+
 
 
 def _escape_dimension_like_asterisks(text: str) -> str:
@@ -647,6 +651,8 @@ class IndustrialDocConverter:
                 dpi=self.config.pdf_vl_dpi,
                 workers=self.config.pdf_vl_workers,
                 embed_page_images=self.config.pdf_vl_embed_page_images,
+                caption_crop_figures=self.config.pdf_caption_crop_figures,
+                caption_crop_max_per_page=self.config.pdf_caption_crop_max_per_page,
                 table_second_pass=self.config.pdf_vl_table_second_pass,
                 table_second_pass_max_tables=self.config.pdf_vl_table_second_pass_max_tables,
                 max_pages=self.config.max_num_pages,
