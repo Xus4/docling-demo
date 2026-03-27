@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable, Literal, Optional, Union
 
 import pandas as pd
+from PIL import Image
 
 from docling.datamodel.accelerator_options import AcceleratorOptions
 from docling.datamodel.base_models import InputFormat
@@ -53,6 +54,18 @@ _DOCLING_SUFFIXES = {
 
 # Excel handled explicitly via pandas (per-sheet Markdown tables)
 _XLSX_SUFFIXES = {".xlsx"}
+_MARKDOWN_IMAGE_RE = re.compile(
+    r'!\[(?P<alt>[^\]]*)\]\((?P<src>[^)]+)\)'
+)
+_FIGURE_TITLE_RE = re.compile(
+    r"^\s*(图\s*[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)*(?:-\d+)?(?:[：: \t].*)?)\s*$"
+)
+
+_FIGURE_ID_RE = re.compile(
+    r"(图\s*[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)*(?:-\d+)?)"
+)
+
+
 
 # EasyOCR: ISO 639-1；Tesseract: ISO 639-2 / tesseract 语言名
 _EASYOCR_TO_TESSERACT_LANG = {
@@ -143,6 +156,17 @@ class ConverterConfig:
     llm_table_caption_max_tables: int = 20
     llm_table_caption_max_chars: int = 800
     llm_table_caption_context_lines: int = 3
+
+    #图片语义补偿
+    llm_image_caption: bool = False
+    llm_image_caption_max_images: int = 0
+    llm_image_caption_max_chars: int = 0
+    llm_image_caption_context_lines: int = 3
+    llm_image_caption_min_width: int = 0
+    llm_image_caption_min_height: int = 0
+    llm_image_caption_min_area: int = 0
+
+
     # ---- PDF 方案 A：按页渲染 + Qwen-VL 转写（不经过 Docling）----
     pdf_vl_primary: bool = False
     pdf_vl_dpi: float = 150.0
@@ -206,6 +230,53 @@ class IndustrialDocConverter:
         if q not in ("fast", "balanced", "high"):
             return "balanced"
         return q
+
+    def _normalize_figure_title(self, text: str) -> str:
+        s = (text or "").strip()
+        s = re.sub(r"\s+", " ", s)
+        return s.strip("：: ").strip()
+    
+
+    def _resolve_image_label(
+        self,
+        markdown_text: str,
+        *,
+        line_no: int,
+        alt_text: str = "",
+    ) -> str:
+        lines = markdown_text.splitlines()
+
+        def _extract_id(s: str) -> str:
+            s = (s or "").strip()
+            s = re.sub(r"\s+", " ", s)
+            s = s.strip(">*- ")
+            s = re.sub(r"^\*\*(.*?)\*\*$", r"\1", s)
+
+            m = _FIGURE_ID_RE.search(s)
+            if m:
+                return m.group(1).strip()
+            return ""
+
+        # 1) 优先用 alt
+        label = _extract_id(alt_text)
+        if label:
+            return label
+
+        # 2) 再看图片前后更多行
+        for k in range(1, 9):
+            if line_no - k >= 0:
+                label = _extract_id(lines[line_no - k])
+                if label:
+                    return label
+
+            if line_no + k < len(lines):
+                label = _extract_id(lines[line_no + k])
+                if label:
+                    return label
+
+        return "图像补充"
+
+
 
     def _apply_docling_global_memory_settings(self) -> None:
         """降低 base_pipeline 每批初始化页数与元素批大小（全局 settings）。"""
@@ -667,13 +738,20 @@ class IndustrialDocConverter:
                 if refiner is not None:
                     self._apply_llm_refine_once_to_file(markdown_out, refiner)
 
+            final_md = markdown_out.read_text(encoding="utf-8")
+
             if self.config.llm_table_caption:
-                final_md = markdown_out.read_text(encoding="utf-8")
                 final_md = self._append_table_captions_to_markdown(final_md)
-                if self.config.markdown_escape_dimension_asterisks:
-                    final_md = _escape_dimension_like_asterisks(final_md)
-                markdown_out.write_text(final_md, encoding="utf-8")
+
+            if self.config.llm_image_caption:
+                final_md = self._append_image_captions_to_markdown(final_md, markdown_out)
+
+            if self.config.markdown_escape_dimension_asterisks:
+                final_md = _escape_dimension_like_asterisks(final_md)
+
+            markdown_out.write_text(final_md, encoding="utf-8")
             return
+
 
         if suffix not in _DOCLING_SUFFIXES:
             raise ValueError(f"Unsupported file type: {source}")
@@ -820,15 +898,22 @@ class IndustrialDocConverter:
             break
 
         # 所有 LLM refine / rerun 完成后，统一补表格语义说明
-        if self.config.llm_table_caption and markdown_out.exists():
+        if markdown_out.exists():
             try:
                 final_md = markdown_out.read_text(encoding="utf-8")
-                final_md = self._append_table_captions_to_markdown(final_md)
+
+                if self.config.llm_table_caption:
+                    final_md = self._append_table_captions_to_markdown(final_md)
+
+                if self.config.llm_image_caption:
+                    final_md = self._append_image_captions_to_markdown(final_md, markdown_out)
+
                 if self.config.markdown_escape_dimension_asterisks:
                     final_md = _escape_dimension_like_asterisks(final_md)
+
                 markdown_out.write_text(final_md, encoding="utf-8")
             except Exception as e:  # noqa: BLE001
-                _log.exception("Append table captions failed: %s", repr(e))
+                _log.exception("Append markdown enrichments failed: %s", repr(e))
         self.config = original_cfg
         if last_qc_score is not None:
             _log.info("LLM quality_check last score=%s", last_qc_score)
@@ -939,7 +1024,7 @@ class IndustrialDocConverter:
             insert_after = block.end_line + 1
             insert_block = [
                 "",
-                f"> **表格信息：** {caption}"
+                f"> **表格信息：** {caption}",
                 "",
             ]
             inserts.append((insert_after, insert_block))
@@ -953,6 +1038,192 @@ class IndustrialDocConverter:
             lines[insert_after:insert_after] = insert_block
 
         return "\n".join(lines)
+    
+    def _extract_markdown_image_blocks(self, markdown_text: str) -> list[dict]:
+        items: list[dict] = []
+        lines = markdown_text.splitlines()
+
+        for i, line in enumerate(lines):
+            for m in _MARKDOWN_IMAGE_RE.finditer(line):
+                alt = (m.group("alt") or "").strip()
+                src = (m.group("src") or "").strip()
+                if not src:
+                    continue
+                items.append(
+                    {
+                        "alt": alt,
+                        "src": src,
+                        "line_no": i,
+                        "raw": m.group(0),
+                    }
+                )
+        return items
+    
+    def _build_image_context_text(
+        self,
+        markdown_text: str,
+        line_no: int,
+        context_lines: int = 3,
+    ) -> str:
+        lines = markdown_text.splitlines()
+        s = max(0, line_no - context_lines)
+        e = min(len(lines), line_no + 1 + context_lines)
+
+        before = "\n".join(x for x in lines[s:line_no] if x.strip()).strip()
+        after = "\n".join(x for x in lines[line_no + 1:e] if x.strip()).strip()
+
+        parts: list[str] = []
+        if before:
+            parts.append("【前文】\n" + before)
+        if after:
+            parts.append("【后文】\n" + after)
+        return "\n\n".join(parts).strip()
+
+    def _should_caption_image(self, image_path: Path) -> bool:
+        if not image_path.is_file():
+            return False
+
+        try:
+            with Image.open(image_path) as im:
+                w, h = im.size
+        except Exception:
+            return False
+
+        min_w = max(0, int(self.config.llm_image_caption_min_width))
+        min_h = max(0, int(self.config.llm_image_caption_min_height))
+        min_area = max(0, int(self.config.llm_image_caption_min_area))
+
+        if min_w > 0 and w < min_w:
+            return False
+        if min_h > 0 and h < min_h:
+            return False
+        if min_area > 0 and (w * h) < min_area:
+            return False
+
+        return True
+
+    
+    def _generate_image_caption_text(
+        self,
+        *,
+        client: "DashScopeClient",
+        image_path: Path,
+        context_text: str,
+    ) -> Optional[str]:
+        try:
+            from src.llm_prompts import build_image_caption_messages
+
+            messages = build_image_caption_messages(
+                image_path=image_path,
+                context_text=context_text,
+                max_chars=self.config.llm_image_caption_max_chars,
+                image_mode=self.config.llm_vl_image_mode,
+            )
+
+            text = client.generate_multimodal(
+                model=self.config.llm_model,
+                messages=messages,
+                temperature=0.0,
+                max_tokens=min(256, int(self.config.llm_max_tokens or 256)),
+            )
+            text = (text or "").strip()
+            if not text:
+                return None
+
+            text = re.sub(r"^```[a-zA-Z]*\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+            text = re.sub(r"\n+", " ", text).strip()
+            text = re.sub(r"^(图像补充[:：]\s*)", "", text).strip()
+            text = re.sub(r"^(该图展示了|该图说明了|该图反映了|这张图展示了)", "", text).strip()
+
+            if not text:
+                return None
+
+            max_chars = int(self.config.llm_image_caption_max_chars or 0)
+            if max_chars > 0 and len(text) > max_chars:
+                text = text[:max_chars].rstrip("，,;；。 ") + "。"
+
+
+            return text
+        except Exception as e:  # noqa: BLE001
+            _log.exception("Generate image caption failed: %s", repr(e))
+            return None
+    
+    def _append_image_captions_to_markdown(
+        self,
+        markdown_text: str,
+        markdown_out: Path,
+    ) -> str:
+        if not self.config.llm_image_caption:
+            return markdown_text
+
+        client = self._create_dashscope_client()
+        if client is None:
+            _log.warning("llm_image_caption enabled but DashScope client unavailable; skip.")
+            return markdown_text
+
+        images = self._extract_markdown_image_blocks(markdown_text)
+        if not images:
+            return markdown_text
+
+        max_images = int(self.config.llm_image_caption_max_images or 0)
+
+        lines = markdown_text.splitlines()
+        inserts: list[tuple[int, list[str]]] = []
+
+        handled = 0
+        for item in images:
+            if max_images > 0 and handled >= max_images:
+                break
+
+            src = item["src"]
+            line_no = int(item["line_no"])
+
+            image_path = (markdown_out.parent / src).resolve()
+            if not self._should_caption_image(image_path):
+                continue
+
+            context_text = self._build_image_context_text(
+                markdown_text,
+                line_no=line_no,
+                context_lines=max(0, int(self.config.llm_image_caption_context_lines)),
+            )
+
+            caption = self._generate_image_caption_text(
+                client=client,
+                image_path=image_path,
+                context_text=context_text,
+            )
+            if not caption:
+                continue
+
+            label = self._resolve_image_label(
+                markdown_text,
+                line_no=line_no,
+                alt_text=str(item.get("alt") or ""),
+            )
+
+            insert_after = line_no + 1
+            insert_block = [
+                "",
+                f"> **{label}：** {caption}",
+                "",
+            ]
+            inserts.append((insert_after, insert_block))
+            handled += 1
+
+
+        if not inserts:
+            return markdown_text
+
+        for insert_after, insert_block in reversed(inserts):
+            lines[insert_after:insert_after] = insert_block
+
+        return "\n".join(lines)
+
+
+
+
 
     def _generate_table_caption_text(
         self,
@@ -973,8 +1244,9 @@ class IndustrialDocConverter:
                 model=self.config.llm_model,
                 messages=messages,
                 temperature=0.0,
-                max_tokens=min(256, int(self.config.llm_max_tokens or 256)),
+                max_tokens=int(self.config.llm_max_tokens or 1024),
             )
+
             text = (text or "").strip()
 
             if not text:

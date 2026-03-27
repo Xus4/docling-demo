@@ -699,15 +699,23 @@ def match_captions_to_figure_bboxes(
     boxes_sorted = sorted(boxes, key=lambda b: (b[1], b[0])) if boxes else []
     n_caps = len(captions)
 
-    def _cap_y_bounds(idx: int) -> tuple[int, int]:
-        upper = int(img_h * idx / n_caps) if idx > 0 else 0
-        lower = int(img_h * (idx + 1) / n_caps) if idx < n_caps - 1 else img_h
-        return max(0, upper - 20), min(img_h, lower + 20)
+    # 【关键修复1】动态生成安全边界与期望Y中心点
+    def _get_expected_bounds_and_cy(idx: int, pos: str) -> tuple[int, int, float]:
+        if "左" in pos or "右" in pos:
+            # 左右结构：彻底放开Y轴上下限，避免被腰斩，期望高度在正中
+            return 0, img_h, img_h * 0.5
+        else:
+            # 上下结构：划分Y轴，但大幅增加宽容度(上下各扩 25% 页面高度)，防止大图被切
+            upper = int(img_h * idx / n_caps) if idx > 0 else 0
+            lower = int(img_h * (idx + 1) / n_caps) if idx < n_caps - 1 else img_h
+            return max(0, upper - int(img_h * 0.25)), min(img_h, lower + int(img_h * 0.25)), img_h * (idx + 0.5) / n_caps
 
     for idx, cap in enumerate(captions):
         best_j = None
         best_score = None
-        default_upper, default_lower = _cap_y_bounds(idx)
+        
+        pos = (cap.position or "").strip()
+        default_upper, default_lower, expected_cy = _get_expected_bounds_and_cy(idx, pos)
 
         for j, b in enumerate(boxes_sorted):
             if j in used:
@@ -733,13 +741,17 @@ def match_captions_to_figure_bboxes(
                 continue
 
             score = area
-            score += area * max(0.0, 0.5 - abs(cy / max(img_h, 1) - (idx + 0.5) / max(n_caps, 1)) * 2.0)
-            score -= abs(idx - j) * area * 0.05
+            
+            # 【关键修复2】强力惩罚偏离期望Y轴高度的框，终结“大图霸权”，解决 2.1和2.2 乱序
+            y_dist_ratio = abs(cy - expected_cy) / max(img_h, 1)
+            score -= area * y_dist_ratio * 4.0  
+            
+            # 惩罚拓扑错位
+            score -= abs(idx - j) * area * 0.1
 
             if max(bw / max(bh, 1), bh / max(bw, 1)) > 2.8:
                 score -= area * 0.2
 
-            pos = (cap.position or "").strip()
             if pos:
                 if "上" in pos or "顶部" in pos:
                     if cy < img_h * 0.45: score += area * 1.5
@@ -752,10 +764,12 @@ def match_captions_to_figure_bboxes(
                     else: score -= area * 1.0
                 
                 # 增强左右判定
-                if "左" in pos and "右" not in pos and cx > img_w * 0.55:
-                    score -= area * 2.0
-                elif "右" in pos and "左" not in pos and cx < img_w * 0.45:
-                    score -= area * 2.0
+                if "左" in pos and "右" not in pos:
+                    if cx > img_w * 0.55: score -= area * 3.0
+                    else: score += area * 1.0
+                elif "右" in pos and "左" not in pos:
+                    if cx < img_w * 0.45: score -= area * 3.0
+                    else: score += area * 1.0
 
             if best_score is None or score > best_score:
                 best_score = score
@@ -766,20 +780,19 @@ def match_captions_to_figure_bboxes(
             y_upper, y_lower = default_upper, default_lower
             x_left, x_right = 0, img_w
 
-            pos = (cap.position or "").strip()
-            if "上" in pos or "顶部" in pos: y_lower = min(y_lower, int(img_h * 0.55))
+            if "上" in pos or "顶部" in pos: y_lower = min(y_lower, int(img_h * 0.6))
             elif "中" in pos:
                 y_upper = max(y_upper, int(img_h * 0.15))
-                y_lower = min(y_lower, int(img_h * 0.80))
+                y_lower = min(y_lower, int(img_h * 0.85))
             
-            # 【关键修复】为 71页 这种左右结构设置坚固的横向护栏
+            # 【关键修复3】严格建立左右结构的“横向隔离墙”，防止切图串门
             if "左" in pos and "右" not in pos:
-                x_right = int(img_w * 0.55)
+                x_right = int(img_w * 0.53)
             elif "右" in pos and "左" not in pos:
-                x_left = int(img_w * 0.45)
+                x_left = int(img_w * 0.47)
 
             merged = _group_boxes_for_single_figure(
-                seed_box=seed, all_boxes=boxes_sorted, img_w=img_w, img_h=img_h, max_extra_boxes=8,
+                seed_box=seed, all_boxes=boxes_sorted, img_w=img_w, img_h=img_h, max_extra_boxes=12,
                 y_upper_bound=y_upper, y_lower_bound=y_lower,
                 x_left_bound=x_left, x_right_bound=x_right,
                 table_zones=table_zones,
@@ -804,19 +817,19 @@ def match_captions_to_figure_bboxes(
         if cap not in matched_caps:
             pos = (cap.position or "").strip()
             margin_x = int(img_w * 0.08)
-            default_upper, default_lower = _cap_y_bounds(idx)
-            y0, y1 = default_upper, default_lower
+            _, _, expected_cy = _get_expected_bounds_and_cy(idx, pos)
+            
+            y0 = max(0, int(expected_cy - img_h * 0.15))
+            y1 = min(img_h, int(expected_cy + img_h * 0.15))
             
             if "上" in pos or "顶部" in pos: y0, y1 = int(img_h * 0.05), int(img_h * 0.45)
             elif "下" in pos or "底部" in pos: y0, y1 = int(img_h * 0.55), int(img_h * 0.95)
-            elif "中" in pos: y0, y1 = int(img_h * 0.25), int(img_h * 0.75)
-            
-            if y1 <= y0 + 50: y1 = y0 + int(img_h * 0.3)
             
             synthetic_box = (margin_x, y0, img_w - margin_x, min(y1, img_h))
             pairs.append((cap, synthetic_box))
 
     return pairs
+
 
 
 
@@ -898,8 +911,8 @@ def _group_boxes_for_single_figure(
     max_extra_boxes: int = 8,
     y_upper_bound: int = 0,
     y_lower_bound: int | None = None,
-    x_left_bound: int = 0,             # 【新增】横向左边界
-    x_right_bound: int | None = None,  # 【新增】横向右边界
+    x_left_bound: int = 0,
+    x_right_bound: int | None = None,
     table_zones: list[tuple[int, int, int, int]] | None = None,
 ) -> tuple[int, int, int, int]:
     group = [seed_box]
@@ -913,14 +926,14 @@ def _group_boxes_for_single_figure(
     if x_right_bound is None:
         x_right_bound = img_w
 
+    # 【关键修复4】增加初始外扩范围，容忍更松散的构图（如俯视图和剖面图间隙）
     cur = _expand_bbox_tuple(
         seed_box,
-        pad_x=max(40, int(sw * 0.6)),
-        pad_y=max(30, int(sh * 0.3)),
+        pad_x=max(int(img_w * 0.06), int(sw * 0.6)),
+        pad_y=max(int(img_h * 0.08), int(sh * 0.3)),
         img_w=img_w,
         img_h=img_h,
     )
-    # 强制框死在指定的十字区域内（解决 71 页左右图串门问题）
     cur = (
         max(cur[0], x_left_bound), 
         max(cur[1], y_upper_bound), 
@@ -941,7 +954,6 @@ def _group_boxes_for_single_figure(
             bh = y1 - y0
             bcx, bcy = _bbox_center(b)
 
-            # 只要候选框中心越界，立刻跳过
             if bcx < x_left_bound or bcx > x_right_bound or bcy < y_upper_bound or bcy > y_lower_bound:
                 continue
 
@@ -952,17 +964,18 @@ def _group_boxes_for_single_figure(
                     ix0, iy0 = max(x0, tx0), max(y0, ty0)
                     ix1, iy1 = min(x1, tx1), min(y1, ty1)
                     if ix1 > ix0 and iy1 > iy0:
-                        inter = (ix1 - ix0) * (iy1 - iy0)
-                        if inter / max(bw * bh, 1) > 0.5:
+                        if (ix1 - ix0) * (iy1 - iy0) / max(bw * bh, 1) > 0.5:
                             in_table = True
                             break
                 if in_table:
                     continue
 
             in_zone = not (x1 < cx0 or x0 > cx1 or y1 < cy0 or y0 > cy1)
+            
+            # 【关键修复5】增加垂直方向合并容忍度，跨越空隙将上下两部分抓取到同一个图里
             close_enough = (
-                abs(bcx - scx) < max(sw * 0.9, img_w * 0.35)
-                and abs(bcy - scy) < max(sh * 0.6, img_h * 0.18)
+                abs(bcx - scx) < max(sw * 1.2, img_w * 0.35)
+                and abs(bcy - scy) < max(sh * 1.0, img_h * 0.25)
             )
 
             if not in_zone and not close_enough:
@@ -985,6 +998,7 @@ def _group_boxes_for_single_figure(
         cur = (max(cur[0], x_left_bound), max(cur[1], y_upper_bound), min(cur[2], x_right_bound), min(cur[3], y_lower_bound))
 
     return _bbox_union(group)
+
 
 
 def detect_visual_regions_from_page_image(

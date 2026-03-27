@@ -445,13 +445,13 @@ def main() -> int:
     parser.add_argument(
         "--llm-table-caption-max-tables",
         type=int,
-        default=20,
+        default=100,
         help="每个文档最多为多少个表格生成语义补偿。",
     )
     parser.add_argument(
         "--llm-table-caption-max-chars",
         type=int,
-        default=500,
+        default=5000,
         help="每个表格说明的最大字符数。",
     )
     parser.add_argument(
@@ -472,6 +472,31 @@ def main() -> int:
         default=4,
         metavar="N",
         help="每页最多按图题裁出多少张图（默认 4）",
+    )
+
+    #图片语义补偿
+    parser.add_argument(
+        "--llm-image-caption",
+        action="store_true",
+        help="对 Markdown 中切出的图片做语义补充，并写回 Markdown。",
+    )
+    parser.add_argument(
+        "--llm-image-caption-max-images",
+        type=int,
+        default=0,
+        help="每个文档最多处理多少张图片；0 表示不限制。",
+    )
+    parser.add_argument(
+        "--llm-image-caption-max-chars",
+        type=int,
+        default=0,
+        help="每张图片语义补充最大字符数；0 表示不主动截断。",
+    )
+    parser.add_argument(
+        "--llm-image-caption-context-lines",
+        type=int,
+        default=3,
+        help="生成图片语义补充时，图片前后各取多少行上下文。",
     )
 
 
@@ -640,6 +665,13 @@ def main() -> int:
         llm_empty_content_max_attempts=int(args.llm_empty_content_retries),
         llm_allow_rerun=bool(args.llm_allow_rerun),
         llm_vl_image_mode=str(args.llm_vl_image_mode),
+
+        #图片语义补偿
+        llm_image_caption=bool(args.llm_image_caption),
+        llm_image_caption_max_images=int(args.llm_image_caption_max_images),
+        llm_image_caption_max_chars=int(args.llm_image_caption_max_chars),
+        llm_image_caption_context_lines=int(args.llm_image_caption_context_lines),
+
 
         llm_table_refine=bool(args.llm_table_refine),
         llm_table_cleanup_max_tables=int(args.llm_table_max_tables),

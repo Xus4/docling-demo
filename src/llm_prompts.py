@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 
 def build_cleanup_messages(original_markdown: str) -> list[dict]:
     """
@@ -26,6 +27,54 @@ def build_cleanup_messages(original_markdown: str) -> list[dict]:
         {"role": "system", "content": system},
         {"role": "user", "content": user_text},
     ]
+
+
+from pathlib import Path
+
+def build_image_caption_messages(
+    *,
+    image_path: Path,
+    context_text: str,
+    max_chars: int = 0,
+    image_mode: str = "local_abs",
+) -> list[dict]:
+    if image_mode == "url":
+        image_ref = str(image_path)
+    else:
+        image_ref = str(image_path.resolve())
+
+    length_rule = (
+        f"6. 输出单段，不超过 {max_chars} 字。"
+        if max_chars and max_chars > 0
+        else "6. 输出单段，尽量完整、准确，不必刻意压缩长度。"
+    )
+
+    prompt = f"""你是工业文档图像理解助手。请根据给定图片，并结合上下文，为该图片生成一段准确的图像语义补充。
+
+要求：
+1. 用中文输出。
+2. 只描述图片中可以确认的内容，不要臆测。
+3. 优先判断图片类型：照片、结构图、流程图、示意图、曲线图、截图、表格截图、界面图、装置图等。
+4. 若图片中有文字，可提炼关键信息，但不要机械逐字转录。
+5. 结合上下文，说明该图在文档中的作用或表达重点。
+{length_rule}
+7. 不要加标题，不要加编号，不要输出“图像补充：”前缀。
+8. 若信息有限，就客观描述可见内容。
+
+上下文：
+{context_text or "无"}
+"""
+
+    return [
+        {
+            "role": "user",
+            "content": [
+                {"image": image_ref},
+                {"text": prompt},
+            ],
+        }
+    ]
+
 
 
 def build_quality_check_messages(
