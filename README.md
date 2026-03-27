@@ -60,6 +60,112 @@ python main.py --input-dir ./data/input --output-dir ./data/output
 
 参数写法约定：命令行示例统一使用 **`--opt value`** 形式；仓库内“是否显式传参”的判断也按该形式设计。
 
+## Web 服务（MVP）
+
+本项目支持以轻量 Web 服务方式运行（FastAPI + Uvicorn），用于内网多人上传文件并下载 Markdown。
+
+### 1) 安装依赖
+
+```powershell
+pip install -r requirements.txt
+```
+
+### 2) 配置管理员参数（环境变量）
+
+推荐使用 `.env` 文件（更方便保存配置）：
+
+```powershell
+Copy-Item .env.example .env
+```
+
+然后编辑 `.env` 中的参数；程序启动时会自动读取该文件。  
+优先级为：**系统环境变量 > `.env` 文件 > 代码默认值**。
+
+```powershell
+$env:MAX_FILE_SIZE="20MB"
+$env:ALLOWED_TYPES="pdf,docx,pptx,html,png,jpg,jpeg"
+$env:DATA_DIR="./data"
+$env:DEBUG="false"
+$env:AUTO_CLEANUP="true"
+$env:CLEANUP_MAX_AGE_HOURS="24"
+```
+
+说明：
+
+- `MAX_FILE_SIZE`：最大上传文件大小（支持 `B/KB/MB/GB`，例如 `20MB`）
+- `ALLOWED_TYPES`：允许上传的扩展名白名单（逗号分隔）
+- `DATA_DIR`：数据根目录（默认 `./data`）
+- `AUTO_CLEANUP`：是否自动清理历史任务目录
+- `CLEANUP_MAX_AGE_HOURS`：自动清理阈值（小时）
+
+可选转换参数（将你原 CLI 常用参数映射为环境变量）：
+
+- `PDF_VL_PRIMARY`（默认 `true`）
+- `PDF_VL_DPI`（默认 `180`）
+- `PDF_VL_WORKERS`（默认 `10`）
+- `LLM_MODEL`（默认 `qwen3.5-35b-a3b`）
+- `PDF_VL_TABLE_SECOND_PASS_MAX_TABLES`（默认 `5`）
+- `MAX_NUM_PAGES`（默认不限制）
+- `LLM_MAX_TOKENS`（默认 `16384`）
+- `LLM_TEMPERATURE`（默认 `0`）
+- `LLM_TABLE_CAPTION`（默认 `true`）
+- `LLM_TABLE_CAPTION_MAX_CHARS`（默认 `500`）
+- `PDF_CAPTION_CROP_FIGURES`（默认 `true`）
+- `DASHSCOPE_API_KEY`（启用 Qwen/DashScope 时必填）
+
+示例（接近你原来的 CLI 设定）：
+
+```powershell
+$env:PDF_VL_PRIMARY="true"
+$env:PDF_VL_DPI="180"
+$env:PDF_VL_WORKERS="10"
+$env:LLM_MODEL="qwen3.5-35b-a3b"
+$env:PDF_VL_TABLE_SECOND_PASS_MAX_TABLES="5"
+$env:MAX_NUM_PAGES="5"
+$env:LLM_MAX_TOKENS="16384"
+$env:LLM_TEMPERATURE="0"
+$env:LLM_TABLE_CAPTION="true"
+$env:LLM_TABLE_CAPTION_MAX_CHARS="500"
+$env:PDF_CAPTION_CROP_FIGURES="true"
+```
+
+目录结构（运行后自动创建）：
+
+```text
+data/
+  input/
+  output/
+```
+
+每次请求都会生成唯一 `job_id`，并在 `input/<job_id>/` 与 `output/<job_id>/` 下隔离输入输出，避免文件冲突。
+
+### 3) 启动服务
+
+```powershell
+python -m uvicorn webapp:app --host 0.0.0.0 --port 8000
+```
+
+Linux 上同样使用：
+
+```bash
+export MAX_FILE_SIZE=20MB
+export ALLOWED_TYPES=pdf,docx,pptx
+export DATA_DIR=./data
+uvicorn webapp:app --host 0.0.0.0 --port 8000
+```
+
+### 4) 使用方式
+
+- 打开浏览器访问 `http://<服务器IP>:8000/`
+- 上传文件后等待处理
+- 转换完成后点击下载 Markdown
+
+接口说明：
+
+- `POST /convert`：上传并转换文件（会校验文件类型和大小）
+- `GET /download/{job_id}`：下载 Markdown 文件
+- `GET /health`：健康检查
+
 **管线并发（大页/扫描 PDF 防 OOM）**：`StandardPdfPipeline` 在 OCR / 版面 / 表格阶段之间用 **队列** 流水线处理多页；并发过高会让大页同时在内存里排队。可用 **`--pipeline-concurrency`**：`low`（batch≤2、队列≤16）或 **`minimal`**（batch=1、队列≤2，最省内存）。使用 **`--scan`** 或 **`--low-memory`** 且**未传** `--pipeline-concurrency` 时，**自动为 `minimal`**。需要略高吞吐可传 **`--pipeline-concurrency low`**；强行使用 Docling 默认并发可传 **`--pipeline-concurrency default`**（大扫描件易 OOM）。
 
 **扫描件（Docling 管线）**：若希望「更稳 + 中文表格 OCR」，请**自行组合**开关，例如 **`--scan`**、**`--pipeline-concurrency minimal`**、**`--ocr-quality high`**、**`--ocr-bitmap-threshold 0.03`**，或按下文「识别精度」一节微调。仍 OOM 或内存不足时加 **`--low-memory`**（会强制 OCR 为 `fast`，表格精度可能下降）或 **`--no-tables`**。

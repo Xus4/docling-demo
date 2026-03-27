@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>文档转 Markdown</title>
+    <style>
+      :root {
+        --bg: #f3f6fb;
+        --bg-grad-start: #eef4ff;
+        --bg-grad-end: #f7f9fc;
+        --card: #ffffff;
+        --text-main: #111827;
+        --text-sub: #6b7280;
+        --line: #d9e2ef;
+        --line-hover: #9fb6ff;
+        --primary: #2563eb;
+        --primary-hover: #1d4ed8;
+        --card-shadow: 0 10px 35px rgba(17, 24, 39, 0.08);
+        --success-bg: #ecfdf3;
+        --success-text: #027a48;
+        --error-bg: #fef3f2;
+        --error-text: #b42318;
+        --muted-surface: #f8fbff;
+      }
+
+      body[data-theme="dark"] {
+        --bg: #0b1220;
+        --bg-grad-start: #131d33;
+        --bg-grad-end: #0c1322;
+        --card: #111a2d;
+        --text-main: #e5e7eb;
+        --text-sub: #97a3b8;
+        --line: #344059;
+        --line-hover: #607fce;
+        --primary: #5b8cff;
+        --primary-hover: #4a7cf1;
+        --card-shadow: 0 16px 42px rgba(2, 8, 23, 0.45);
+        --success-bg: #113225;
+        --success-text: #63d89c;
+        --error-bg: #3a1b1b;
+        --error-text: #f3a6a6;
+        --muted-surface: #17253f;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        color: var(--text-main);
+        background: radial-gradient(circle at top, var(--bg-grad-start) 0%, var(--bg) 32%, var(--bg-grad-end) 100%);
+        display: flex;
+        justify-content: center;
+        padding: 48px 16px;
+        transition: background 0.25s ease, color 0.25s ease;
+      }
+      .page { width: 100%; max-width: 760px; }
+      .header {
+        text-align: center;
+        margin-bottom: 24px;
+        display: grid;
+        gap: 12px;
+        justify-items: center;
+      }
+      .title { margin: 0; font-size: 34px; line-height: 44px; font-weight: 700; letter-spacing: 0.2px; }
+      .subtitle { margin: 0; font-size: 16px; color: var(--text-sub); }
+      .theme-btn {
+        border: 1px solid var(--line);
+        background: var(--card);
+        color: var(--text-main);
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .theme-btn:hover { border-color: var(--line-hover); }
+      .card {
+        background: var(--card);
+        border-radius: 12px;
+        box-shadow: var(--card-shadow);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        padding: 24px;
+      }
+      .dropzone {
+        border: 2px dashed var(--line);
+        border-radius: 12px;
+        background: var(--muted-surface);
+        padding: 40px 24px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .dropzone:hover { border-color: var(--line-hover); filter: brightness(1.02); }
+      .dropzone.dragover { border-color: var(--primary); transform: translateY(-1px); }
+      .upload-icon { width: 48px; height: 48px; margin: 0 auto 12px; color: var(--primary); }
+      .dropzone-text { font-size: 16px; font-weight: 600; margin: 0; }
+      .dropzone-hint { margin: 8px 0 0; font-size: 14px; color: var(--text-sub); }
+      .selected-file {
+        margin-top: 16px; padding: 12px 14px; border-radius: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.3); background: var(--muted-surface);
+        color: var(--text-main); font-size: 14px;
+      }
+      .actions { margin-top: 20px; }
+      .btn {
+        width: 100%; height: 44px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600;
+        color: #fff; background: var(--primary); cursor: pointer; transition: background 0.2s ease, transform 0.08s ease;
+      }
+      .btn:hover { background: var(--primary-hover); }
+      .btn:active { transform: translateY(1px); }
+      .btn:disabled { opacity: 0.72; cursor: not-allowed; }
+      .status-box {
+        margin-top: 20px; border-radius: 10px; padding: 12px 14px; display: none; align-items: center; gap: 10px; font-size: 14px;
+      }
+      .status-box.show { display: flex; }
+      .status-loading { background: rgba(37, 99, 235, 0.14); color: var(--primary); }
+      .status-success { background: var(--success-bg); color: var(--success-text); }
+      .status-error { background: var(--error-bg); color: var(--error-text); }
+      .spinner {
+        width: 16px; height: 16px; border: 2px solid rgba(37, 99, 235, 0.2); border-top-color: var(--primary);
+        border-radius: 999px; animation: spin 0.8s linear infinite; flex: 0 0 16px;
+      }
+      @keyframes spin { to { transform: rotate(360deg);} }
+      .result, .history { margin-top: 20px; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 20px; display: none; }
+      .result.show, .history.show { display: block; }
+      .result-title { font-size: 14px; color: var(--text-sub); margin: 0 0 10px; }
+      .result-card, .history-item {
+        border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 10px; padding: 14px; display: flex;
+        align-items: center; justify-content: space-between; gap: 12px; background: var(--muted-surface);
+      }
+      .filename { font-size: 14px; word-break: break-all; }
+      .download-btn {
+        text-decoration: none; border-radius: 8px; padding: 8px 12px; color: #fff; font-size: 14px; font-weight: 600;
+        background: #059669; white-space: nowrap;
+      }
+      .download-btn:hover { background: #047857; }
+      .history-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+      .clear-btn {
+        border: none; background: transparent; color: var(--text-sub); cursor: pointer; font-size: 13px; padding: 4px 0;
+      }
+      .clear-btn:hover { color: var(--text-main); }
+      .history-list { display: grid; gap: 10px; }
+      .history-meta { color: var(--text-sub); font-size: 12px; margin-top: 4px; }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="header">
+        <h1 class="title">文档转 Markdown</h1>
+        <p class="subtitle">支持 PDF / Word / PPT / 图片自动解析</p>
+        <button id="themeToggle" class="theme-btn" type="button">切换暗色模式</button>
+      </header>
+
+      <section class="card">
+        <input id="fileInput" type="file" hidden />
+
+        <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="文件上传区域">
+          <svg class="upload-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 16V4M12 4L8 8M12 4L16 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path d="M4 14.5V17C4 18.6569 5.34315 20 7 20H17C18.6569 20 20 18.6569 20 17V14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+          </svg>
+          <p class="dropzone-text">点击或拖拽文件到此区域上传</p>
+          <p class="dropzone-hint">支持常见文档与图片格式，上传后自动解析为 Markdown</p>
+        </div>
+
+        <div id="selectedFile" class="selected-file" style="display: none"></div>
+
+        <div class="actions">
+          <button id="convertBtn" class="btn" type="button">上传并转换</button>
+        </div>
+
+        <div id="statusBox" class="status-box" aria-live="polite"></div>
+
+        <div id="result" class="result">
+          <p class="result-title">转换结果</p>
+          <div class="result-card">
+            <span id="resultFilename" class="filename"></span>
+            <a id="downloadBtn" class="download-btn" href="#" target="_blank" rel="noopener">下载 Markdown</a>
+          </div>
+        </div>
+
+        <div id="history" class="history">
+          <div class="history-title-row">
+            <p class="result-title" style="margin: 0">最近转换记录</p>
+            <button id="clearHistory" class="clear-btn" type="button">清空</button>
+          </div>
+          <div id="historyList" class="history-list"></div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const fileInput = document.getElementById("fileInput");
+      const dropzone = document.getElementById("dropzone");
+      const selectedFile = document.getElementById("selectedFile");
+      const convertBtn = document.getElementById("convertBtn");
+      const statusBox = document.getElementById("statusBox");
+      const result = document.getElementById("result");
+      const resultFilename = document.getElementById("resultFilename");
+      const downloadBtn = document.getElementById("downloadBtn");
+      const themeToggle = document.getElementById("themeToggle");
+      const historyWrap = document.getElementById("history");
+      const historyList = document.getElementById("historyList");
+      const clearHistoryBtn = document.getElementById("clearHistory");
+
+      let currentFile = null;
+      const STORAGE_KEYS = {
+        theme: "docling_theme",
+        history: "docling_history",
+      };
+
+      function setSelectedFile(file) {
+        currentFile = file;
+        selectedFile.style.display = "block";
+        selectedFile.textContent = "已选择文件: " + file.name;
+      }
+
+      function resetResult() {
+        result.classList.remove("show");
+        resultFilename.textContent = "";
+        downloadBtn.setAttribute("href", "#");
+      }
+
+      function applyTheme(theme) {
+        document.body.setAttribute("data-theme", theme);
+        themeToggle.textContent = theme === "dark" ? "切换亮色模式" : "切换暗色模式";
+      }
+
+      function saveTheme(theme) {
+        localStorage.setItem(STORAGE_KEYS.theme, theme);
+        applyTheme(theme);
+      }
+
+      function loadHistory() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEYS.history);
+          const data = raw ? JSON.parse(raw) : [];
+          return Array.isArray(data) ? data : [];
+        } catch (error) {
+          return [];
+        }
+      }
+
+      function saveHistory(records) {
+        localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(records.slice(0, 8)));
+      }
+
+      function formatTime(timestamp) {
+        const d = new Date(timestamp);
+        return d.toLocaleString("zh-CN", { hour12: false });
+      }
+
+      function renderHistory() {
+        const records = loadHistory();
+        if (!records.length) {
+          historyWrap.classList.remove("show");
+          historyList.innerHTML = "";
+          return;
+        }
+        historyWrap.classList.add("show");
+        historyList.innerHTML = records
+          .map(
+            (item) =>
+              '<div class="history-item">' +
+              '<div><div class="filename">' + item.filename + '</div><div class="history-meta">' + formatTime(item.time) + "</div></div>" +
+              '<a class="download-btn" href="' + item.downloadUrl + '" target="_blank" rel="noopener">下载</a>' +
+              "</div>"
+          )
+          .join("");
+      }
+
+      function appendHistory(record) {
+        const records = loadHistory();
+        const next = [record, ...records.filter((x) => x.downloadUrl !== record.downloadUrl)];
+        saveHistory(next);
+        renderHistory();
+      }
+
+      function setStatus(type, text) {
+        statusBox.className = "status-box show";
+        if (type === "loading") {
+          statusBox.classList.add("status-loading");
+          statusBox.innerHTML = '<span class="spinner"></span><span>' + text + "</span>";
+          return;
+        }
+        if (type === "success") {
+          statusBox.classList.add("status-success");
+          statusBox.textContent = "✔ " + text;
+          return;
+        }
+        statusBox.classList.add("status-error");
+        statusBox.textContent = "✖ " + text;
+      }
+
+      function openPicker() {
+        fileInput.click();
+      }
+
+      themeToggle.addEventListener("click", () => {
+        const current = document.body.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        saveTheme(current === "dark" ? "light" : "dark");
+      });
+
+      clearHistoryBtn.addEventListener("click", () => {
+        localStorage.removeItem(STORAGE_KEYS.history);
+        renderHistory();
+      });
+
+      dropzone.addEventListener("click", openPicker);
+      dropzone.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openPicker();
+        }
+      });
+
+      fileInput.addEventListener("change", () => {
+        if (fileInput.files && fileInput.files[0]) {
+          setSelectedFile(fileInput.files[0]);
+          resetResult();
+        }
+      });
+
+      ["dragenter", "dragover"].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          dropzone.classList.add("dragover");
+        });
+      });
+
+      ["dragleave", "drop"].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          dropzone.classList.remove("dragover");
+        });
+      });
+
+      dropzone.addEventListener("drop", (event) => {
+        const files = event.dataTransfer && event.dataTransfer.files;
+        if (!files || files.length === 0) {
+          return;
+        }
+        const [file] = files;
+        fileInput.files = files;
+        setSelectedFile(file);
+        resetResult();
+      });
+
+      async function uploadAndConvert() {
+        resetResult();
+        if (!currentFile) {
+          setStatus("error", "请先选择要上传的文件");
+          return;
+        }
+
+        convertBtn.disabled = true;
+        convertBtn.textContent = "处理中...";
+        setStatus("loading", "正在解析文档，请稍候...");
+
+        try {
+          const formData = new FormData();
+          formData.append("file", currentFile);
+          const response = await fetch("/convert", {
+            method: "POST",
+            body: formData,
+          });
+
+          const payload = await response.json();
+          if (!response.ok) {
+            setStatus("error", payload.detail || "转换失败，请稍后重试");
+            return;
+          }
+
+          setStatus("success", "转换成功");
+          resultFilename.textContent = payload.filename || currentFile.name;
+          downloadBtn.href = payload.download_url;
+          result.classList.add("show");
+          appendHistory({
+            filename: payload.filename || currentFile.name,
+            downloadUrl: payload.download_url,
+            time: Date.now(),
+          });
+        } catch (error) {
+          setStatus("error", "请求失败，请检查网络或服务状态");
+        } finally {
+          convertBtn.disabled = false;
+          convertBtn.textContent = "上传并转换";
+        }
+      }
+
+      convertBtn.addEventListener("click", uploadAndConvert);
+      applyTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
+      renderHistory();
+    </script>
+  </body>
+</html>
