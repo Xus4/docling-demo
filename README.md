@@ -113,6 +113,11 @@ $env:CLEANUP_MAX_AGE_HOURS="24"
 - `LLM_TABLE_CAPTION_MAX_CHARS`（默认 `500`）
 - `PDF_CAPTION_CROP_FIGURES`（默认 `true`）
 - `DASHSCOPE_API_KEY`（启用 Qwen/DashScope 时必填）
+- `AUTH_DB_PATH`（默认 `./data/auth.db`）
+- `SESSION_SECRET`（会话签名密钥）
+- `INITIAL_PASSWORD`（初始化新用户统一密码，入库为哈希）
+- `AUTH_ADMIN_USERNAME`（默认 `admin`）
+- `AUTH_USERS`（普通用户列表，逗号分隔）
 
 示例（接近你原来的 CLI 设定）：
 
@@ -164,6 +169,9 @@ uvicorn webapp:app --host 0.0.0.0 --port 8000
 
 接口说明：
 
+- `POST /auth/login`：登录
+- `POST /auth/logout`：退出登录
+- `GET /auth/me`：查看当前登录态
 - `POST /convert`：上传并转换文件（会校验文件类型和大小）
 - `GET /download/{job_id}`：下载 Markdown 文件
 - `GET /health`：健康检查

@@ -3,10 +3,13 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from starlette.middleware.sessions import SessionMiddleware
 
+from auth import AuthStore
 from config import AppConfig
 from service import ConversionError, ConversionService
 
@@ -16,6 +19,12 @@ STATIC_DIR = ROOT / "static"
 config = AppConfig.from_env()
 config.ensure_dirs()
 service = ConversionService(config)
+auth_store = AuthStore(config.auth_db_path)
+auth_store.bootstrap_users(
+    users=config.auth_users,
+    initial_password=config.initial_password,
+    admin_username=config.auth_admin_username,
+)
 
 logging.basicConfig(
     level=logging.DEBUG if config.debug else logging.INFO,
@@ -24,7 +33,29 @@ logging.basicConfig(
 log = logging.getLogger("webapp")
 
 app = FastAPI(title="Docling Demo Web Service", debug=config.debug)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=config.session_secret,
+    same_site="lax",
+    https_only=False,
+)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+def _require_login(request: Request) -> str:
+    username = request.session.get("username")
+    if not username:
+        raise HTTPException(status_code=401, detail="请先登录")
+    user = auth_store.get_user(str(username))
+    if not user:
+        request.session.clear()
+        raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
+    return user.username
 
 
 @app.get("/")
@@ -37,8 +68,37 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post("/auth/login")
+def login(payload: LoginRequest, request: Request) -> dict[str, str]:
+    user = auth_store.authenticate(payload.username, payload.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+    request.session["username"] = user.username
+    request.session["role"] = user.role
+    return {"username": user.username, "role": user.role}
+
+
+@app.post("/auth/logout")
+def logout(request: Request) -> dict[str, str]:
+    request.session.clear()
+    return {"message": "ok"}
+
+
+@app.get("/auth/me")
+def me(request: Request) -> dict[str, str]:
+    username = request.session.get("username")
+    if not username:
+        raise HTTPException(status_code=401, detail="未登录")
+    user = auth_store.get_user(str(username))
+    if not user:
+        request.session.clear()
+        raise HTTPException(status_code=401, detail="未登录")
+    return {"username": user.username, "role": user.role}
+
+
 @app.post("/convert")
-async def convert(file: UploadFile = File(...)) -> dict[str, str]:
+async def convert(request: Request, file: UploadFile = File(...)) -> dict[str, str]:
+    _require_login(request)
     if not file.filename:
         raise HTTPException(status_code=400, detail="文件名不能为空")
 
@@ -78,7 +138,8 @@ async def convert(file: UploadFile = File(...)) -> dict[str, str]:
 
 
 @app.get("/download/{job_id}")
-def download(job_id: str) -> FileResponse:
+def download(job_id: str, request: Request) -> FileResponse:
+    _require_login(request)
     output_dir = config.output_dir / job_id
     files = list(output_dir.glob("*.md"))
     if not files:

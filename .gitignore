@@ -7,3 +7,4 @@ __pycache__/
 !/data/input/.gitkeep
 /data/output/*
 !/data/output/.gitkeep
+/data/*.db

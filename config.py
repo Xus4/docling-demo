@@ -91,6 +91,11 @@ class AppConfig:
     llm_table_caption_max_chars: int
     pdf_caption_crop_figures: bool
     llm_enable_thinking: bool
+    auth_db_path: Path
+    session_secret: str
+    initial_password: str
+    auth_admin_username: str
+    auth_users: list[str]
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -133,6 +138,20 @@ class AppConfig:
             llm_enable_thinking=_parse_bool(
                 os.getenv("LLM_ENABLE_THINKING"), default=True
             ),
+            auth_db_path=Path(
+                os.getenv("AUTH_DB_PATH", str(data_dir / "auth.db"))
+            ).resolve(),
+            session_secret=os.getenv("SESSION_SECRET", "change-me-in-production"),
+            initial_password=os.getenv("INITIAL_PASSWORD", "ChangeMe123!"),
+            auth_admin_username=os.getenv("AUTH_ADMIN_USERNAME", "admin"),
+            auth_users=[
+                x.strip()
+                for x in os.getenv(
+                    "AUTH_USERS",
+                    "user1,user2,user3,user4,user5",
+                ).split(",")
+                if x.strip()
+            ],
         )
 
     def ensure_dirs(self) -> None:

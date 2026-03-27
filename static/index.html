@@ -6,186 +6,552 @@
     <title>文档转 Markdown</title>
     <style>
       :root {
-        --bg: #f3f6fb;
-        --bg-grad-start: #eef4ff;
-        --bg-grad-end: #f7f9fc;
-        --card: #ffffff;
-        --text-main: #111827;
-        --text-sub: #6b7280;
-        --line: #d9e2ef;
-        --line-hover: #9fb6ff;
-        --primary: #2563eb;
-        --primary-hover: #1d4ed8;
-        --card-shadow: 0 10px 35px rgba(17, 24, 39, 0.08);
-        --success-bg: #ecfdf3;
-        --success-text: #027a48;
-        --error-bg: #fef3f2;
-        --error-text: #b42318;
-        --muted-surface: #f8fbff;
+        --bg-0: #edf1fb;
+        --bg-1: #e5ecff;
+        --bg-2: #f5f8ff;
+        --glass: rgba(255, 255, 255, 0.52);
+        --glass-strong: rgba(255, 255, 255, 0.68);
+        --stroke: rgba(106, 128, 171, 0.24);
+        --stroke-strong: rgba(77, 117, 220, 0.52);
+        --text-main: #1d2534;
+        --text-sub: #6d7a92;
+        --brand: #4d6fff;
+        --brand-2: #3c5be4;
+        --success-bg: rgba(16, 185, 129, 0.16);
+        --success-text: #0d8a61;
+        --error-bg: rgba(239, 68, 68, 0.16);
+        --error-text: #c93b3b;
+        --shadow-xl: 0 26px 65px rgba(29, 42, 80, 0.16);
       }
 
       body[data-theme="dark"] {
-        --bg: #0b1220;
-        --bg-grad-start: #131d33;
-        --bg-grad-end: #0c1322;
-        --card: #111a2d;
-        --text-main: #e5e7eb;
-        --text-sub: #97a3b8;
-        --line: #344059;
-        --line-hover: #607fce;
-        --primary: #5b8cff;
-        --primary-hover: #4a7cf1;
-        --card-shadow: 0 16px 42px rgba(2, 8, 23, 0.45);
-        --success-bg: #113225;
-        --success-text: #63d89c;
-        --error-bg: #3a1b1b;
-        --error-text: #f3a6a6;
-        --muted-surface: #17253f;
+        --bg-0: #0c1221;
+        --bg-1: #13203d;
+        --bg-2: #0f182d;
+        --glass: rgba(17, 27, 48, 0.54);
+        --glass-strong: rgba(25, 36, 60, 0.72);
+        --stroke: rgba(132, 153, 194, 0.25);
+        --stroke-strong: rgba(126, 151, 255, 0.68);
+        --text-main: #e9efff;
+        --text-sub: #9ba9c5;
+        --brand: #6d89ff;
+        --brand-2: #5a74e6;
+        --success-bg: rgba(22, 198, 132, 0.2);
+        --success-text: #65e1b0;
+        --error-bg: rgba(239, 68, 68, 0.2);
+        --error-text: #ffb2b2;
+        --shadow-xl: 0 30px 72px rgba(1, 7, 20, 0.5);
       }
 
-      * { box-sizing: border-box; }
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         margin: 0;
         min-height: 100vh;
+        padding: 40px 16px;
         font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
         color: var(--text-main);
-        background: radial-gradient(circle at top, var(--bg-grad-start) 0%, var(--bg) 32%, var(--bg-grad-end) 100%);
-        display: flex;
-        justify-content: center;
-        padding: 48px 16px;
-        transition: background 0.25s ease, color 0.25s ease;
+        background:
+          radial-gradient(44% 34% at 8% 10%, rgba(121, 161, 255, 0.35), transparent 70%),
+          radial-gradient(34% 28% at 92% 8%, rgba(118, 222, 255, 0.26), transparent 72%),
+          radial-gradient(30% 24% at 84% 88%, rgba(103, 138, 255, 0.22), transparent 74%),
+          linear-gradient(140deg, var(--bg-0) 0%, var(--bg-1) 44%, var(--bg-2) 100%);
+        overflow-x: hidden;
       }
-      .page { width: 100%; max-width: 760px; }
-      .header {
+
+      body::before,
+      body::after {
+        content: "";
+        position: fixed;
+        pointer-events: none;
+        z-index: 0;
+        border-radius: 999px;
+        filter: blur(70px);
+        opacity: 0.6;
+        animation: floatGlow 8s ease-in-out infinite alternate;
+      }
+
+      body::before {
+        width: 260px;
+        height: 260px;
+        left: -70px;
+        top: 16%;
+        background: rgba(111, 139, 255, 0.45);
+      }
+
+      body::after {
+        width: 230px;
+        height: 230px;
+        right: -56px;
+        bottom: 12%;
+        background: rgba(105, 214, 255, 0.36);
+        animation-delay: 1.2s;
+      }
+
+      @keyframes floatGlow {
+        from { transform: translateY(0); }
+        to { transform: translateY(-16px); }
+      }
+
+      .page {
+        width: 100%;
+        max-width: 980px;
+        margin: 0 auto;
+        position: relative;
+        z-index: 1;
+      }
+
+      .brand {
         text-align: center;
         margin-bottom: 24px;
+      }
+
+      .brand h1 {
+        margin: 0;
+        font-size: clamp(32px, 4vw, 44px);
+        line-height: 1.16;
+        letter-spacing: 0.2px;
+        font-weight: 760;
+        text-shadow: 0 12px 30px rgba(52, 73, 122, 0.16);
+      }
+
+      .brand p {
+        margin: 10px 0 0;
+        color: var(--text-sub);
+        font-size: 15px;
+      }
+
+      .theme-btn {
+        margin-top: 12px;
+        border: 1px solid var(--stroke);
+        border-radius: 999px;
+        background: var(--glass);
+        color: var(--text-main);
+        font-size: 13px;
+        padding: 8px 14px;
+        cursor: pointer;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+
+      .theme-btn:hover {
+        border-color: var(--stroke-strong);
+      }
+
+      .shell {
+        background: var(--glass);
+        border: 1px solid var(--stroke);
+        border-radius: 18px;
+        box-shadow: var(--shadow-xl);
+        backdrop-filter: blur(22px);
+        -webkit-backdrop-filter: blur(22px);
+        padding: 22px;
+      }
+
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .topbar.hidden {
+        display: none;
+      }
+
+      .user-badge {
+        color: var(--text-sub);
+        font-size: 13px;
+      }
+
+      .link-btn {
+        border: none;
+        background: transparent;
+        color: var(--brand);
+        cursor: pointer;
+        font-size: 13px;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .auth-view {
+        max-width: 480px;
+        margin: 8px auto;
+        border-radius: 16px;
+        background: var(--glass-strong);
+        border: 1px solid var(--stroke);
+        box-shadow: 0 18px 46px rgba(20, 35, 70, 0.16);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        padding: 28px;
+      }
+
+      .auth-title {
+        margin: 0;
+        font-size: 24px;
+        line-height: 1.2;
+        font-weight: 700;
+      }
+
+      .auth-sub {
+        margin: 8px 0 0;
+        color: var(--text-sub);
+        font-size: 13px;
+      }
+
+      .auth-grid {
+        margin-top: 18px;
         display: grid;
         gap: 12px;
-        justify-items: center;
       }
-      .title { margin: 0; font-size: 34px; line-height: 44px; font-weight: 700; letter-spacing: 0.2px; }
-      .subtitle { margin: 0; font-size: 16px; color: var(--text-sub); }
-      .theme-btn {
-        border: 1px solid var(--line);
-        background: var(--card);
+
+      .field {
+        height: 46px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border: 1px solid var(--stroke);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.26);
+        padding: 0 12px;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      body[data-theme="dark"] .field {
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .field:focus-within {
+        border-color: var(--stroke-strong);
+        box-shadow: 0 0 0 3px rgba(77, 111, 255, 0.16);
+      }
+
+      .field svg {
+        width: 16px;
+        height: 16px;
+        color: var(--text-sub);
+        flex: 0 0 16px;
+      }
+
+      .field input {
+        width: 100%;
+        border: none;
+        outline: none;
+        background: transparent;
         color: var(--text-main);
+        font-size: 14px;
+      }
+
+      .field input::placeholder {
+        color: color-mix(in srgb, var(--text-sub) 74%, transparent);
+      }
+
+      .primary-btn {
+        width: 100%;
+        height: 46px;
+        border: none;
+        border-radius: 10px;
+        background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 650;
+        cursor: pointer;
+        transition: transform 0.08s ease, filter 0.2s ease;
+      }
+
+      .primary-btn:hover {
+        filter: brightness(1.05);
+      }
+
+      .primary-btn:active {
+        transform: translateY(1px);
+      }
+
+      .primary-btn:disabled {
+        opacity: 0.72;
+        cursor: not-allowed;
+      }
+
+      .auth-tip {
+        margin-top: 12px;
+        color: var(--text-sub);
+        font-size: 12px;
+      }
+
+      .workspace {
+        display: grid;
+        gap: 14px;
+      }
+
+      .dropzone {
+        border: 2px dashed var(--stroke);
+        border-radius: 14px;
+        background: var(--glass-strong);
+        padding: 40px 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .dropzone::after {
+        content: "";
+        position: absolute;
+        inset: -40% auto auto -70%;
+        width: 60%;
+        height: 220%;
+        transform: rotate(14deg);
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.36), transparent);
+        opacity: 0;
+        transition: opacity 0.25s ease;
+      }
+
+      .dropzone:hover::after {
+        opacity: 1;
+      }
+
+      .dropzone:hover {
+        border-color: var(--stroke-strong);
+      }
+
+      .dropzone.dragover {
+        border-color: var(--brand);
+        transform: translateY(-1px);
+      }
+
+      .upload-icon {
+        width: 48px;
+        height: 48px;
+        margin: 0 auto 12px;
+        color: var(--brand);
+      }
+
+      .dropzone-text {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 650;
+      }
+
+      .dropzone-hint {
+        margin: 8px 0 0;
+        color: var(--text-sub);
+        font-size: 14px;
+      }
+
+      .selected-file {
+        border: 1px solid var(--stroke);
+        background: var(--glass-strong);
+        border-radius: 10px;
+        padding: 12px 14px;
+        font-size: 14px;
+      }
+
+      .status-box {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        border-radius: 10px;
+        padding: 12px 14px;
+        font-size: 14px;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+
+      .status-box.show {
+        display: flex;
+      }
+
+      .status-loading {
+        background: rgba(77, 111, 255, 0.16);
+        color: var(--brand);
+      }
+
+      .status-success {
+        background: var(--success-bg);
+        color: var(--success-text);
+      }
+
+      .status-error {
+        background: var(--error-bg);
+        color: var(--error-text);
+      }
+
+      .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(77, 111, 255, 0.25);
+        border-top-color: var(--brand);
         border-radius: 999px;
-        padding: 6px 12px;
+        animation: spin 0.75s linear infinite;
+        flex: 0 0 16px;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      .result,
+      .history {
+        display: none;
+        border-top: 1px solid var(--stroke);
+        padding-top: 14px;
+      }
+
+      .result.show,
+      .history.show {
+        display: block;
+      }
+
+      .section-title {
+        margin: 0 0 10px;
+        color: var(--text-sub);
+        font-size: 13px;
+      }
+
+      .result-card,
+      .history-item {
+        border: 1px solid var(--stroke);
+        border-radius: 10px;
+        background: var(--glass-strong);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 14px;
+      }
+
+      .filename {
+        font-size: 14px;
+        word-break: break-all;
+      }
+
+      .history-meta {
+        color: var(--text-sub);
+        font-size: 12px;
+        margin-top: 4px;
+      }
+
+      .history-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .history-title-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+
+      .download-btn {
+        text-decoration: none;
+        white-space: nowrap;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 13px;
+        font-weight: 650;
+        color: #fff;
+        background: linear-gradient(135deg, #15a95f 0%, #0d8a61 100%);
+      }
+
+      .download-btn:hover {
+        filter: brightness(1.05);
+      }
+
+      .ghost-btn {
+        border: none;
+        background: transparent;
+        color: var(--text-sub);
         font-size: 13px;
         cursor: pointer;
       }
-      .theme-btn:hover { border-color: var(--line-hover); }
-      .card {
-        background: var(--card);
-        border-radius: 12px;
-        box-shadow: var(--card-shadow);
-        border: 1px solid rgba(148, 163, 184, 0.18);
-        padding: 24px;
+
+      .ghost-btn:hover {
+        color: var(--text-main);
       }
-      .dropzone {
-        border: 2px dashed var(--line);
-        border-radius: 12px;
-        background: var(--muted-surface);
-        padding: 40px 24px;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.2s ease;
+
+      @media (max-width: 680px) {
+        .shell { padding: 16px; }
+        .auth-view { padding: 20px; }
       }
-      .dropzone:hover { border-color: var(--line-hover); filter: brightness(1.02); }
-      .dropzone.dragover { border-color: var(--primary); transform: translateY(-1px); }
-      .upload-icon { width: 48px; height: 48px; margin: 0 auto 12px; color: var(--primary); }
-      .dropzone-text { font-size: 16px; font-weight: 600; margin: 0; }
-      .dropzone-hint { margin: 8px 0 0; font-size: 14px; color: var(--text-sub); }
-      .selected-file {
-        margin-top: 16px; padding: 12px 14px; border-radius: 10px;
-        border: 1px solid rgba(148, 163, 184, 0.3); background: var(--muted-surface);
-        color: var(--text-main); font-size: 14px;
-      }
-      .actions { margin-top: 20px; }
-      .btn {
-        width: 100%; height: 44px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600;
-        color: #fff; background: var(--primary); cursor: pointer; transition: background 0.2s ease, transform 0.08s ease;
-      }
-      .btn:hover { background: var(--primary-hover); }
-      .btn:active { transform: translateY(1px); }
-      .btn:disabled { opacity: 0.72; cursor: not-allowed; }
-      .status-box {
-        margin-top: 20px; border-radius: 10px; padding: 12px 14px; display: none; align-items: center; gap: 10px; font-size: 14px;
-      }
-      .status-box.show { display: flex; }
-      .status-loading { background: rgba(37, 99, 235, 0.14); color: var(--primary); }
-      .status-success { background: var(--success-bg); color: var(--success-text); }
-      .status-error { background: var(--error-bg); color: var(--error-text); }
-      .spinner {
-        width: 16px; height: 16px; border: 2px solid rgba(37, 99, 235, 0.2); border-top-color: var(--primary);
-        border-radius: 999px; animation: spin 0.8s linear infinite; flex: 0 0 16px;
-      }
-      @keyframes spin { to { transform: rotate(360deg);} }
-      .result, .history { margin-top: 20px; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 20px; display: none; }
-      .result.show, .history.show { display: block; }
-      .result-title { font-size: 14px; color: var(--text-sub); margin: 0 0 10px; }
-      .result-card, .history-item {
-        border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 10px; padding: 14px; display: flex;
-        align-items: center; justify-content: space-between; gap: 12px; background: var(--muted-surface);
-      }
-      .filename { font-size: 14px; word-break: break-all; }
-      .download-btn {
-        text-decoration: none; border-radius: 8px; padding: 8px 12px; color: #fff; font-size: 14px; font-weight: 600;
-        background: #059669; white-space: nowrap;
-      }
-      .download-btn:hover { background: #047857; }
-      .history-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-      .clear-btn {
-        border: none; background: transparent; color: var(--text-sub); cursor: pointer; font-size: 13px; padding: 4px 0;
-      }
-      .clear-btn:hover { color: var(--text-main); }
-      .history-list { display: grid; gap: 10px; }
-      .history-meta { color: var(--text-sub); font-size: 12px; margin-top: 4px; }
     </style>
   </head>
   <body>
     <main class="page">
-      <header class="header">
-        <h1 class="title">文档转 Markdown</h1>
-        <p class="subtitle">支持 PDF / Word / PPT / 图片自动解析</p>
+      <header class="brand">
+        <h1>文档转 Markdown</h1>
+        <p>支持 PDF / Word / PPT / 图片智能解析</p>
         <button id="themeToggle" class="theme-btn" type="button">切换暗色模式</button>
       </header>
 
-      <section class="card">
-        <input id="fileInput" type="file" hidden />
-
-        <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="文件上传区域">
-          <svg class="upload-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 16V4M12 4L8 8M12 4L16 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-            <path d="M4 14.5V17C4 18.6569 5.34315 20 7 20H17C18.6569 20 20 18.6569 20 17V14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
-          </svg>
-          <p class="dropzone-text">点击或拖拽文件到此区域上传</p>
-          <p class="dropzone-hint">支持常见文档与图片格式，上传后自动解析为 Markdown</p>
+      <section class="shell">
+        <div class="topbar">
+          <span id="userBadge" class="user-badge">未登录</span>
+          <button id="logoutBtn" class="link-btn hidden" type="button">退出登录</button>
         </div>
 
-        <div id="selectedFile" class="selected-file" style="display: none"></div>
+        <section id="authBox" class="auth-view">
+          <h2 class="auth-title">账号登录</h2>
+          <p class="auth-sub">输入账号后进入转换工作台</p>
 
-        <div class="actions">
-          <button id="convertBtn" class="btn" type="button">上传并转换</button>
-        </div>
-
-        <div id="statusBox" class="status-box" aria-live="polite"></div>
-
-        <div id="result" class="result">
-          <p class="result-title">转换结果</p>
-          <div class="result-card">
-            <span id="resultFilename" class="filename"></span>
-            <a id="downloadBtn" class="download-btn" href="#" target="_blank" rel="noopener">下载 Markdown</a>
+          <div class="auth-grid">
+            <label class="field">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 12C14.4853 12 16.5 9.98528 16.5 7.5C16.5 5.01472 14.4853 3 12 3C9.51472 3 7.5 5.01472 7.5 7.5C7.5 9.98528 9.51472 12 12 12Z" stroke="currentColor" stroke-width="1.7"></path>
+                <path d="M4 20.25C4.7 16.9 7.8 14.5 12 14.5C16.2 14.5 19.3 16.9 20 20.25" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+              </svg>
+              <input id="usernameInput" type="text" placeholder="用户名" autocomplete="username" />
+            </label>
+            <label class="field">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M7.5 10V7.75C7.5 5.12665 9.62665 3 12.25 3C14.8734 3 17 5.12665 17 7.75V10" stroke="currentColor" stroke-width="1.7"></path>
+                <rect x="5" y="10" width="14" height="11" rx="2.5" stroke="currentColor" stroke-width="1.7"></rect>
+                <circle cx="12" cy="15.5" r="1.2" fill="currentColor"></circle>
+              </svg>
+              <input id="passwordInput" type="password" placeholder="密码" autocomplete="current-password" />
+            </label>
+            <button id="loginBtn" class="primary-btn" type="button">登录</button>
           </div>
-        </div>
+          <p class="auth-tip">提示：账号由管理员预置，初始密码由系统统一配置。</p>
+        </section>
 
-        <div id="history" class="history">
-          <div class="history-title-row">
-            <p class="result-title" style="margin: 0">最近转换记录</p>
-            <button id="clearHistory" class="clear-btn" type="button">清空</button>
+        <section id="workArea" class="workspace hidden">
+          <input id="fileInput" type="file" hidden />
+
+          <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="文件上传区域">
+            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 16V4M12 4L8 8M12 4L16 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+              <path d="M4 14.5V17C4 18.6569 5.34315 20 7 20H17C18.6569 20 20 18.6569 20 17V14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+            </svg>
+            <p class="dropzone-text">点击或拖拽文件到此区域上传</p>
+            <p class="dropzone-hint">支持常见文档与图片格式，上传后自动解析为 Markdown</p>
           </div>
-          <div id="historyList" class="history-list"></div>
-        </div>
+
+          <div id="selectedFile" class="selected-file hidden"></div>
+          <button id="convertBtn" class="primary-btn" type="button">上传并转换</button>
+
+          <div id="statusBox" class="status-box" aria-live="polite"></div>
+
+          <div id="result" class="result">
+            <p class="section-title">转换结果</p>
+            <div class="result-card">
+              <span id="resultFilename" class="filename"></span>
+              <a id="downloadBtn" class="download-btn" href="#" target="_blank" rel="noopener">下载 Markdown</a>
+            </div>
+          </div>
+
+          <div id="history" class="history">
+            <div class="history-title-row">
+              <p class="section-title" style="margin: 0">最近转换记录</p>
+              <button id="clearHistory" class="ghost-btn" type="button">清空</button>
+            </div>
+            <div id="historyList" class="history-list"></div>
+          </div>
+        </section>
       </section>
     </main>
 
@@ -202,79 +568,20 @@
       const historyWrap = document.getElementById("history");
       const historyList = document.getElementById("historyList");
       const clearHistoryBtn = document.getElementById("clearHistory");
+      const authBox = document.getElementById("authBox");
+      const workArea = document.getElementById("workArea");
+      const topbar = document.querySelector(".topbar");
+      const userBadge = document.getElementById("userBadge");
+      const logoutBtn = document.getElementById("logoutBtn");
+      const loginBtn = document.getElementById("loginBtn");
+      const usernameInput = document.getElementById("usernameInput");
+      const passwordInput = document.getElementById("passwordInput");
 
-      let currentFile = null;
       const STORAGE_KEYS = {
         theme: "docling_theme",
         history: "docling_history",
       };
-
-      function setSelectedFile(file) {
-        currentFile = file;
-        selectedFile.style.display = "block";
-        selectedFile.textContent = "已选择文件: " + file.name;
-      }
-
-      function resetResult() {
-        result.classList.remove("show");
-        resultFilename.textContent = "";
-        downloadBtn.setAttribute("href", "#");
-      }
-
-      function applyTheme(theme) {
-        document.body.setAttribute("data-theme", theme);
-        themeToggle.textContent = theme === "dark" ? "切换亮色模式" : "切换暗色模式";
-      }
-
-      function saveTheme(theme) {
-        localStorage.setItem(STORAGE_KEYS.theme, theme);
-        applyTheme(theme);
-      }
-
-      function loadHistory() {
-        try {
-          const raw = localStorage.getItem(STORAGE_KEYS.history);
-          const data = raw ? JSON.parse(raw) : [];
-          return Array.isArray(data) ? data : [];
-        } catch (error) {
-          return [];
-        }
-      }
-
-      function saveHistory(records) {
-        localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(records.slice(0, 8)));
-      }
-
-      function formatTime(timestamp) {
-        const d = new Date(timestamp);
-        return d.toLocaleString("zh-CN", { hour12: false });
-      }
-
-      function renderHistory() {
-        const records = loadHistory();
-        if (!records.length) {
-          historyWrap.classList.remove("show");
-          historyList.innerHTML = "";
-          return;
-        }
-        historyWrap.classList.add("show");
-        historyList.innerHTML = records
-          .map(
-            (item) =>
-              '<div class="history-item">' +
-              '<div><div class="filename">' + item.filename + '</div><div class="history-meta">' + formatTime(item.time) + "</div></div>" +
-              '<a class="download-btn" href="' + item.downloadUrl + '" target="_blank" rel="noopener">下载</a>' +
-              "</div>"
-          )
-          .join("");
-      }
-
-      function appendHistory(record) {
-        const records = loadHistory();
-        const next = [record, ...records.filter((x) => x.downloadUrl !== record.downloadUrl)];
-        saveHistory(next);
-        renderHistory();
-      }
+      let currentFile = null;
 
       function setStatus(type, text) {
         statusBox.className = "status-box show";
@@ -292,8 +599,84 @@
         statusBox.textContent = "✖ " + text;
       }
 
-      function openPicker() {
-        fileInput.click();
+      function setSelectedFile(file) {
+        currentFile = file;
+        selectedFile.classList.remove("hidden");
+        selectedFile.textContent = "已选择文件: " + file.name;
+      }
+
+      function resetResult() {
+        result.classList.remove("show");
+        resultFilename.textContent = "";
+        downloadBtn.href = "#";
+      }
+
+      function setAuthState(user) {
+        if (user) {
+          topbar.classList.remove("hidden");
+          authBox.classList.add("hidden");
+          workArea.classList.remove("hidden");
+          logoutBtn.classList.remove("hidden");
+          userBadge.textContent = "当前用户: " + user.username + " (" + user.role + ")";
+          return;
+        }
+        topbar.classList.add("hidden");
+        authBox.classList.remove("hidden");
+        workArea.classList.add("hidden");
+        logoutBtn.classList.add("hidden");
+        userBadge.textContent = "";
+      }
+
+      function applyTheme(theme) {
+        document.body.setAttribute("data-theme", theme);
+        themeToggle.textContent = theme === "dark" ? "切换亮色模式" : "切换暗色模式";
+      }
+
+      function saveTheme(theme) {
+        localStorage.setItem(STORAGE_KEYS.theme, theme);
+        applyTheme(theme);
+      }
+
+      function loadHistory() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEYS.history);
+          const parsed = raw ? JSON.parse(raw) : [];
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+          return [];
+        }
+      }
+
+      function saveHistory(records) {
+        localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(records.slice(0, 8)));
+      }
+
+      function renderHistory() {
+        const records = loadHistory();
+        if (!records.length) {
+          historyWrap.classList.remove("show");
+          historyList.innerHTML = "";
+          return;
+        }
+        historyWrap.classList.add("show");
+        historyList.innerHTML = records
+          .map((item) => {
+            const ts = new Date(item.time).toLocaleString("zh-CN", { hour12: false });
+            return (
+              '<div class="history-item">' +
+              '<div><div class="filename">' + item.filename + '</div><div class="history-meta">' + ts + "</div></div>" +
+              '<a class="download-btn" href="' + item.downloadUrl + '" target="_blank" rel="noopener">下载</a>' +
+              "</div>"
+            );
+          })
+          .join("");
+      }
+
+      function appendHistory(record) {
+        const records = loadHistory();
+        const next = [record, ...records.filter((x) => x.downloadUrl !== record.downloadUrl)];
+        saveHistory(next);
+        renderHistory();
       }
 
       themeToggle.addEventListener("click", () => {
@@ -305,6 +688,57 @@
         localStorage.removeItem(STORAGE_KEYS.history);
         renderHistory();
       });
+
+      loginBtn.addEventListener("click", async () => {
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+        if (!username || !password) {
+          setStatus("error", "请输入用户名和密码");
+          return;
+        }
+        const oldText = loginBtn.textContent;
+        loginBtn.disabled = true;
+        loginBtn.textContent = "登录中...";
+        try {
+          const resp = await fetch("/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+          });
+          const payload = await resp.json();
+          if (!resp.ok) {
+            setStatus("error", payload.detail || "登录失败");
+            return;
+          }
+          passwordInput.value = "";
+          setAuthState(payload);
+          setStatus("success", "登录成功");
+        } catch (error) {
+          setStatus("error", "登录请求失败");
+        } finally {
+          loginBtn.disabled = false;
+          loginBtn.textContent = oldText;
+        }
+      });
+
+      [usernameInput, passwordInput].forEach((el) => {
+        el.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            loginBtn.click();
+          }
+        });
+      });
+
+      logoutBtn.addEventListener("click", async () => {
+        await fetch("/auth/logout", { method: "POST" });
+        setAuthState(null);
+        setStatus("success", "已退出登录");
+      });
+
+      function openPicker() {
+        fileInput.click();
+      }
 
       dropzone.addEventListener("click", openPicker);
       dropzone.addEventListener("keydown", (event) => {
@@ -337,10 +771,10 @@
 
       dropzone.addEventListener("drop", (event) => {
         const files = event.dataTransfer && event.dataTransfer.files;
-        if (!files || files.length === 0) {
+        if (!files || !files.length) {
           return;
         }
-        const [file] = files;
+        const file = files[0];
         fileInput.files = files;
         setSelectedFile(file);
         resetResult();
@@ -352,25 +786,24 @@
           setStatus("error", "请先选择要上传的文件");
           return;
         }
-
+        const oldText = convertBtn.textContent;
         convertBtn.disabled = true;
         convertBtn.textContent = "处理中...";
         setStatus("loading", "正在解析文档，请稍候...");
-
         try {
           const formData = new FormData();
           formData.append("file", currentFile);
-          const response = await fetch("/convert", {
-            method: "POST",
-            body: formData,
-          });
-
-          const payload = await response.json();
-          if (!response.ok) {
+          const resp = await fetch("/convert", { method: "POST", body: formData });
+          const payload = await resp.json();
+          if (resp.status === 401) {
+            setAuthState(null);
+            setStatus("error", "登录已失效，请重新登录");
+            return;
+          }
+          if (!resp.ok) {
             setStatus("error", payload.detail || "转换失败，请稍后重试");
             return;
           }
-
           setStatus("success", "转换成功");
           resultFilename.textContent = payload.filename || currentFile.name;
           downloadBtn.href = payload.download_url;
@@ -384,13 +817,27 @@
           setStatus("error", "请求失败，请检查网络或服务状态");
         } finally {
           convertBtn.disabled = false;
-          convertBtn.textContent = "上传并转换";
+          convertBtn.textContent = oldText;
         }
       }
 
       convertBtn.addEventListener("click", uploadAndConvert);
       applyTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
       renderHistory();
+
+      (async function initAuth() {
+        try {
+          const resp = await fetch("/auth/me");
+          if (!resp.ok) {
+            setAuthState(null);
+            return;
+          }
+          const payload = await resp.json();
+          setAuthState(payload);
+        } catch (error) {
+          setAuthState(null);
+        }
+      })();
     </script>
   </body>
 </html>
