@@ -6,41 +6,125 @@
     <title>文档转 Markdown</title>
     <style>
       :root {
+        --bg-0: #0c1221;
+        --bg-1: #13203d;
+        --bg-2: #0f182d;
+        --glass: rgba(14, 20, 34, 0.72);
+        --glass-strong: rgba(16, 23, 38, 0.9);
+        --stroke: rgba(255, 115, 115, 0.2);
+        --stroke-strong: rgba(255, 110, 110, 0.64);
+        --text-main: #f5f1ff;
+        --text-sub: #baadc8;
+        --brand: #ff5858;
+        --brand-2: #d83232;
+        --bg-glow-1: rgba(255, 79, 79, 0.22);
+        --bg-glow-2: rgba(255, 110, 79, 0.18);
+        --bg-glow-3: rgba(255, 61, 135, 0.12);
+        --orb-1: rgba(255, 92, 92, 0.38);
+        --orb-2: rgba(255, 67, 132, 0.28);
+        --theme-btn-bg: linear-gradient(140deg, rgba(26, 33, 53, 0.72), rgba(38, 19, 38, 0.66));
+        --title-shadow: 0 14px 30px rgba(255, 78, 78, 0.2);
+        --shell-bg:
+          radial-gradient(120% 130% at 10% 0%, rgba(255, 80, 80, 0.14), transparent 48%),
+          linear-gradient(145deg, rgba(12, 18, 31, 0.9), rgba(14, 21, 36, 0.82) 52%, rgba(21, 14, 29, 0.88));
+        --shell-glow: rgba(255, 80, 80, 0.14);
+        --shell-inner: rgba(255, 90, 90, 0.08);
+        --topbar-stroke: rgba(255, 111, 111, 0.14);
+        --field-bg: transparent;
+        --field-border: rgba(255, 102, 102, 0.24);
+        --field-focus: rgba(255, 108, 108, 0.7);
+        --field-focus-ring: rgba(255, 98, 98, 0.2);
+        --field-focus-glow: rgba(255, 84, 84, 0.24);
+        --field-icon: rgba(255, 175, 175, 0.78);
+        --field-text: #ffeef0;
+        --field-placeholder: rgba(255, 193, 193, 0.4);
+        --button-border: rgba(255, 92, 92, 0.36);
+        --button-overlay-1: rgba(255, 99, 99, 0.15);
+        --button-overlay-2: rgba(255, 72, 72, 0.26);
+        --button-shadow-1: rgba(188, 34, 34, 0.28);
+        --button-shadow-2: rgba(255, 92, 92, 0.2);
+        --button-shadow-hover-1: rgba(188, 34, 34, 0.36);
+        --button-shadow-hover-2: rgba(255, 92, 92, 0.26);
+        --dropzone-border: rgba(255, 106, 106, 0.36);
+        --dropzone-glow: rgba(255, 74, 74, 0.14);
+        --dropzone-bg: rgba(17, 23, 38, 0.76);
+        --dropzone-shine: rgba(255, 101, 101, 0.28);
+        --dropzone-hover-inner: rgba(255, 98, 98, 0.2);
+        --dropzone-hover-glow: rgba(255, 92, 92, 0.12);
+        --dropzone-drag-inner: rgba(255, 92, 92, 0.26);
+        --dropzone-drag-glow: rgba(255, 92, 92, 0.22);
+        --panel-bg: rgba(18, 24, 40, 0.52);
+        --panel-border: rgba(255, 110, 110, 0.16);
+        --section-divider: rgba(255, 110, 110, 0.18);
+        --status-loading-bg: rgba(112, 45, 45, 0.32);
+        --status-loading-text: #ffbbbb;
+        --status-loading-border: rgba(255, 101, 101, 0.28);
+        --success-bg: rgba(11, 83, 54, 0.35);
+        --success-text: #95ffd0;
+        --error-bg: rgba(121, 30, 30, 0.38);
+        --error-text: #ffc2c2;
+        --shadow-xl: 0 30px 72px rgba(1, 7, 20, 0.62);
+      }
+
+      body[data-theme="light"] {
         --bg-0: #edf1fb;
         --bg-1: #e5ecff;
         --bg-2: #f5f8ff;
         --glass: rgba(255, 255, 255, 0.52);
         --glass-strong: rgba(255, 255, 255, 0.68);
-        --stroke: rgba(106, 128, 171, 0.24);
-        --stroke-strong: rgba(77, 117, 220, 0.52);
+        --stroke: rgba(108, 130, 181, 0.26);
+        --stroke-strong: rgba(76, 112, 220, 0.6);
         --text-main: #1d2534;
         --text-sub: #6d7a92;
-        --brand: #4d6fff;
-        --brand-2: #3c5be4;
+        --brand: #4f67ff;
+        --brand-2: #3649ca;
+        --bg-glow-1: rgba(95, 124, 255, 0.18);
+        --bg-glow-2: rgba(106, 170, 255, 0.16);
+        --bg-glow-3: rgba(168, 111, 255, 0.12);
+        --orb-1: rgba(98, 124, 255, 0.24);
+        --orb-2: rgba(139, 120, 255, 0.18);
+        --theme-btn-bg: linear-gradient(140deg, rgba(255, 255, 255, 0.76), rgba(241, 246, 255, 0.85));
+        --title-shadow: 0 12px 26px rgba(79, 103, 255, 0.18);
+        --shell-bg:
+          radial-gradient(120% 130% at 10% 0%, rgba(94, 122, 255, 0.12), transparent 48%),
+          linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(245, 249, 255, 0.9) 52%, rgba(240, 245, 255, 0.86));
+        --shell-glow: rgba(94, 122, 255, 0.12);
+        --shell-inner: rgba(97, 124, 255, 0.08);
+        --topbar-stroke: rgba(98, 122, 190, 0.16);
+        --field-bg: transparent;
+        --field-border: rgba(113, 135, 187, 0.34);
+        --field-focus: rgba(79, 103, 255, 0.72);
+        --field-focus-ring: rgba(79, 103, 255, 0.2);
+        --field-focus-glow: rgba(79, 103, 255, 0.2);
+        --field-icon: rgba(89, 108, 162, 0.78);
+        --field-text: #1f2a45;
+        --field-placeholder: rgba(99, 114, 152, 0.6);
+        --button-border: rgba(85, 111, 255, 0.4);
+        --button-overlay-1: rgba(111, 133, 255, 0.18);
+        --button-overlay-2: rgba(83, 109, 255, 0.2);
+        --button-shadow-1: rgba(70, 93, 205, 0.26);
+        --button-shadow-2: rgba(90, 118, 255, 0.22);
+        --button-shadow-hover-1: rgba(70, 93, 205, 0.34);
+        --button-shadow-hover-2: rgba(90, 118, 255, 0.3);
+        --dropzone-border: rgba(95, 120, 205, 0.34);
+        --dropzone-glow: rgba(95, 120, 240, 0.1);
+        --dropzone-bg: rgba(250, 252, 255, 0.82);
+        --dropzone-shine: rgba(118, 142, 255, 0.3);
+        --dropzone-hover-inner: rgba(79, 103, 255, 0.16);
+        --dropzone-hover-glow: rgba(90, 118, 255, 0.14);
+        --dropzone-drag-inner: rgba(79, 103, 255, 0.2);
+        --dropzone-drag-glow: rgba(90, 118, 255, 0.2);
+        --panel-bg: rgba(255, 255, 255, 0.74);
+        --panel-border: rgba(105, 128, 186, 0.22);
+        --section-divider: rgba(108, 130, 181, 0.2);
+        --status-loading-bg: rgba(79, 103, 255, 0.14);
+        --status-loading-text: #3953cc;
+        --status-loading-border: rgba(79, 103, 255, 0.24);
         --success-bg: rgba(16, 185, 129, 0.16);
         --success-text: #0d8a61;
         --error-bg: rgba(239, 68, 68, 0.16);
         --error-text: #c93b3b;
         --shadow-xl: 0 26px 65px rgba(29, 42, 80, 0.16);
-      }
-
-      body[data-theme="dark"] {
-        --bg-0: #0c1221;
-        --bg-1: #13203d;
-        --bg-2: #0f182d;
-        --glass: rgba(17, 27, 48, 0.54);
-        --glass-strong: rgba(25, 36, 60, 0.72);
-        --stroke: rgba(132, 153, 194, 0.25);
-        --stroke-strong: rgba(126, 151, 255, 0.68);
-        --text-main: #e9efff;
-        --text-sub: #9ba9c5;
-        --brand: #6d89ff;
-        --brand-2: #5a74e6;
-        --success-bg: rgba(22, 198, 132, 0.2);
-        --success-text: #65e1b0;
-        --error-bg: rgba(239, 68, 68, 0.2);
-        --error-text: #ffb2b2;
-        --shadow-xl: 0 30px 72px rgba(1, 7, 20, 0.5);
       }
 
       * {
@@ -54,9 +138,9 @@
         font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
         color: var(--text-main);
         background:
-          radial-gradient(44% 34% at 8% 10%, rgba(121, 161, 255, 0.35), transparent 70%),
-          radial-gradient(34% 28% at 92% 8%, rgba(118, 222, 255, 0.26), transparent 72%),
-          radial-gradient(30% 24% at 84% 88%, rgba(103, 138, 255, 0.22), transparent 74%),
+          radial-gradient(44% 34% at 8% 10%, var(--bg-glow-1), transparent 70%),
+          radial-gradient(34% 28% at 92% 8%, var(--bg-glow-2), transparent 72%),
+          radial-gradient(30% 24% at 84% 88%, var(--bg-glow-3), transparent 74%),
           linear-gradient(140deg, var(--bg-0) 0%, var(--bg-1) 44%, var(--bg-2) 100%);
         overflow-x: hidden;
       }
@@ -78,7 +162,7 @@
         height: 260px;
         left: -70px;
         top: 16%;
-        background: rgba(111, 139, 255, 0.45);
+        background: var(--orb-1);
       }
 
       body::after {
@@ -86,7 +170,7 @@
         height: 230px;
         right: -56px;
         bottom: 12%;
-        background: rgba(105, 214, 255, 0.36);
+        background: var(--orb-2);
         animation-delay: 1.2s;
       }
 
@@ -97,15 +181,29 @@
 
       .page {
         width: 100%;
-        max-width: 980px;
+        max-width: 1100px;
         margin: 0 auto;
         position: relative;
         z-index: 1;
       }
 
+      .page::before {
+        content: "";
+        position: absolute;
+        inset: 80px 8% auto;
+        height: 420px;
+        pointer-events: none;
+        background:
+          radial-gradient(32% 34% at 14% 30%, color-mix(in srgb, var(--brand) 28%, transparent), transparent 74%),
+          radial-gradient(30% 32% at 86% 36%, color-mix(in srgb, var(--brand-2) 26%, transparent), transparent 76%);
+        filter: blur(36px);
+        opacity: 0.55;
+        z-index: -1;
+      }
+
       .brand {
         text-align: center;
-        margin-bottom: 24px;
+        margin-bottom: 34px;
       }
 
       .brand h1 {
@@ -114,63 +212,108 @@
         line-height: 1.16;
         letter-spacing: 0.2px;
         font-weight: 760;
-        text-shadow: 0 12px 30px rgba(52, 73, 122, 0.16);
+        text-shadow: var(--title-shadow);
       }
 
       .brand p {
-        margin: 10px 0 0;
+        margin: 14px 0 0;
         color: var(--text-sub);
         font-size: 15px;
       }
 
       .theme-btn {
-        margin-top: 12px;
+        margin-top: 0;
+        position: static;
+        width: 42px;
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         border: 1px solid var(--stroke);
         border-radius: 999px;
-        background: var(--glass);
+        background: var(--theme-btn-bg);
         color: var(--text-main);
-        font-size: 13px;
-        padding: 8px 14px;
+        font-size: 0;
+        padding: 0;
         cursor: pointer;
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
+        box-shadow: 0 8px 18px color-mix(in srgb, var(--brand) 18%, transparent);
       }
 
       .theme-btn:hover {
         border-color: var(--stroke-strong);
       }
 
+      .theme-btn svg {
+        width: 18px;
+        height: 18px;
+      }
+
       .shell {
-        background: var(--glass);
+        background: var(--shell-bg);
         border: 1px solid var(--stroke);
         border-radius: 18px;
-        box-shadow: var(--shadow-xl);
+        box-shadow: var(--shadow-xl), 0 0 0 1px var(--shell-inner) inset;
         backdrop-filter: blur(22px);
         -webkit-backdrop-filter: blur(22px);
         padding: 22px;
       }
 
-      .topbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 16px;
+      .shell.login-shell {
+        max-width: 560px;
+        margin: 0 auto;
       }
-      .topbar.hidden {
-        display: none;
+
+      .top-actions {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 10px;
+        position: fixed;
+        top: 14px;
+        right: 14px;
+        z-index: 40;
       }
 
       .user-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
         color: var(--text-sub);
         font-size: 13px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: var(--panel-bg, rgba(255, 255, 255, 0.06));
+        border: 1px solid var(--panel-border, rgba(255, 110, 110, 0.14));
+      }
+
+      .user-avatar {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 800;
+        color: #fff;
+        background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
       }
 
       .link-btn {
-        border: none;
-        background: transparent;
-        color: var(--brand);
+        border: 1px solid var(--panel-border, rgba(255, 110, 110, 0.14));
+        background: var(--panel-bg, rgba(255, 255, 255, 0.06));
+        color: var(--text-sub);
         cursor: pointer;
-        font-size: 13px;
+        font-size: 12px;
+        padding: 6px 10px;
+        border-radius: 999px;
+      }
+
+      .link-btn:hover {
+        color: var(--text-main);
+        border-color: var(--stroke-strong);
       }
 
       .hidden {
@@ -178,62 +321,64 @@
       }
 
       .auth-view {
-        max-width: 480px;
-        margin: 8px auto;
-        border-radius: 16px;
-        background: var(--glass-strong);
-        border: 1px solid var(--stroke);
-        box-shadow: 0 18px 46px rgba(20, 35, 70, 0.16);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        padding: 28px;
+        max-width: 460px;
+        margin: 12px auto 4px;
+        border-radius: 12px;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        padding: 20px 10px 14px;
       }
 
       .auth-title {
         margin: 0;
-        font-size: 24px;
+        font-size: 30px;
         line-height: 1.2;
-        font-weight: 700;
+        letter-spacing: 0.4px;
+        font-weight: 780;
+        color: var(--text-main);
+        text-shadow: none;
       }
 
       .auth-sub {
-        margin: 8px 0 0;
+        margin: 12px 0 0;
         color: var(--text-sub);
-        font-size: 13px;
+        font-size: 14px;
       }
 
       .auth-grid {
-        margin-top: 18px;
+        margin-top: 22px;
         display: grid;
         gap: 12px;
       }
 
       .field {
-        height: 46px;
+        height: 48px;
         display: flex;
         align-items: center;
         gap: 10px;
-        border: 1px solid var(--stroke);
+        border: 1px solid var(--field-border);
         border-radius: 10px;
-        background: rgba(255, 255, 255, 0.26);
+        background: var(--field-bg);
         padding: 0 12px;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
-      }
-
-      body[data-theme="dark"] .field {
-        background: rgba(255, 255, 255, 0.04);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
       }
 
       .field:focus-within {
-        border-color: var(--stroke-strong);
-        box-shadow: 0 0 0 3px rgba(77, 111, 255, 0.16);
+        border-color: var(--field-focus);
+        box-shadow:
+          0 0 0 2px var(--field-focus-ring),
+          0 0 18px var(--field-focus-glow);
+        transform: translateY(-1px);
       }
 
       .field svg {
-        width: 16px;
-        height: 16px;
-        color: var(--text-sub);
-        flex: 0 0 16px;
+        width: 17px;
+        height: 17px;
+        color: var(--field-icon);
+        flex: 0 0 17px;
       }
 
       .field input {
@@ -241,29 +386,105 @@
         border: none;
         outline: none;
         background: transparent;
-        color: var(--text-main);
+        color: var(--field-text);
         font-size: 14px;
       }
 
       .field input::placeholder {
-        color: color-mix(in srgb, var(--text-sub) 74%, transparent);
+        color: var(--field-placeholder);
+      }
+
+      .field input:-webkit-autofill,
+      .field input:-webkit-autofill:hover,
+      .field input:-webkit-autofill:focus,
+      .field input:-webkit-autofill:active {
+        -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+        box-shadow: 0 0 0 1000px transparent inset !important;
+        -webkit-text-fill-color: var(--field-text) !important;
+        transition: background-color 9999s ease-out 0s;
+      }
+
+      .field.with-action {
+        padding-right: 8px;
+      }
+
+      .field-action {
+        border: none;
+        background: transparent;
+        color: var(--field-icon);
+        width: 30px;
+        height: 30px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+
+      .field-action:hover {
+        background: color-mix(in srgb, var(--brand) 16%, transparent);
+      }
+
+      .field-action svg {
+        width: 17px;
+        height: 17px;
+      }
+
+      .auth-meta {
+        margin-top: 2px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 13px;
+      }
+
+      .remember-wrap {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--text-sub);
+        cursor: pointer;
+      }
+
+      .remember-wrap input {
+        accent-color: var(--brand);
+      }
+
+      .forgot-link {
+        color: var(--brand);
+        text-decoration: none;
+      }
+
+      .forgot-link:hover {
+        text-decoration: underline;
+      }
+
+      .auth-view .primary-btn {
+        margin-top: 4px;
+        height: 48px;
+        border-radius: 10px;
       }
 
       .primary-btn {
         width: 100%;
         height: 46px;
-        border: none;
+        border: 1px solid var(--button-border);
         border-radius: 10px;
-        background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+        background:
+          linear-gradient(90deg, var(--button-overlay-1), var(--button-overlay-2)),
+          linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
         color: #fff;
         font-size: 14px;
         font-weight: 650;
         cursor: pointer;
-        transition: transform 0.08s ease, filter 0.2s ease;
+        box-shadow: 0 10px 22px var(--button-shadow-1), 0 0 20px var(--button-shadow-2);
+        transition: transform 0.08s ease, filter 0.2s ease, box-shadow 0.2s ease;
       }
 
       .primary-btn:hover {
         filter: brightness(1.05);
+        box-shadow: 0 14px 26px var(--button-shadow-hover-1), 0 0 28px var(--button-shadow-hover-2);
       }
 
       .primary-btn:active {
@@ -271,14 +492,10 @@
       }
 
       .primary-btn:disabled {
-        opacity: 0.72;
+        opacity: 0.55;
         cursor: not-allowed;
-      }
-
-      .auth-tip {
-        margin-top: 12px;
-        color: var(--text-sub);
-        font-size: 12px;
+        filter: grayscale(1) saturate(0.6);
+        box-shadow: none;
       }
 
       .workspace {
@@ -287,9 +504,11 @@
       }
 
       .dropzone {
-        border: 2px dashed var(--stroke);
+        border: 1px dashed var(--dropzone-border);
         border-radius: 14px;
-        background: var(--glass-strong);
+        background:
+          radial-gradient(100% 70% at 50% 0%, var(--dropzone-glow), transparent 70%),
+          var(--dropzone-bg);
         padding: 40px 20px;
         text-align: center;
         cursor: pointer;
@@ -305,7 +524,7 @@
         width: 60%;
         height: 220%;
         transform: rotate(14deg);
-        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.36), transparent);
+        background: linear-gradient(90deg, transparent, var(--dropzone-shine), transparent);
         opacity: 0;
         transition: opacity 0.25s ease;
       }
@@ -316,11 +535,26 @@
 
       .dropzone:hover {
         border-color: var(--stroke-strong);
+        box-shadow: 0 0 0 1px var(--dropzone-hover-inner) inset, 0 0 24px var(--dropzone-hover-glow);
       }
 
       .dropzone.dragover {
         border-color: var(--brand);
         transform: translateY(-1px);
+        border-style: solid;
+        border-width: 2px;
+        background:
+          radial-gradient(100% 70% at 50% 0%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 70%),
+          var(--dropzone-bg);
+        box-shadow: 0 0 0 1px var(--dropzone-drag-inner) inset, 0 0 28px var(--dropzone-drag-glow);
+      }
+
+      body.window-dragging .dropzone {
+        border-style: solid;
+        border-width: 2px;
+        background:
+          radial-gradient(100% 70% at 50% 0%, color-mix(in srgb, var(--brand) 16%, transparent), transparent 70%),
+          var(--dropzone-bg);
       }
 
       .upload-icon {
@@ -342,9 +576,32 @@
         font-size: 14px;
       }
 
+      .format-badges {
+        margin: 10px 0 0;
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .format-badge {
+        padding: 3px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--panel-border);
+        background: var(--panel-bg);
+        color: var(--text-sub);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+      }
+
+      .format-badge::selection {
+        background: transparent;
+      }
+
       .selected-file {
-        border: 1px solid var(--stroke);
-        background: var(--glass-strong);
+        border: 1px solid var(--panel-border);
+        background: var(--panel-bg);
         border-radius: 10px;
         padding: 12px 14px;
         font-size: 14px;
@@ -365,25 +622,117 @@
         display: flex;
       }
 
+      .progress-wrap {
+        display: none;
+        margin-top: 8px;
+        border: 1px solid var(--panel-border);
+        border-radius: 10px;
+        background: var(--panel-bg);
+        padding: 10px 12px;
+      }
+
+      .progress-wrap.show {
+        display: block;
+      }
+
+      .progress-text {
+        margin: 0 0 8px;
+        color: var(--text-sub);
+        font-size: 13px;
+      }
+
+      .progress-track {
+        width: 100%;
+        height: 7px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: color-mix(in srgb, var(--brand) 14%, transparent);
+      }
+
+      .progress-bar {
+        width: 40%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--brand), var(--brand-2));
+        transform: translateX(-100%);
+        animation: progressSlide 1.15s ease-in-out infinite;
+      }
+
+      @keyframes progressSlide {
+        from {
+          transform: translateX(-100%);
+        }
+        to {
+          transform: translateX(260%);
+        }
+      }
+
+      .toast {
+        position: fixed;
+        top: 18px;
+        right: 18px;
+        z-index: 999;
+        display: none;
+        align-items: center;
+        gap: 10px;
+        min-width: 200px;
+        max-width: min(320px, calc(100vw - 32px));
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid var(--panel-border);
+        background: var(--panel-bg);
+        color: var(--text-main);
+        box-shadow: 0 18px 46px rgba(0, 0, 0, 0.25);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+
+      .toast.show {
+        display: flex;
+        animation: toastIn 0.18s ease-out both;
+      }
+
+      @keyframes toastIn {
+        from {
+          transform: translateY(-8px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+
+      .toast-success {
+        border-color: color-mix(in srgb, var(--success-text) 32%, transparent);
+      }
+
+      .toast-error {
+        border-color: color-mix(in srgb, var(--error-text) 32%, transparent);
+      }
+
       .status-loading {
-        background: rgba(77, 111, 255, 0.16);
-        color: var(--brand);
+        background: var(--status-loading-bg);
+        color: var(--status-loading-text);
+        border: 1px solid var(--status-loading-border);
       }
 
       .status-success {
         background: var(--success-bg);
         color: var(--success-text);
+        border: 1px solid rgba(111, 255, 201, 0.2);
       }
 
       .status-error {
         background: var(--error-bg);
         color: var(--error-text);
+        border: 1px solid rgba(255, 148, 148, 0.2);
       }
 
       .spinner {
         width: 16px;
         height: 16px;
-        border: 2px solid rgba(77, 111, 255, 0.25);
+        border: 2px solid color-mix(in srgb, var(--brand) 30%, transparent);
         border-top-color: var(--brand);
         border-radius: 999px;
         animation: spin 0.75s linear infinite;
@@ -397,7 +746,7 @@
       .result,
       .history {
         display: none;
-        border-top: 1px solid var(--stroke);
+        border-top: 1px solid var(--section-divider);
         padding-top: 14px;
       }
 
@@ -414,14 +763,15 @@
 
       .result-card,
       .history-item {
-        border: 1px solid var(--stroke);
+        border: 1px solid var(--panel-border);
         border-radius: 10px;
-        background: var(--glass-strong);
+        background: var(--panel-bg);
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
         padding: 12px 14px;
+        box-shadow: none;
       }
 
       .filename {
@@ -455,7 +805,11 @@
         font-size: 13px;
         font-weight: 650;
         color: #fff;
-        background: linear-gradient(135deg, #15a95f 0%, #0d8a61 100%);
+        border: 1px solid var(--button-border);
+        background:
+          linear-gradient(90deg, var(--button-overlay-1), var(--button-overlay-2)),
+          linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+        box-shadow: 0 8px 18px var(--button-shadow-1);
       }
 
       .download-btn:hover {
@@ -476,7 +830,8 @@
 
       @media (max-width: 680px) {
         .shell { padding: 16px; }
-        .auth-view { padding: 20px; }
+        .auth-view { padding: 16px 6px 10px; }
+        .top-actions { top: 10px; right: 10px; gap: 6px; }
       }
     </style>
   </head>
@@ -485,15 +840,15 @@
       <header class="brand">
         <h1>文档转 Markdown</h1>
         <p>支持 PDF / Word / PPT / 图片智能解析</p>
-        <button id="themeToggle" class="theme-btn" type="button">切换暗色模式</button>
       </header>
 
-      <section class="shell">
-        <div class="topbar">
-          <span id="userBadge" class="user-badge">未登录</span>
-          <button id="logoutBtn" class="link-btn hidden" type="button">退出登录</button>
-        </div>
+      <div class="top-actions">
+        <button id="themeToggle" class="theme-btn" type="button" aria-label="切换主题" title="切换主题"></button>
+        <span id="userBadge" class="user-badge hidden">未登录</span>
+        <button id="logoutBtn" class="link-btn hidden" type="button">退出登录</button>
+      </div>
 
+      <section id="mainShell" class="shell login-shell">
         <section id="authBox" class="auth-view">
           <h2 class="auth-title">账号登录</h2>
           <p class="auth-sub">输入账号后进入转换工作台</p>
@@ -504,19 +859,31 @@
                 <path d="M12 12C14.4853 12 16.5 9.98528 16.5 7.5C16.5 5.01472 14.4853 3 12 3C9.51472 3 7.5 5.01472 7.5 7.5C7.5 9.98528 9.51472 12 12 12Z" stroke="currentColor" stroke-width="1.7"></path>
                 <path d="M4 20.25C4.7 16.9 7.8 14.5 12 14.5C16.2 14.5 19.3 16.9 20 20.25" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
               </svg>
-              <input id="usernameInput" type="text" placeholder="用户名" autocomplete="username" />
+              <input id="usernameInput" type="text" placeholder="例如：admin" autocomplete="username" />
             </label>
-            <label class="field">
+            <label class="field with-action">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M7.5 10V7.75C7.5 5.12665 9.62665 3 12.25 3C14.8734 3 17 5.12665 17 7.75V10" stroke="currentColor" stroke-width="1.7"></path>
                 <rect x="5" y="10" width="14" height="11" rx="2.5" stroke="currentColor" stroke-width="1.7"></rect>
                 <circle cx="12" cy="15.5" r="1.2" fill="currentColor"></circle>
               </svg>
               <input id="passwordInput" type="password" placeholder="密码" autocomplete="current-password" />
+              <button id="passwordToggle" class="field-action" type="button" aria-label="显示密码" title="显示密码">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M2.7 12.02C4.5 8.6 7.82 6.5 12 6.5C16.18 6.5 19.5 8.6 21.3 12.02C19.5 15.4 16.18 17.5 12 17.5C7.82 17.5 4.5 15.4 2.7 12.02Z" stroke="currentColor" stroke-width="1.7"></path>
+                  <circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.7"></circle>
+                </svg>
+              </button>
             </label>
+            <div class="auth-meta">
+              <label class="remember-wrap" for="rememberMe">
+                <input id="rememberMe" type="checkbox" />
+                <span>记住我</span>
+              </label>
+              <a id="forgotPasswordLink" class="forgot-link" href="#" role="button">忘记密码？</a>
+            </div>
             <button id="loginBtn" class="primary-btn" type="button">登录</button>
           </div>
-          <p class="auth-tip">提示：账号由管理员预置，初始密码由系统统一配置。</p>
         </section>
 
         <section id="workArea" class="workspace hidden">
@@ -528,11 +895,25 @@
               <path d="M4 14.5V17C4 18.6569 5.34315 20 7 20H17C18.6569 20 20 18.6569 20 17V14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
             </svg>
             <p class="dropzone-text">点击或拖拽文件到此区域上传</p>
-            <p class="dropzone-hint">支持常见文档与图片格式，上传后自动解析为 Markdown</p>
+            <p class="dropzone-hint">支持格式：PDF、DOCX、PPTX、JPG、PNG</p>
+            <div class="format-badges" aria-hidden="true">
+              <span class="format-badge">PDF</span>
+              <span class="format-badge">DOCX</span>
+              <span class="format-badge">PPTX</span>
+              <span class="format-badge">JPG</span>
+              <span class="format-badge">PNG</span>
+            </div>
           </div>
 
           <div id="selectedFile" class="selected-file hidden"></div>
-          <button id="convertBtn" class="primary-btn" type="button">上传并转换</button>
+          <button id="convertBtn" class="primary-btn" type="button" disabled>上传并转换</button>
+
+          <div id="progressWrap" class="progress-wrap" aria-live="polite">
+            <p class="progress-text">文档解析中，请稍候...</p>
+            <div class="progress-track">
+              <div class="progress-bar"></div>
+            </div>
+          </div>
 
           <div id="statusBox" class="status-box" aria-live="polite"></div>
 
@@ -555,54 +936,94 @@
       </section>
     </main>
 
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
     <script>
       const fileInput = document.getElementById("fileInput");
       const dropzone = document.getElementById("dropzone");
       const selectedFile = document.getElementById("selectedFile");
       const convertBtn = document.getElementById("convertBtn");
+      const progressWrap = document.getElementById("progressWrap");
       const statusBox = document.getElementById("statusBox");
       const result = document.getElementById("result");
       const resultFilename = document.getElementById("resultFilename");
       const downloadBtn = document.getElementById("downloadBtn");
+      const toast = document.getElementById("toast");
+      const dropzoneText = dropzone.querySelector(".dropzone-text");
+      const dropzoneHint = dropzone.querySelector(".dropzone-hint");
+      const defaultDropzoneText = dropzoneText ? dropzoneText.textContent : "";
+      const defaultDropzoneHint = dropzoneHint ? dropzoneHint.textContent : "";
       const themeToggle = document.getElementById("themeToggle");
       const historyWrap = document.getElementById("history");
       const historyList = document.getElementById("historyList");
       const clearHistoryBtn = document.getElementById("clearHistory");
       const authBox = document.getElementById("authBox");
       const workArea = document.getElementById("workArea");
-      const topbar = document.querySelector(".topbar");
+      const mainShell = document.getElementById("mainShell");
       const userBadge = document.getElementById("userBadge");
       const logoutBtn = document.getElementById("logoutBtn");
       const loginBtn = document.getElementById("loginBtn");
       const usernameInput = document.getElementById("usernameInput");
       const passwordInput = document.getElementById("passwordInput");
+      const passwordToggle = document.getElementById("passwordToggle");
+      const rememberMeInput = document.getElementById("rememberMe");
+      const forgotPasswordLink = document.getElementById("forgotPasswordLink");
 
       const STORAGE_KEYS = {
         theme: "docling_theme",
         history: "docling_history",
+        rememberedUser: "docling_remembered_user",
       };
       let currentFile = null;
 
+      let toastTimer = null;
+      let windowDragDepth = 0;
+
+      function updateConvertButtonState() {
+        convertBtn.disabled = !currentFile;
+      }
+
       function setStatus(type, text) {
-        statusBox.className = "status-box show";
         if (type === "loading") {
-          statusBox.classList.add("status-loading");
-          statusBox.innerHTML = '<span class="spinner"></span><span>' + text + "</span>";
+          statusBox.className = "status-box";
+          progressWrap.classList.add("show");
+          const progressText = progressWrap.querySelector(".progress-text");
+          progressText.textContent = text || "正在解析文档，请稍候...";
           return;
         }
+
         if (type === "success") {
-          statusBox.classList.add("status-success");
-          statusBox.textContent = "✔ " + text;
+          statusBox.className = "status-box";
+          showToast("success", text);
           return;
         }
-        statusBox.classList.add("status-error");
-        statusBox.textContent = "✖ " + text;
+
+        // error
+        statusBox.className = "status-box show status-error";
+        statusBox.innerHTML = "✖ " + text;
+      }
+
+      function showToast(type, text) {
+        if (!toast) return;
+        if (toastTimer) {
+          clearTimeout(toastTimer);
+          toastTimer = null;
+        }
+        toast.className = "toast show " + (type === "success" ? "toast-success" : "toast-error");
+        toast.textContent = (type === "success" ? "✔ " : "✖ ") + text;
+        toastTimer = setTimeout(() => {
+          toast.className = "toast";
+          toast.textContent = "";
+        }, 3000);
       }
 
       function setSelectedFile(file) {
         currentFile = file;
         selectedFile.classList.remove("hidden");
         selectedFile.textContent = "已选择文件: " + file.name;
+        statusBox.className = "status-box";
+        statusBox.textContent = "";
+        updateConvertButtonState();
       }
 
       function resetResult() {
@@ -613,23 +1034,42 @@
 
       function setAuthState(user) {
         if (user) {
-          topbar.classList.remove("hidden");
+          mainShell.classList.remove("login-shell");
           authBox.classList.add("hidden");
           workArea.classList.remove("hidden");
+          userBadge.classList.remove("hidden");
           logoutBtn.classList.remove("hidden");
-          userBadge.textContent = "当前用户: " + user.username + " (" + user.role + ")";
+          const name = user.username || "用户";
+          const avatar = name.slice(0, 1).toUpperCase();
+          userBadge.innerHTML = '<span class="user-avatar">' + avatar + "</span><span>" + name + "</span>";
+          updateConvertButtonState();
           return;
         }
-        topbar.classList.add("hidden");
+        mainShell.classList.add("login-shell");
         authBox.classList.remove("hidden");
         workArea.classList.add("hidden");
+        userBadge.classList.add("hidden");
         logoutBtn.classList.add("hidden");
-        userBadge.textContent = "";
+        userBadge.textContent = "未登录";
+        currentFile = null;
+        selectedFile.classList.add("hidden");
+        selectedFile.textContent = "";
+        resetResult();
+        progressWrap.classList.remove("show");
+        updateConvertButtonState();
       }
 
       function applyTheme(theme) {
         document.body.setAttribute("data-theme", theme);
-        themeToggle.textContent = theme === "dark" ? "切换亮色模式" : "切换暗色模式";
+        if (theme === "dark") {
+          themeToggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 12.8A8.8 8.8 0 1 1 11.2 3a6.9 6.9 0 0 0 9.8 9.8Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+          themeToggle.setAttribute("aria-label", "切换亮色模式");
+          themeToggle.setAttribute("title", "切换亮色模式");
+          return;
+        }
+        themeToggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 2.5V5M12 19V21.5M21.5 12H19M5 12H2.5M18.7 5.3L17 7M7 17L5.3 18.7M18.7 18.7L17 17M7 7L5.3 5.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>';
+        themeToggle.setAttribute("aria-label", "切换暗色模式");
+        themeToggle.setAttribute("title", "切换暗色模式");
       }
 
       function saveTheme(theme) {
@@ -710,6 +1150,11 @@
             setStatus("error", payload.detail || "登录失败");
             return;
           }
+          if (rememberMeInput.checked) {
+            localStorage.setItem(STORAGE_KEYS.rememberedUser, username);
+          } else {
+            localStorage.removeItem(STORAGE_KEYS.rememberedUser);
+          }
           passwordInput.value = "";
           setAuthState(payload);
           setStatus("success", "登录成功");
@@ -728,6 +1173,18 @@
             loginBtn.click();
           }
         });
+      });
+
+      passwordToggle.addEventListener("click", () => {
+        const isPassword = passwordInput.type === "password";
+        passwordInput.type = isPassword ? "text" : "password";
+        passwordToggle.setAttribute("aria-label", isPassword ? "隐藏密码" : "显示密码");
+        passwordToggle.setAttribute("title", isPassword ? "隐藏密码" : "显示密码");
+      });
+
+      forgotPasswordLink.addEventListener("click", (event) => {
+        event.preventDefault();
+        setStatus("error", "请联系管理员重置密码");
       });
 
       logoutBtn.addEventListener("click", async () => {
@@ -759,6 +1216,8 @@
         dropzone.addEventListener(eventName, (event) => {
           event.preventDefault();
           dropzone.classList.add("dragover");
+          if (dropzoneText) dropzoneText.textContent = "松手即可上传";
+          if (dropzoneHint) dropzoneHint.textContent = "松开后将自动解析为 Markdown";
         });
       });
 
@@ -766,7 +1225,33 @@
         dropzone.addEventListener(eventName, (event) => {
           event.preventDefault();
           dropzone.classList.remove("dragover");
+          if (dropzoneText) dropzoneText.textContent = defaultDropzoneText;
+          if (dropzoneHint) dropzoneHint.textContent = defaultDropzoneHint;
         });
+      });
+
+      window.addEventListener("dragenter", (event) => {
+        event.preventDefault();
+        windowDragDepth += 1;
+        document.body.classList.add("window-dragging");
+      });
+
+      window.addEventListener("dragleave", (event) => {
+        event.preventDefault();
+        windowDragDepth = Math.max(0, windowDragDepth - 1);
+        if (windowDragDepth === 0) {
+          document.body.classList.remove("window-dragging");
+        }
+      });
+
+      window.addEventListener("drop", (event) => {
+        event.preventDefault();
+        windowDragDepth = 0;
+        document.body.classList.remove("window-dragging");
+      });
+
+      window.addEventListener("dragover", (event) => {
+        event.preventDefault();
       });
 
       dropzone.addEventListener("drop", (event) => {
@@ -816,14 +1301,21 @@
         } catch (error) {
           setStatus("error", "请求失败，请检查网络或服务状态");
         } finally {
-          convertBtn.disabled = false;
           convertBtn.textContent = oldText;
+          progressWrap.classList.remove("show");
+          updateConvertButtonState();
         }
       }
 
       convertBtn.addEventListener("click", uploadAndConvert);
-      applyTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
+      applyTheme(localStorage.getItem(STORAGE_KEYS.theme) || "dark");
+      const rememberedUser = localStorage.getItem(STORAGE_KEYS.rememberedUser) || "";
+      if (rememberedUser) {
+        usernameInput.value = rememberedUser;
+        rememberMeInput.checked = true;
+      }
       renderHistory();
+      updateConvertButtonState();
 
       (async function initAuth() {
         try {
