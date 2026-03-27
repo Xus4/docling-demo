@@ -90,6 +90,7 @@ class AppConfig:
     llm_table_caption: bool
     llm_table_caption_max_chars: int
     pdf_caption_crop_figures: bool
+    llm_enable_thinking: bool
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -129,6 +130,9 @@ class AppConfig:
             pdf_caption_crop_figures=_parse_bool(
                 os.getenv("PDF_CAPTION_CROP_FIGURES"), default=True
             ),
+            llm_enable_thinking=_parse_bool(
+                os.getenv("LLM_ENABLE_THINKING"), default=True
+            ),
         )
 
     def ensure_dirs(self) -> None:
@@ -150,4 +154,5 @@ class AppConfig:
             llm_table_caption=self.llm_table_caption,
             llm_table_caption_max_chars=self.llm_table_caption_max_chars,
             pdf_caption_crop_figures=self.pdf_caption_crop_figures,
+            llm_enable_thinking=self.llm_enable_thinking,
         )

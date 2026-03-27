@@ -23,6 +23,7 @@ class TestAppConfig(unittest.TestCase):
         self.assertTrue(cfg.debug)
         self.assertTrue(cfg.auto_cleanup)
         self.assertEqual(cfg.cleanup_max_age_hours, 12)
+        self.assertTrue(cfg.llm_enable_thinking)
 
 
 if __name__ == "__main__":
