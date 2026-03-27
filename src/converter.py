@@ -119,7 +119,7 @@ class ConverterConfig:
     # ---- LLM post-process（DashScope 千问/Qwen-VL）----
     enable_llm_refine: bool = False
     llm_api_key_env: str = "DASHSCOPE_API_KEY"
-    llm_model: str = "qwen3-vl-plus"
+    llm_model: str = "qwen3.5-35b-a3b"
     llm_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     llm_temperature: float = 0.2
     llm_max_tokens: Optional[int] = 8192
@@ -141,14 +141,14 @@ class ConverterConfig:
 
     llm_table_caption: bool = False
     llm_table_caption_max_tables: int = 20
-    llm_table_caption_max_chars: int = 800
+    llm_table_caption_max_chars: int = 500
     llm_table_caption_context_lines: int = 3
     # ---- PDF 方案 A：按页渲染 + Qwen-VL 转写（不经过 Docling）----
     pdf_vl_primary: bool = False
-    pdf_vl_dpi: float = 150.0
-    pdf_vl_workers: int = 1
+    pdf_vl_dpi: float = 180.0
+    pdf_vl_workers: int = 10
     pdf_vl_table_second_pass: bool = True
-    pdf_vl_table_second_pass_max_tables: int = 3
+    pdf_vl_table_second_pass_max_tables: int = 5
     # 是否在 markdown 中嵌入每页渲染图（默认关闭，避免把整页截图当“插图”）
     pdf_vl_embed_page_images: bool = False
     pdf_caption_crop_figures: bool = False

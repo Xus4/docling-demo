@@ -4,13 +4,9 @@ Batch entry: mirror ``data/input/**`` into ``data/output/**`` as Markdown.
 多模型对比：在 ``--output-dir`` 下按模型分子目录（``--output-by-model``），例如
 ``data/output/qwen3-vl-plus/...`` 与 ``data/output/qwen3.5-plus/...``。
 
-一键验证（项目根目录）::
+常用（PDF 按页 VL 转写，百炼；模型与 DPI/并发等已有 CLI 默认值，可按需省略）::
 
-    python main.py --input-dir ./data/input --output-dir ./data/output
-
-仅试转前 1 个文件::
-
-    python main.py --max-files 1
+    python main.py --pdf-vl-primary --output-by-model --pdf-caption-crop-figures --max-files 1 --max-num-pages 5
 """
 
 from __future__ import annotations
@@ -33,6 +29,7 @@ for _stream in (sys.stdout, sys.stderr):
         except Exception:
             pass
 
+from src.cli_pdf_vl_defaults import apply_pdf_vl_cli_defaults
 from src.converter import ConverterConfig, IndustrialDocConverter
 
 
@@ -57,61 +54,6 @@ def _effective_output_dir(args: argparse.Namespace, output_root: Path) -> Path:
     return output_root / "docling"
 
 
-def _argv_contains_flag(argv: list[str], flag: str) -> bool:
-    return flag in argv
-
-
-def apply_cli_profile(args: argparse.Namespace, argv: list[str]) -> None:
-    """
-    预设「稳定 + 中文表格」管线：降低 preprocess/OOM 概率，并抬高 OCR/TableFormer 档位。
-
-    若用户在命令行显式写了同名参数（如 --ocr-quality fast），则不覆盖。
-    """
-    prof = getattr(args, "profile", None) or "default"
-    if prof == "default":
-        return
-    av = argv
-    if prof in ("stable-chinese", "stable-chinese-llm"):
-        has_low_mem = _argv_contains_flag(av, "--low-memory")
-        if not has_low_mem:
-            if not _argv_contains_flag(av, "--scan"):
-                args.scan = True
-            if not _argv_contains_flag(av, "--pipeline-concurrency"):
-                args.pipeline_concurrency = "minimal"
-            if not _argv_contains_flag(av, "--ocr-quality"):
-                args.ocr_quality = "high"
-            if not _argv_contains_flag(av, "--ocr-bitmap-threshold"):
-                args.ocr_bitmap_threshold = 0.03
-        else:
-            if not _argv_contains_flag(av, "--pipeline-concurrency"):
-                args.pipeline_concurrency = "minimal"
-    if prof == "stable-chinese-llm":
-        if not _argv_contains_flag(av, "--enable-llm"):
-            args.enable_llm = True
-        if not _argv_contains_flag(av, "--llm-table-refine"):
-            args.llm_table_refine = True
-
-
-def apply_model_tuning(args: argparse.Namespace, argv: list[str]) -> None:
-    """
-    针对 qwen3.5-plus + pdf-vl-primary 的默认调优（显式传参优先）。
-    """
-    if not bool(getattr(args, "pdf_vl_primary", False)):
-        return
-    model_name = str(getattr(args, "llm_model", "")).lower()
-    if "qwen3.5-plus" not in model_name:
-        return
-
-    if not _argv_contains_flag(argv, "--llm-temperature"):
-        args.llm_temperature = 0.0
-    if not _argv_contains_flag(argv, "--llm-max-tokens"):
-        # 模型单次最大输出约 64K tokens；页级转写适当抬高，减少长页/表格截断
-        args.llm_max_tokens = 16384
-    if not _argv_contains_flag(argv, "--pdf-vl-workers"):
-        # RPM 很高，可并发；默认给到 10（用户可按网速/配额下调）
-        args.pdf_vl_workers = 10
-
-
 def _configure_logging(log_file: Path | None, verbose: bool) -> None:
     level = logging.DEBUG if verbose else logging.INFO
     handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
@@ -130,16 +72,6 @@ def _configure_logging(log_file: Path | None, verbose: bool) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Industrial batch conversion: mixed formats → Markdown (Docling + pandas/XLSX)."
-    )
-    parser.add_argument(
-        "--profile",
-        choices=["default", "stable-chinese", "stable-chinese-llm"],
-        default="default",
-        help=(
-            "运行预设：stable-chinese=更稳（扫描模式 + 管线 minimal + OCR high + 小块位图 OCR），"
-            "适合扫描件/表格截图类 PDF；stable-chinese-llm=同上并开启 --enable-llm 与 --llm-table-refine（需 "
-            "DASHSCOPE_API_KEY）。显式传入的同名参数优先。"
-        ),
     )
     parser.add_argument(
         "--input-dir",
@@ -304,8 +236,8 @@ def main() -> int:
     parser.add_argument(
         "--llm-model",
         type=str,
-        default="qwen3-vl-plus",
-        help="千问模型名（如 qwen3-vl-plus）。",
+        default="qwen3.5-35b-a3b",
+        help="千问模型名（pdf-vl / LLM 共用；默认与项目常用配置一致）。",
     )
     parser.add_argument(
         "--llm-base-url",
@@ -321,15 +253,14 @@ def main() -> int:
         "--llm-temperature",
         type=float,
         default=0.2,
-        help="LLM 采样温度。",
+        help="LLM 采样温度（--pdf-vl-primary 且未显式传参时默认为 0）。",
     )
     parser.add_argument(
         "--llm-max-tokens",
         type=int,
         default=8192,
         help=(
-            "LLM max_tokens（单次 completion 上限）。qwen3.5-plus 等约可到 64K；"
-            "Docling 后清洗默认 8K；与 --pdf-vl-primary 且 qwen3.5-plus 时自动调到 16K（未显式传参时）。"
+            "LLM max_tokens（单次 completion 上限）。--pdf-vl-primary 且未显式传参时默认为 16384。"
         ),
     )
     parser.add_argument(
@@ -399,16 +330,16 @@ def main() -> int:
     parser.add_argument(
         "--pdf-vl-dpi",
         type=float,
-        default=150.0,
+        default=180.0,
         metavar="DPI",
-        help="pdf-vl-primary 渲染 DPI（约 100~200；越高越清晰但越慢、请求体越大）。",
+        help="pdf-vl-primary 渲染 DPI（约 100~200；未显式传参时默认 180）。",
     )
     parser.add_argument(
         "--pdf-vl-workers",
         type=int,
-        default=1,
+        default=10,
         metavar="N",
-        help="pdf-vl-primary 页级并发调用数（建议 1~10；qwen3.5-plus 可尝试 10）。",
+        help="pdf-vl-primary 页级并发（默认 10；可按配额下调）。",
     )
     parser.add_argument(
         "--pdf-vl-embed-page-images",
@@ -423,9 +354,9 @@ def main() -> int:
     parser.add_argument(
         "--pdf-vl-table-second-pass-max-tables",
         type=int,
-        default=3,
+        default=5,
         metavar="N",
-        help="每页最多二次校对多少个可疑表格（默认 3）。",
+        help="每页最多二次校对多少个可疑表格（默认 5）。",
     )
 
     parser.add_argument(
@@ -477,8 +408,7 @@ def main() -> int:
 
 
     args = parser.parse_args()
-    apply_cli_profile(args, sys.argv)
-    apply_model_tuning(args, sys.argv)
+    apply_pdf_vl_cli_defaults(args, sys.argv)
 
     output_root = args.output_dir.resolve()
     output_dir = _effective_output_dir(args, output_root)
@@ -588,26 +518,16 @@ def main() -> int:
         log.error("--llm-empty-content-retries 须在 1~10 之间")
         return 2
 
-    if args.profile != "default":
+    if args.pdf_vl_primary:
         log.info(
-            "CLI profile=%s：scan=%s pipeline_concurrency=%s ocr_quality=%s "
-            "enable_llm=%s llm_table_refine=%s pdf_vl_primary=%s pdf_vl_workers=%s "
+            "pdf-vl-primary：dpi=%s workers=%s table_2nd_pass_max=%s llm_model=%s "
             "llm_temperature=%s llm_max_tokens=%s",
-            args.profile,
-            args.scan,
-            args.pipeline_concurrency,
-            args.ocr_quality,
-            args.enable_llm,
-            args.llm_table_refine,
-            args.pdf_vl_primary,
+            args.pdf_vl_dpi,
             args.pdf_vl_workers,
+            args.pdf_vl_table_second_pass_max_tables,
+            args.llm_model,
             args.llm_temperature,
             args.llm_max_tokens,
-        )
-    if args.profile in ("stable-chinese", "stable-chinese-llm") and args.low_memory:
-        log.warning(
-            "已使用 --low-memory：OCR 会被强制为 fast，中文表格精度可能不如 profile 预期；"
-            "若仍 OOM 可再加 --no-tables。"
         )
 
     cfg = ConverterConfig(

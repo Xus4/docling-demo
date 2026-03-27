@@ -58,30 +58,47 @@ python -m pip install torch torchvision --index-url https://download.pytorch.org
 python main.py --input-dir ./data/input --output-dir ./data/output
 ```
 
+参数写法约定：命令行示例统一使用 **`--opt value`** 形式；仓库内“是否显式传参”的判断也按该形式设计。
+
 **管线并发（大页/扫描 PDF 防 OOM）**：`StandardPdfPipeline` 在 OCR / 版面 / 表格阶段之间用 **队列** 流水线处理多页；并发过高会让大页同时在内存里排队。可用 **`--pipeline-concurrency`**：`low`（batch≤2、队列≤16）或 **`minimal`**（batch=1、队列≤2，最省内存）。使用 **`--scan`** 或 **`--low-memory`** 且**未传** `--pipeline-concurrency` 时，**自动为 `minimal`**。需要略高吞吐可传 **`--pipeline-concurrency low`**；强行使用 Docling 默认并发可传 **`--pipeline-concurrency default`**（大扫描件易 OOM）。
 
-**推荐预设 `--profile`**（减少 preprocess 报错、提升中文表格 OCR，**显式传入的同名参数优先**）：
+**扫描件（Docling 管线）**：若希望「更稳 + 中文表格 OCR」，请**自行组合**开关，例如 **`--scan`**、**`--pipeline-concurrency minimal`**、**`--ocr-quality high`**、**`--ocr-bitmap-threshold 0.03`**，或按下文「识别精度」一节微调。仍 OOM 或内存不足时加 **`--low-memory`**（会强制 OCR 为 `fast`，表格精度可能下降）或 **`--no-tables`**。
+若需对 Docling 输出的表格块做 **Qwen-VL 二次纠错**，可加 **`--enable-llm`** 与 **`--llm-table-refine`**（需 **`DASHSCOPE_API_KEY`**）。
 
-- **`stable-chinese`**：在未手写同名开关时启用 **`--scan`**、**`--pipeline-concurrency minimal`**、**`--ocr-quality high`**、**`--ocr-bitmap-threshold 0.03`**，适合扫描件/表内小字截图。
-- **`stable-chinese-llm`**：同上，并开启 **`--enable-llm`** 与 **`--llm-table-refine`**（需 **`DASHSCOPE_API_KEY`**），用 Qwen-VL 对表格块做二次纠错。
+**PDF 方案 A（按页 Qwen-VL，不经过 Docling）**：仅对 **`.pdf`** 生效。用 **PyMuPDF** 逐页渲染为 PNG，**每页一次**多模态 API 转写为 Markdown；需 **`DASHSCOPE_API_KEY`**（与 `--llm-base-url` 地域一致）。成本与 **页数** 成正比，试跑请配合 **`--max-num-pages`** / **`--max-files`**。
+
+**最简常用命令**（你当前工作流）：
 
 ```powershell
-python main.py --profile stable-chinese --input-dir ./data/input --output-dir ./data/output
+python main.py --pdf-vl-primary --output-by-model --pdf-caption-crop-figures --max-files 1 --max-num-pages 5
 ```
 
-仍 OOM 或内存不足时，在 profile 基础上再加 **`--low-memory`**（会强制 OCR 为 `fast`，表格精度可能下降）或 **`--no-tables`**。
+在 **`--pdf-vl-primary`** 下，若命令行**未显式传入**同名参数，程序会采用与仓库常用配置一致的默认值（**显式传参始终优先**）：
 
-**PDF 方案 A（按页 Qwen-VL 验证，不经过 Docling）**：仅对 **`.pdf`** 生效。用 **PyMuPDF** 逐页渲染为 PNG，**每页一次**多模态 API 转写为 Markdown；需 **`DASHSCOPE_API_KEY`**（与 `--llm-base-url` 地域一致）。成本与 **页数** 成正比，试跑请配合 **`--max-num-pages`** / **`--max-files`**。支持 **页级并发** `--pdf-vl-workers`（如 10）。
+| 参数 | 默认 |
+|------|------|
+| `--llm-model` | `qwen3.5-35b-a3b` |
+| `--pdf-vl-dpi` | `180` |
+| `--pdf-vl-workers` | `10` |
+| `--pdf-vl-table-second-pass-max-tables` | `5` |
+| `--llm-temperature` | `0` |
+| `--llm-max-tokens` | `16384` |
+
+注：上表中 **`--llm-temperature` / `--llm-max-tokens`** 的自动默认仅在 **`--pdf-vl-primary`** 时生效；不走 pdf-vl 时 CLI 解析默认分别为 **`0.2`** 与 **`8192`**（可自行覆盖）。**`--llm-model`** 的默认值对整条 `main.py` 生效（当前为 `qwen3.5-35b-a3b`）。
+
+你也可以随时显式指定这些参数覆盖默认（例如 `--pdf-vl-dpi 220`、`--llm-max-tokens 24576`、`--llm-temperature 0.1`）。
+
 默认**不嵌入整页截图**到 Markdown（避免把“整页图”误当文档插图）；如需调试可加 `--pdf-vl-embed-page-images`。
-默认启用“可疑表格二次 LLM 校对（带验收回退）”，可用 `--no-pdf-vl-table-second-pass` 关闭，或用 `--pdf-vl-table-second-pass-max-tables` 控制每页最多复核表格数。
+默认启用“可疑表格二次 LLM 校对（带验收回退）”，可用 `--no-pdf-vl-table-second-pass` 关闭。
+
+**常用示例**（按模型名分子目录输出、按图题裁局部插图；其余见上表默认值）：
 
 ```powershell
 $env:DASHSCOPE_API_KEY="..."
-python main.py --pdf-vl-primary --pdf-vl-dpi 150 --pdf-vl-workers 10 --llm-model qwen3.5-plus `
-  --input-dir ./data/input --output-dir ./data/output --max-files 1 --max-num-pages 2
+python main.py --pdf-vl-primary --output-by-model --pdf-caption-crop-figures `
+  --input-dir ./data/input --output-dir ./data/output --max-files 1 --max-num-pages 5
 ```
 
-使用 **`qwen3.5-plus` + `--pdf-vl-primary`** 时，程序默认会自动调优（显式传参优先）：`--llm-temperature 0.0`、`--llm-max-tokens 16384`、`--pdf-vl-workers 10`。
 若还需对整篇 VL 结果做二次清洗，可加 **`--enable-llm`**（会额外调用 API）。
 
 **识别精度（`--ocr-quality`）**：此前为防 OOM 把扫描件 **`images_scale` 压得很低**（`fast` 档），会明显拖垮 OCR/表格。若已能跑通，建议对扫描规范类 PDF 使用 **`--scan --ocr-quality high`**（更高渲染分辨率、TableFormer **ACCURATE**、EasyOCR 阈值与中文优先语言顺序、扫描页整页 OCR）。**不启用** EasyOCR 的 `craft` 识别网络（默认安装常缺 `craft.yaml` 会报错）。更省内存用 **`fast`**。**`--low-memory`** 会强制等价于 **`fast`**。
@@ -151,12 +168,11 @@ python main.py --no-log-file
 
 ### 使用示例
 
-启用 LLM 清洗（默认会尽量保留 Docling 的图片引用路径；若图片引用缺失会自动回退到原始 Docling md）：
+启用 LLM 清洗（默认会尽量保留 Docling 的图片引用路径；若图片引用缺失会自动回退到原始 Docling md）。`main.py` 默认 **`--llm-model`** 为 **`qwen3.5-35b-a3b`**，可按控制台可用模型改写。
 
 ```powershell
 python main.py --input-dir ./data/input --output-dir ./data/output `
   --enable-llm `
-  --llm-model qwen3-vl-plus `
   --llm-vl-image-mode local_abs `
   --llm-allow-rerun
 ```
@@ -166,7 +182,7 @@ python main.py --input-dir ./data/input --output-dir ./data/output `
 - LLM 只处理 Docling 产物的 `.md`（不处理 `XLSX`，XLSX 仍走 pandas 导出）。
 - 由于 Qwen-VL 会读取图片上下文，Docling 输出中需要有 `![](<path>)` 图片引用；本项目默认最多把前 `6` 张图片喂给模型。
 - **Qwen3.5 思考模式**：HTTP 请求体顶层发送 **`enable_thinking: false`**（与 OpenAI Python SDK 的 `extra_body={"enable_thinking": false}` 等价展开），避免只出 `reasoning_content` 而 `content` 为空。若需深度思考，可加 **`--llm-enable-thinking`**（会额外消耗 completion token）。
-- **输出长度**：`--llm-max-tokens` 控制单次 **completion** 上限（与「最大输入/上下文」不同）；qwen3.5-plus 单路约可到 **64K**，页级转写若仍截断可再调高。
+- **输出长度**：`--llm-max-tokens` 控制单次 **completion** 上限（与「最大输入/上下文」不同）；多数 Qwen3.5 模型单路约可到 **64K**，页级转写若仍截断可再调高。
 
 ### 成本与安全
 
