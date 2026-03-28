@@ -312,7 +312,7 @@
       .top-session-block {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 12px;
         padding: 0 4px 0 2px;
         min-height: 38px;
       }
@@ -321,27 +321,27 @@
         display: none;
       }
 
-      .user-badge {
+      /* 仅展示：当前用户（非按钮，弱化边框与背景） */
+      .user-display {
         display: inline-flex;
         align-items: center;
         gap: 8px;
         max-width: min(220px, 42vw);
         min-height: 36px;
-        padding: 4px 12px 4px 10px;
+        padding: 2px 10px 2px 4px;
         border-radius: 10px;
-        border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent);
-        background: linear-gradient(
-          135deg,
-          color-mix(in srgb, var(--brand) 10%, transparent),
-          color-mix(in srgb, var(--brand-2) 6%, transparent)
-        );
+        border: none;
+        border-left: 3px solid color-mix(in srgb, var(--text-sub) 45%, transparent);
+        background: color-mix(in srgb, var(--text-sub) 6%, transparent);
         color: var(--text-main);
         font-size: 13px;
-        font-weight: 600;
+        font-weight: 500;
         overflow: hidden;
+        cursor: default;
+        user-select: none;
       }
 
-      .user-badge-meta {
+      .user-display-meta {
         display: flex;
         flex-direction: column;
         align-items: flex-start;
@@ -351,26 +351,28 @@
         flex: 1;
       }
 
-      .user-badge-name {
+      .user-display-name {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
         width: 100%;
         max-width: 100%;
-        line-height: 1.25;
+        line-height: 1.3;
+        font-weight: 600;
+        color: var(--text-main);
       }
 
-      .user-badge-role {
+      .user-display-role {
         font-size: 11px;
-        font-weight: 600;
-        opacity: 0.72;
+        font-weight: 500;
+        color: var(--text-sub);
         line-height: 1.2;
         white-space: nowrap;
       }
 
-      .user-avatar {
-        width: 26px;
-        height: 26px;
+      .user-display-avatar {
+        width: 28px;
+        height: 28px;
         flex-shrink: 0;
         border-radius: 999px;
         display: inline-flex;
@@ -378,12 +380,13 @@
         justify-content: center;
         font-size: 11px;
         font-weight: 800;
-        color: #fff;
-        background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
-        box-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 35%, transparent);
+        color: var(--text-sub);
+        background: color-mix(in srgb, var(--text-sub) 14%, transparent);
+        border: 1px solid color-mix(in srgb, var(--text-sub) 22%, transparent);
       }
 
-      .top-actions-bar .link-btn {
+      /* 可操作：退出登录（明确按钮态） */
+      .top-logout-btn {
         height: 36px;
         padding: 0 16px;
         display: inline-flex;
@@ -393,15 +396,15 @@
         font-size: 13px;
         font-weight: 650;
         white-space: nowrap;
-        border: 1px solid color-mix(in srgb, var(--brand) 38%, transparent);
+        border: 1px solid color-mix(in srgb, var(--brand) 42%, transparent);
         background: linear-gradient(
           145deg,
-          color-mix(in srgb, var(--brand) 14%, transparent),
-          color-mix(in srgb, var(--brand-2) 10%, transparent)
+          color-mix(in srgb, var(--brand) 16%, transparent),
+          color-mix(in srgb, var(--brand-2) 11%, transparent)
         );
         color: var(--text-main);
         cursor: pointer;
-        box-shadow: 0 2px 10px color-mix(in srgb, var(--brand) 12%, transparent);
+        box-shadow: 0 2px 12px color-mix(in srgb, var(--brand) 14%, transparent);
         transition:
           border-color 0.2s ease,
           box-shadow 0.2s ease,
@@ -409,14 +412,150 @@
           filter 0.2s ease;
       }
 
-      .top-actions-bar .link-btn:hover {
-        border-color: color-mix(in srgb, var(--brand) 55%, transparent);
-        filter: brightness(1.06);
-        box-shadow: 0 4px 16px color-mix(in srgb, var(--brand) 20%, transparent);
+      .top-logout-btn:hover {
+        border-color: color-mix(in srgb, var(--brand) 60%, transparent);
+        filter: brightness(1.07);
+        box-shadow: 0 4px 18px color-mix(in srgb, var(--brand) 22%, transparent);
       }
 
-      .top-actions-bar .link-btn:active {
+      .top-logout-btn:focus-visible {
+        outline: 2px solid var(--field-focus);
+        outline-offset: 2px;
+      }
+
+      .top-logout-btn:active {
         transform: scale(0.98);
+      }
+
+      /* 主题切换：可操作图标按钮（与展示区分） */
+      .top-bar-icon-btn:focus-visible {
+        outline: 2px solid var(--field-focus);
+        outline-offset: 2px;
+      }
+
+      /* 主题确认对话框 */
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px 16px;
+        background: color-mix(in srgb, #0a0c12 72%, transparent);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        opacity: 1;
+        transition: opacity 0.2s ease;
+      }
+
+      body[data-theme="light"] .modal-overlay {
+        background: color-mix(in srgb, #1d2534 35%, transparent);
+      }
+
+      .modal-overlay.hidden {
+        display: none !important;
+        pointer-events: none;
+      }
+
+      .modal-dialog {
+        width: 100%;
+        max-width: 400px;
+        border-radius: 16px;
+        border: 1px solid var(--stroke);
+        background: var(--glass-strong);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        padding: 22px 22px 18px;
+        box-shadow: var(--shadow-xl), 0 0 0 1px var(--shell-inner) inset;
+      }
+
+      .modal-title {
+        margin: 0 0 10px;
+        font-size: 17px;
+        font-weight: 750;
+        color: var(--text-main);
+        letter-spacing: 0.02em;
+      }
+
+      .modal-desc {
+        margin: 0 0 22px;
+        font-size: 14px;
+        line-height: 1.55;
+        color: var(--text-sub);
+      }
+
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .modal-btn {
+        min-width: 88px;
+        height: 40px;
+        padding: 0 18px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 650;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition:
+          filter 0.18s ease,
+          transform 0.08s ease,
+          box-shadow 0.18s ease,
+          border-color 0.18s ease;
+      }
+
+      .modal-btn:focus-visible {
+        outline: 2px solid var(--field-focus);
+        outline-offset: 2px;
+      }
+
+      .modal-btn:active {
+        transform: scale(0.98);
+      }
+
+      .modal-btn-cancel {
+        border-color: color-mix(in srgb, var(--text-sub) 35%, transparent);
+        background: color-mix(in srgb, var(--text-sub) 8%, transparent);
+        color: var(--text-main);
+      }
+
+      .modal-btn-cancel:hover {
+        border-color: color-mix(in srgb, var(--text-sub) 50%, transparent);
+        background: color-mix(in srgb, var(--text-sub) 14%, transparent);
+      }
+
+      .modal-btn-confirm {
+        border-color: var(--button-border);
+        background:
+          linear-gradient(90deg, var(--button-overlay-1), var(--button-overlay-2)),
+          linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+        color: #fff;
+        box-shadow: 0 6px 18px var(--button-shadow-1);
+      }
+
+      .modal-btn-confirm:hover {
+        filter: brightness(1.06);
+        box-shadow: 0 8px 22px var(--button-shadow-hover-1);
+      }
+
+      .modal-btn-danger {
+        border-color: color-mix(in srgb, var(--error-text) 45%, transparent);
+        background: linear-gradient(
+          145deg,
+          color-mix(in srgb, var(--error-text) 22%, transparent),
+          color-mix(in srgb, var(--error-text) 12%, transparent)
+        );
+        color: var(--error-text);
+        box-shadow: 0 4px 16px color-mix(in srgb, var(--error-text) 15%, transparent);
+      }
+
+      .modal-btn-danger:hover {
+        filter: brightness(1.08);
+        border-color: color-mix(in srgb, var(--error-text) 60%, transparent);
       }
 
       .hidden {
@@ -509,6 +648,29 @@
 
       .field.with-action {
         padding-right: 8px;
+      }
+
+      /* 密码行：输入区域与容器均为透明，避免浏览器默认底色 */
+      .field.password-field {
+        background: transparent !important;
+        background-color: transparent !important;
+      }
+
+      .field.password-field input#passwordInput {
+        background: transparent !important;
+        background-color: transparent !important;
+        -webkit-appearance: none;
+        appearance: none;
+      }
+
+      .field.password-field input#passwordInput:-webkit-autofill,
+      .field.password-field input#passwordInput:-webkit-autofill:hover,
+      .field.password-field input#passwordInput:-webkit-autofill:focus,
+      .field.password-field input#passwordInput:-webkit-autofill:active {
+        -webkit-box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0) inset !important;
+        box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0) inset !important;
+        -webkit-text-fill-color: var(--field-text) !important;
+        transition: background-color 9999s ease-out 0s;
       }
 
       .field-action {
@@ -1147,12 +1309,12 @@
           width: 36px;
           height: 36px;
         }
-        .user-badge {
+        .user-display {
           max-width: min(140px, 38vw);
-          padding: 0 8px 0 8px;
+          padding: 2px 8px 2px 4px;
           font-size: 12px;
         }
-        .top-actions-bar .link-btn {
+        .top-logout-btn {
           padding: 0 12px;
           font-size: 12px;
         }
@@ -1180,8 +1342,14 @@
           ></button>
           <div class="top-actions-sep" aria-hidden="true"></div>
           <div class="top-session-block">
-            <span id="userBadge" class="user-badge hidden">未登录</span>
-            <button id="logoutBtn" class="link-btn hidden" type="button">退出登录</button>
+            <div
+              id="userBadge"
+              class="user-display hidden"
+              role="status"
+              aria-live="polite"
+              aria-label="当前登录用户"
+            ></div>
+            <button id="logoutBtn" class="top-logout-btn hidden" type="button">退出登录</button>
           </div>
         </div>
       </div>
@@ -1199,7 +1367,7 @@
               </svg>
               <input id="usernameInput" type="text" placeholder="例如：admin" autocomplete="username" />
             </label>
-            <label class="field with-action">
+            <label class="field with-action password-field">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M7.5 10V7.75C7.5 5.12665 9.62665 3 12.25 3C14.8734 3 17 5.12665 17 7.75V10" stroke="currentColor" stroke-width="1.7"></path>
                 <rect x="5" y="10" width="14" height="11" rx="2.5" stroke="currentColor" stroke-width="1.7"></rect>
@@ -1294,6 +1462,25 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+    <div
+      id="confirmModal"
+      class="modal-overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirmModalTitle"
+      aria-describedby="confirmModalDesc"
+      hidden
+    >
+      <div class="modal-dialog">
+        <h2 id="confirmModalTitle" class="modal-title"></h2>
+        <p id="confirmModalDesc" class="modal-desc"></p>
+        <div class="modal-actions">
+          <button type="button" class="modal-btn modal-btn-cancel" id="confirmModalCancel">取消</button>
+          <button type="button" class="modal-btn modal-btn-confirm" id="confirmModalOk">确定</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       const fileInput = document.getElementById("fileInput");
       const dropzone = document.getElementById("dropzone");
@@ -1305,6 +1492,11 @@
       const resultFilename = document.getElementById("resultFilename");
       const downloadBtn = document.getElementById("downloadBtn");
       const toast = document.getElementById("toast");
+      const confirmModal = document.getElementById("confirmModal");
+      const confirmModalTitle = document.getElementById("confirmModalTitle");
+      const confirmModalDesc = document.getElementById("confirmModalDesc");
+      const confirmModalOk = document.getElementById("confirmModalOk");
+      const confirmModalCancel = document.getElementById("confirmModalCancel");
       const dropzoneText = dropzone.querySelector(".dropzone-text");
       const dropzoneHint = dropzone.querySelector(".dropzone-hint");
       const defaultDropzoneText = dropzoneText ? dropzoneText.textContent : "";
@@ -1381,6 +1573,84 @@
         }, 3000);
       }
 
+      /**
+       * 主题化确认框（替代浏览器 confirm）。opts: title, message, confirmText, cancelText, danger
+       * @returns {Promise<boolean>}
+       */
+      function openThemedConfirm(opts) {
+        opts = opts || {};
+        return new Promise(function (resolve) {
+          if (!confirmModal || !confirmModalOk || !confirmModalCancel) {
+            resolve(false);
+            return;
+          }
+          var title = opts.title != null ? opts.title : "确认";
+          var message = opts.message != null ? opts.message : "";
+          var confirmText = opts.confirmText != null ? opts.confirmText : "确定";
+          var cancelText = opts.cancelText != null ? opts.cancelText : "取消";
+          var danger = !!opts.danger;
+          var prevActive = document.activeElement;
+          var settled = false;
+
+          confirmModalTitle.textContent = title;
+          confirmModalDesc.textContent = message;
+          confirmModalOk.textContent = confirmText;
+          confirmModalCancel.textContent = cancelText;
+
+          confirmModalOk.classList.remove("modal-btn-confirm", "modal-btn-danger");
+          if (danger) {
+            confirmModalOk.classList.add("modal-btn-danger");
+          } else {
+            confirmModalOk.classList.add("modal-btn-confirm");
+          }
+
+          function finish(result) {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            document.removeEventListener("keydown", onDocKey);
+            confirmModalOk.onclick = null;
+            confirmModalCancel.onclick = null;
+            confirmModal.onclick = null;
+            confirmModal.classList.add("hidden");
+            confirmModal.setAttribute("hidden", "");
+            if (prevActive && typeof prevActive.focus === "function") {
+              try {
+                prevActive.focus();
+              } catch (e) {
+                /* ignore */
+              }
+            }
+            resolve(result);
+          }
+
+          function onDocKey(e) {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              finish(false);
+            }
+          }
+
+          confirmModalOk.onclick = function () {
+            finish(true);
+          };
+          confirmModalCancel.onclick = function () {
+            finish(false);
+          };
+          confirmModal.onclick = function (e) {
+            if (e.target === confirmModal) {
+              finish(false);
+            }
+          };
+
+          document.addEventListener("keydown", onDocKey);
+          confirmModal.classList.remove("hidden");
+          confirmModal.removeAttribute("hidden");
+          (danger ? confirmModalCancel : confirmModalOk).focus();
+        });
+      }
+
       function setSelectedFile(file) {
         currentFile = file;
         selectedFile.classList.remove("hidden");
@@ -1415,14 +1685,14 @@
           const avatar = name.slice(0, 1).toUpperCase();
           const roleHint = user.role === "admin" ? "（管理员）" : "";
           userBadge.innerHTML =
-            '<span class="user-avatar">' +
+            '<span class="user-display-avatar" aria-hidden="true">' +
             avatar +
-            '</span><span class="user-badge-meta">' +
-            '<span class="user-badge-name">' +
+            '</span><span class="user-display-meta">' +
+            '<span class="user-display-name">' +
             String(name).replace(/</g, "&lt;") +
             "</span>" +
             (roleHint
-              ? '<span class="user-badge-role">' +
+              ? '<span class="user-display-role">' +
                 String(roleHint).replace(/</g, "&lt;") +
                 "</span>"
               : "") +
@@ -1715,11 +1985,15 @@
         if (delBtn) {
           const jobId = delBtn.getAttribute("data-job-delete");
           if (!jobId) return;
-          if (
-            !confirm(
-              "确定删除该任务记录？将同时删除服务器上的输入/输出文件（若仍存在），且不可恢复。"
-            )
-          ) {
+          const okDelete = await openThemedConfirm({
+            title: "删除任务记录",
+            message:
+              "将删除该条任务记录，并尝试移除服务器上对应的输入、输出目录（若仍存在）。此操作不可恢复。",
+            confirmText: "删除",
+            cancelText: "取消",
+            danger: true,
+          });
+          if (!okDelete) {
             return;
           }
           try {
@@ -1909,6 +2183,9 @@
 
       async function uploadAndConvert() {
         resetResult();
+        progressWrap.classList.remove("show");
+        statusBox.className = "status-box";
+        statusBox.textContent = "";
         if (!currentFile) {
           setStatus("error", "请先选择要上传的文件");
           return;
@@ -1917,7 +2194,6 @@
         const oldText = convertBtn.textContent;
         convertBtn.disabled = true;
         convertBtn.textContent = "提交中...";
-        setStatus("loading", "任务已排队，正在转换，请稍候...");
         try {
           const formData = new FormData();
           formData.append("file", currentFile);
@@ -1931,6 +2207,7 @@
           if (resp.status === 401) {
             setAuthState(null);
             setStatus("error", "登录已失效，请重新登录");
+            progressWrap.classList.remove("show");
             return;
           }
           if (!resp.ok) {
@@ -1942,9 +2219,10 @@
             return;
           }
           await refreshTaskList();
+          progressWrap.classList.remove("show");
           const jobId = payload.job_id;
           if (jobId) {
-            convertBtn.textContent = "转换中...";
+            convertBtn.textContent = "处理中...";
             await pollJobUntilTerminal(jobId, myGen);
           } else {
             setStatus("error", "未返回任务 ID");
