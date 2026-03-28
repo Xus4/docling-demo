@@ -4,6 +4,7 @@ from unittest.mock import patch
 from src.dashscope_client import (
     DashScopeClient,
     DashScopeClientConfig,
+    _is_likely_ollama_openai_base_url,
     _is_openai_compatible_base_url,
 )
 
@@ -128,6 +129,75 @@ class TestDashScopeExtract(unittest.TestCase):
             ]
         }
         self.assertTrue(DashScopeClient._is_reasoning_only_openai_response(resp))
+
+    def test_reasoning_only_response_detection_ollama_thinking(self) -> None:
+        resp = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "thinking": "vision output wrongly here",
+                    }
+                }
+            ]
+        }
+        self.assertTrue(DashScopeClient._is_reasoning_only_openai_response(resp))
+
+    def test_ollama_base_url_heuristic(self) -> None:
+        self.assertTrue(
+            _is_likely_ollama_openai_base_url("http://192.168.2.60:11434/v1")
+        )
+        self.assertFalse(
+            _is_likely_ollama_openai_base_url(
+                "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            )
+        )
+
+    def test_chat_payload_ollama_reasoning_effort_none(self) -> None:
+        cfg = DashScopeClientConfig(
+            api_key="k",
+            base_url="http://127.0.0.1:11434/v1",
+            enable_thinking=False,
+        )
+        c = DashScopeClient(cfg)
+        p = c._openai_chat_completions_payload(
+            model="qwen3.5:9b",
+            messages=[],
+            temperature=0.0,
+            max_tokens=100,
+        )
+        self.assertEqual(p.get("reasoning_effort"), "none")
+
+    def test_chat_payload_dashscope_no_reasoning_effort(self) -> None:
+        cfg = DashScopeClientConfig(
+            api_key="k",
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            enable_thinking=False,
+        )
+        c = DashScopeClient(cfg)
+        p = c._openai_chat_completions_payload(
+            model="qwen",
+            messages=[],
+            temperature=0.0,
+            max_tokens=100,
+        )
+        self.assertIsNone(p.get("reasoning_effort"))
+
+    def test_chat_payload_ollama_thinking_on_skips_reasoning_effort_none(self) -> None:
+        cfg = DashScopeClientConfig(
+            api_key="k",
+            base_url="http://127.0.0.1:11434/v1",
+            enable_thinking=True,
+        )
+        c = DashScopeClient(cfg)
+        p = c._openai_chat_completions_payload(
+            model="qwen3.5:9b",
+            messages=[],
+            temperature=0.0,
+            max_tokens=100,
+        )
+        self.assertIsNone(p.get("reasoning_effort"))
 
     def test_append_guard_to_messages_on_system(self) -> None:
         msgs = [

@@ -3,5 +3,8 @@
 /out_md_2
 __pycache__/
 *.pyc
+/data/input/*
+!/data/input/.gitkeep
 /data/output/*
 !/data/output/.gitkeep
+/data/*.db
