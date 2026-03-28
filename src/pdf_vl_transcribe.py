@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass
 from PIL import Image
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from .dashscope_client import DashScopeClient, build_system_message, build_vl_user_message
 from .llm_markdown_refiner import _normalize_markdown_output
@@ -2148,6 +2148,7 @@ def transcribe_pdf_with_vl(
     max_pages: Optional[int] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> str:
     """
     逐页渲染 PDF → PNG（临时文件），每页一次 multimodal 调用，拼接为单个 Markdown。
@@ -2295,14 +2296,20 @@ def transcribe_pdf_with_vl(
             for i, p in enumerate(page_pngs):
                 idx, md = _one_page(i, p)
                 page_md_map[idx] = md
+                if progress_callback is not None:
+                    progress_callback(i + 1, limit)
         else:
             _log.info("pdf-vl: concurrent workers=%s pages=%s", workers_i, limit)
             page_md_map = {}
+            done_pages = 0
             with ThreadPoolExecutor(max_workers=workers_i) as ex:
                 futs = [ex.submit(_one_page, i, p) for i, p in enumerate(page_pngs)]
                 for fut in as_completed(futs):
                     idx, md = fut.result()
                     page_md_map[idx] = md
+                    done_pages += 1
+                    if progress_callback is not None:
+                        progress_callback(done_pages, limit)
 
         for i in range(limit):
             parts.append(f"## 第 {i + 1} / {limit} 页\n\n")

@@ -5,7 +5,7 @@ import re
 import os
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Iterable, Literal, Optional, Union
+from typing import Callable, Iterable, Literal, Optional, Union
 
 import pandas as pd
 
@@ -602,6 +602,7 @@ class IndustrialDocConverter:
         self,
         source: Path,
         markdown_out: Path,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> None:
         """
         Convert a single file to Markdown. Images referenced from the .md are
@@ -646,6 +647,7 @@ class IndustrialDocConverter:
                 max_pages=self.config.max_num_pages,
                 temperature=self.config.llm_temperature,
                 max_tokens=self.config.llm_max_tokens,
+                progress_callback=progress_callback,
             )
             if self.config.markdown_escape_dimension_asterisks:
                 md = _escape_dimension_like_asterisks(md)

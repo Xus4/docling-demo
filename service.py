@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -48,10 +49,18 @@ class ConversionService:
     def save_upload_file(self, source_path: Path, target_path: Path) -> None:
         shutil.copy2(source_path, target_path)
 
-    def convert_to_markdown(self, input_path: str, output_path: str) -> Path:
+    def convert_to_markdown(
+        self,
+        input_path: str,
+        output_path: str,
+        *,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> Path:
         src = Path(input_path).resolve()
         dst = Path(output_path).resolve()
-        self.converter.convert_path_to_markdown(src, dst)
+        self.converter.convert_path_to_markdown(
+            src, dst, progress_callback=progress_callback
+        )
         return dst
 
     def cleanup_old_jobs(self) -> None:

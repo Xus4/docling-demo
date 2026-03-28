@@ -1149,6 +1149,38 @@
         word-break: break-word;
       }
 
+      .task-queue-meta {
+        font-size: 12px;
+        color: var(--text-sub);
+        margin-top: 6px;
+      }
+
+      .task-progress-wrap {
+        margin-top: 8px;
+        max-width: 100%;
+      }
+
+      .task-progress-bar-bg {
+        height: 6px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--text-sub) 22%, transparent);
+        overflow: hidden;
+      }
+
+      .task-progress-bar-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--brand-2), var(--brand));
+        transition: width 0.35s ease;
+      }
+
+      .task-progress-note {
+        font-size: 11px;
+        color: var(--text-sub);
+        margin-top: 5px;
+        line-height: 1.35;
+      }
+
       .task-row-actions {
         display: flex;
         flex-direction: column;
@@ -1816,6 +1848,53 @@
               job.error_message && job.status !== "succeeded"
                 ? '<div class="task-error-line">' + String(job.error_message).replace(/</g, "&lt;") + "</div>"
                 : "";
+            const queueLine =
+              job.status === "queued" &&
+              job.queue_position != null &&
+              job.queue_total != null &&
+              job.queue_total > 0
+                ? '<div class="task-queue-meta">排队位次：第 ' +
+                  job.queue_position +
+                  " / " +
+                  job.queue_total +
+                  " 位</div>"
+                : "";
+            let progressBlock = "";
+            if (job.status === "running") {
+              let pct = job.progress_percent;
+              if (pct == null || typeof pct !== "number" || Number.isNaN(pct)) {
+                pct = 0;
+              }
+              pct = Math.max(0, Math.min(100, pct));
+              const noteRaw = job.progress_note != null ? String(job.progress_note) : "转换中…";
+              const note = noteRaw.replace(/</g, "&lt;");
+              let pageHint = "";
+              const genericProgressNote =
+                noteRaw === "转换中…" ||
+                noteRaw === "开始处理…" ||
+                /正在转换文档/.test(noteRaw);
+              if (
+                genericProgressNote &&
+                job.progress_pages_done != null &&
+                job.progress_pages_total != null
+              ) {
+                pageHint =
+                  " · 页 " + job.progress_pages_done + "/" + job.progress_pages_total;
+              }
+              progressBlock =
+                '<div class="task-progress-wrap" role="progressbar" aria-valuenow="' +
+                pct +
+                '" aria-valuemin="0" aria-valuemax="100">' +
+                '<div class="task-progress-bar-bg"><div class="task-progress-bar-fill" style="width:' +
+                pct +
+                '%"></div></div>' +
+                '<div class="task-progress-note">' +
+                note +
+                pageHint +
+                " · " +
+                pct +
+                "%</div></div>";
+            }
             const canCancel = job.status === "queued" || job.status === "running";
             const cancelBtn = canCancel
               ? '<button type="button" class="task-cancel-btn" data-job-cancel="' +
@@ -1846,11 +1925,13 @@
               formatTime(job.created_at) +
               (job.finished_at ? " · 结束：" + formatTime(job.finished_at) : "") +
               "</div>" +
+              queueLine +
               '<span class="task-status-badge task-status-' +
               job.status +
               '">' +
               statusLabel(job.status) +
               "</span>" +
+              progressBlock +
               err +
               "</div>" +
               '<div class="task-row-actions">' +
@@ -2023,6 +2104,17 @@
         if (!btn) return;
         const jobId = btn.getAttribute("data-job-cancel");
         if (!jobId) return;
+        const okCancel = await openThemedConfirm({
+          title: "取消任务",
+          message:
+            "确定要取消该任务吗？排队中的任务将从队列移除；若正在转换，将尽快中止（已写入的部分输出可能仍会保留）。",
+          confirmText: "确认取消",
+          cancelText: "返回",
+          danger: true,
+        });
+        if (!okCancel) {
+          return;
+        }
         try {
           const resp = await fetch("/jobs/" + encodeURIComponent(jobId) + "/cancel", {
             method: "POST",

@@ -116,6 +116,22 @@ def _job_to_api_dict(job: JobRecord) -> dict[str, object | None]:
         out["download_url"] = f"/jobs/{job.job_id}/download"
     else:
         out["download_url"] = None
+
+    q_pos, q_total = auth_store.get_queue_position(job.job_id)
+    out["queue_position"] = q_pos
+    out["queue_total"] = q_total
+
+    if job.status == "running":
+        out["progress_percent"] = job.progress_percent
+        out["progress_note"] = job.progress_note
+        out["progress_pages_done"] = job.progress_pages_done
+        out["progress_pages_total"] = job.progress_pages_total
+    else:
+        out["progress_percent"] = None
+        out["progress_note"] = None
+        out["progress_pages_done"] = None
+        out["progress_pages_total"] = None
+
     return out
 
 

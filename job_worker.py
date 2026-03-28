@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import queue
 import threading
+import time
 from pathlib import Path
 
 from auth import AuthStore
@@ -62,8 +63,54 @@ class JobQueueWorker:
             self.auth.mark_job_failed(job_id, "输入文件不存在")
             return
 
+        stop_pulse = threading.Event()
+
+        def on_pdf_pages(done: int, total: int) -> None:
+            t = max(int(total), 1)
+            d = max(0, min(int(done), t))
+            pct = int(round(100.0 * d / t))
+            pct = max(0, min(100, pct))
+            self.auth.update_job_progress(
+                job_id,
+                percent=pct,
+                note=f"PDF 已完成 {d}/{t} 页",
+                pages_done=d,
+                pages_total=t,
+            )
+
+        skip_pulse = inp.suffix.lower() == ".pdf" and bool(
+            self.service.app_config.pdf_vl_primary
+        )
+
+        def pulse_loop() -> None:
+            t0 = time.monotonic()
+            while not stop_pulse.wait(2.0):
+                j = self.auth.get_job(job_id)
+                if not j or j.status != "running":
+                    return
+                if j.progress_pages_total is not None:
+                    continue
+                elapsed = time.monotonic() - t0
+                fake = min(88, 2 + int(elapsed * 1.15))
+                cur = j.progress_percent
+                if cur is not None and cur >= fake:
+                    continue
+                self.auth.update_job_progress(
+                    job_id, percent=fake, note="正在转换文档…"
+                )
+
+        pulse_thread: threading.Thread | None = None
+        if not skip_pulse:
+            pulse_thread = threading.Thread(
+                target=pulse_loop,
+                name=f"job-progress-{job_id[:8]}",
+                daemon=True,
+            )
+            pulse_thread.start()
         try:
-            self.service.convert_to_markdown(str(inp), str(out))
+            self.service.convert_to_markdown(
+                str(inp), str(out), progress_callback=on_pdf_pages
+            )
         except ConversionError as exc:
             self.auth.mark_job_failed(job_id, str(exc))
             return
@@ -71,6 +118,8 @@ class JobQueueWorker:
             log.exception("转换失败 job_id=%s", job_id)
             self.auth.mark_job_failed(job_id, f"转换失败: {exc!s}"[:4000])
             return
+        finally:
+            stop_pulse.set()
 
         latest = self.auth.get_job(job_id)
         if latest and latest.cancel_requested:

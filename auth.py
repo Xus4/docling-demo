@@ -64,6 +64,10 @@ class JobRecord:
     created_at: str
     started_at: str | None
     finished_at: str | None
+    progress_percent: int | None = None
+    progress_note: str | None = None
+    progress_pages_done: int | None = None
+    progress_pages_total: int | None = None
 
 
 class AuthStore:
@@ -116,6 +120,7 @@ class AuthStore:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status)"
             )
+            self._migrate_jobs_progress_columns(conn)
             conn.commit()
 
     def bootstrap_users(
@@ -163,7 +168,23 @@ class AuthStore:
             return None
         return AuthUser(username=row["username"], role=row["role"])
 
+    def _migrate_jobs_progress_columns(self, conn: sqlite3.Connection) -> None:
+        info = conn.execute("PRAGMA table_info(jobs)").fetchall()
+        colnames = {str(r[1]) for r in info}
+        stmts: list[str] = []
+        if "progress_percent" not in colnames:
+            stmts.append("ALTER TABLE jobs ADD COLUMN progress_percent INTEGER")
+        if "progress_note" not in colnames:
+            stmts.append("ALTER TABLE jobs ADD COLUMN progress_note TEXT")
+        if "progress_pages_done" not in colnames:
+            stmts.append("ALTER TABLE jobs ADD COLUMN progress_pages_done INTEGER")
+        if "progress_pages_total" not in colnames:
+            stmts.append("ALTER TABLE jobs ADD COLUMN progress_pages_total INTEGER")
+        for sql in stmts:
+            conn.execute(sql)
+
     def _row_to_job(self, row: sqlite3.Row) -> JobRecord:
+        keys = set(row.keys())
         return JobRecord(
             job_id=row["job_id"],
             owner_username=row["owner_username"],
@@ -178,6 +199,26 @@ class AuthStore:
             created_at=row["created_at"],
             started_at=row["started_at"],
             finished_at=row["finished_at"],
+            progress_percent=(
+                int(row["progress_percent"])
+                if "progress_percent" in keys and row["progress_percent"] is not None
+                else None
+            ),
+            progress_note=(
+                str(row["progress_note"])
+                if "progress_note" in keys and row["progress_note"] is not None
+                else None
+            ),
+            progress_pages_done=(
+                int(row["progress_pages_done"])
+                if "progress_pages_done" in keys and row["progress_pages_done"] is not None
+                else None
+            ),
+            progress_pages_total=(
+                int(row["progress_pages_total"])
+                if "progress_pages_total" in keys and row["progress_pages_total"] is not None
+                else None
+            ),
         )
 
     def insert_job(
@@ -230,7 +271,11 @@ class AuthStore:
                 UPDATE jobs SET
                     status = 'running',
                     started_at = ?,
-                    attempt_count = attempt_count + 1
+                    attempt_count = attempt_count + 1,
+                    progress_percent = 0,
+                    progress_note = '开始处理…',
+                    progress_pages_done = NULL,
+                    progress_pages_total = NULL
                 WHERE job_id = ? AND status = 'queued'
                 """,
                 (now, job_id),
@@ -247,7 +292,11 @@ class AuthStore:
                     status = 'succeeded',
                     output_file = ?,
                     finished_at = ?,
-                    error_message = NULL
+                    error_message = NULL,
+                    progress_percent = NULL,
+                    progress_note = NULL,
+                    progress_pages_done = NULL,
+                    progress_pages_total = NULL
                 WHERE job_id = ?
                 """,
                 (output_file, now, job_id),
@@ -262,7 +311,11 @@ class AuthStore:
                 UPDATE jobs SET
                     status = 'failed',
                     finished_at = ?,
-                    error_message = ?
+                    error_message = ?,
+                    progress_percent = NULL,
+                    progress_note = NULL,
+                    progress_pages_done = NULL,
+                    progress_pages_total = NULL
                 WHERE job_id = ?
                 """,
                 (now, error_message[:4000], job_id),
@@ -279,7 +332,11 @@ class AuthStore:
                     status = 'cancelled',
                     finished_at = ?,
                     error_message = ?,
-                    output_file = NULL
+                    output_file = NULL,
+                    progress_percent = NULL,
+                    progress_note = NULL,
+                    progress_pages_done = NULL,
+                    progress_pages_total = NULL
                 WHERE job_id = ?
                 """,
                 (now, msg, job_id),
@@ -295,7 +352,11 @@ class AuthStore:
                 UPDATE jobs SET
                     status = 'cancelled',
                     finished_at = ?,
-                    error_message = '已取消'
+                    error_message = '已取消',
+                    progress_percent = NULL,
+                    progress_note = NULL,
+                    progress_pages_done = NULL,
+                    progress_pages_total = NULL
                 WHERE job_id = ? AND status = 'queued'
                 """,
                 (now, job_id),
@@ -375,6 +436,65 @@ class AuthStore:
             ).fetchall()
 
         return [self._row_to_job(r) for r in rows], total
+
+    def count_queued_jobs(self) -> int:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM jobs WHERE status = 'queued'"
+            ).fetchone()
+        return int(row["c"]) if row else 0
+
+    def get_queue_position(self, job_id: str) -> tuple[int | None, int]:
+        """排队任务返回 (从 1 起的位次, 排队总数)；非排队返回 (None, 排队总数)。"""
+        total = self.count_queued_jobs()
+        job = self.get_job(job_id)
+        if not job or job.status != "queued":
+            return None, total
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) + 1 AS pos FROM jobs AS j2
+                WHERE j2.status = 'queued' AND (
+                    j2.created_at < ? OR (j2.created_at = ? AND j2.job_id < ?)
+                )
+                """,
+                (job.created_at, job.created_at, job_id),
+            ).fetchone()
+        pos = int(row["pos"]) if row else 1
+        return pos, total
+
+    def update_job_progress(
+        self,
+        job_id: str,
+        *,
+        percent: int | None = None,
+        note: str | None = None,
+        pages_done: int | None = None,
+        pages_total: int | None = None,
+    ) -> None:
+        sets: list[str] = []
+        params: list[object] = []
+        if percent is not None:
+            sets.append("progress_percent = ?")
+            params.append(max(0, min(100, int(percent))))
+        if note is not None:
+            sets.append("progress_note = ?")
+            params.append(str(note)[:500])
+        if pages_done is not None:
+            sets.append("progress_pages_done = ?")
+            params.append(int(pages_done))
+        if pages_total is not None:
+            sets.append("progress_pages_total = ?")
+            params.append(int(pages_total))
+        if not sets:
+            return
+        params.append(job_id)
+        with self._connect() as conn:
+            conn.execute(
+                f"UPDATE jobs SET {', '.join(sets)} WHERE job_id = ?",
+                params,
+            )
+            conn.commit()
 
     def list_queued_job_ids(self) -> list[str]:
         with self._connect() as conn:
