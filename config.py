@@ -129,7 +129,6 @@ class AppConfig:
     llm_table_caption_max_chars: int
     llm_table_caption_max_tables: int
     llm_table_caption_context_lines: int
-    llm_table_caption_max_tokens: int
     pdf_caption_crop_figures: bool
     pdf_caption_crop_max_per_page: int
     llm_enable_thinking: bool
@@ -199,9 +198,6 @@ class AppConfig:
             ),
             llm_table_caption_context_lines=max(
                 0, env_int("LLM_TABLE_CAPTION_CONTEXT_LINES", 3)
-            ),
-            llm_table_caption_max_tokens=max(
-                1, env_int("LLM_TABLE_CAPTION_MAX_TOKENS", 256)
             ),
             pdf_caption_crop_figures=env_bool("PDF_CAPTION_CROP_FIGURES", True),
             pdf_caption_crop_max_per_page=max(
@@ -274,7 +270,6 @@ class AppConfig:
             llm_table_caption_max_chars=self.llm_table_caption_max_chars,
             llm_table_caption_max_tables=self.llm_table_caption_max_tables,
             llm_table_caption_context_lines=self.llm_table_caption_context_lines,
-            llm_table_caption_max_tokens=self.llm_table_caption_max_tokens,
             pdf_caption_crop_figures=self.pdf_caption_crop_figures,
             pdf_caption_crop_max_per_page=self.pdf_caption_crop_max_per_page,
             llm_enable_thinking=self.llm_enable_thinking,

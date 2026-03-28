@@ -1230,18 +1230,22 @@ class IndustrialDocConverter:
         try:
             from src.llm_prompts import build_table_caption_messages
 
+            max_chars_cfg = max(20, int(self.config.llm_table_caption_max_chars))
             messages = build_table_caption_messages(
                 table_markdown=table_markdown,
                 context_text=context_text,
-                max_chars=self.config.llm_table_caption_max_chars,
+                max_chars=max_chars_cfg,
             )
-            cap_tok = max(1, int(self.config.llm_table_caption_max_tokens))
-            mt = int(self.config.llm_max_tokens or cap_tok)
+            # 补全长度与说明字符上限对齐，并受全局 llm_max_tokens 约束（不再单独维护 TABLE_CAPTION_MAX_TOKENS）
+            cap_tok = min(
+                int(self.config.llm_max_tokens or 8192),
+                max(32, max_chars_cfg),
+            )
             text = client.generate_multimodal(
                 model=self.config.llm_model,
                 messages=messages,
                 temperature=0.0,
-                max_tokens=int(self.config.llm_max_tokens or 1024),
+                max_tokens=cap_tok,
             )
 
             text = (text or "").strip()
@@ -1259,9 +1263,8 @@ class IndustrialDocConverter:
             if not text:
                 return None
 
-            max_chars = max(20, int(self.config.llm_table_caption_max_chars))
-            if len(text) > max_chars:
-                text = text[:max_chars].rstrip("，,;；。 ") + "。"
+            if len(text) > max_chars_cfg:
+                text = text[:max_chars_cfg].rstrip("，,;；。 ") + "。"
 
             return text
         except Exception as e:  # noqa: BLE001

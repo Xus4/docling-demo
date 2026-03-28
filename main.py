@@ -622,7 +622,6 @@ def main() -> int:
         llm_table_caption_max_tables=int(args.llm_table_caption_max_tables),
         llm_table_caption_max_chars=int(args.llm_table_caption_max_chars),
         llm_table_caption_context_lines=int(args.llm_table_caption_context_lines),
-        llm_table_caption_max_tokens=env_int("LLM_TABLE_CAPTION_MAX_TOKENS", 256),
 
         llm_api_key_env=env_str("LLM_API_KEY_ENV", "DASHSCOPE_API_KEY"),
         llm_max_retries=env_int("LLM_MAX_RETRIES", 3),
