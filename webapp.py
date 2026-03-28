@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 import logging
+import re
+import shutil
+import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
-from auth import AuthStore
+from auth import AuthStore, AuthUser, JobRecord
 from config import AppConfig
+from job_worker import JobQueueWorker
 from service import ConversionError, ConversionService
 
 ROOT = Path(__file__).resolve().parent
@@ -25,6 +30,7 @@ auth_store.bootstrap_users(
     initial_password=config.initial_password,
     admin_username=config.auth_admin_username,
 )
+job_worker = JobQueueWorker(auth_store, service)
 
 logging.basicConfig(
     level=logging.DEBUG if config.debug else logging.INFO,
@@ -32,7 +38,19 @@ logging.basicConfig(
 )
 log = logging.getLogger("webapp")
 
-app = FastAPI(title="Docling Demo Web Service", debug=config.debug)
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    n = job_worker.requeue_queued_from_db()
+    if n:
+        log.info("启动时已将 %d 个排队任务重新加入执行队列", n)
+    yield
+
+app = FastAPI(
+    title="Docling Demo Web Service",
+    debug=config.debug,
+    lifespan=_lifespan,
+)
 app.add_middleware(
     SessionMiddleware,
     secret_key=config.session_secret,
@@ -47,7 +65,7 @@ class LoginRequest(BaseModel):
     password: str
 
 
-def _require_login(request: Request) -> str:
+def _require_auth_user(request: Request) -> AuthUser:
     username = request.session.get("username")
     if not username:
         raise HTTPException(status_code=401, detail="请先登录")
@@ -55,7 +73,104 @@ def _require_login(request: Request) -> str:
     if not user:
         request.session.clear()
         raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
-    return user.username
+    return user
+
+
+def _is_admin(user: AuthUser) -> bool:
+    return user.role == "admin"
+
+
+def _can_access_job(user: AuthUser, job: JobRecord) -> bool:
+    return _is_admin(user) or job.owner_username == user.username
+
+
+_JOB_ID_RE = re.compile(r"^[a-f0-9]{32}$")
+
+
+def _normalize_job_id(raw: str) -> str:
+    jid = raw.strip()
+    if not _JOB_ID_RE.fullmatch(jid):
+        raise HTTPException(status_code=400, detail="无效的任务 ID")
+    return jid
+
+
+def _remove_job_workspace(job_id: str) -> None:
+    for base in (config.input_dir, config.output_dir):
+        d = base / job_id
+        if d.is_dir():
+            shutil.rmtree(d, ignore_errors=True)
+
+
+def _job_to_api_dict(job: JobRecord) -> dict[str, object | None]:
+    out: dict[str, object | None] = {
+        "job_id": job.job_id,
+        "owner_username": job.owner_username,
+        "original_filename": job.original_filename,
+        "status": job.status,
+        "created_at": job.created_at,
+        "started_at": job.started_at,
+        "finished_at": job.finished_at,
+        "error_message": job.error_message,
+    }
+    if job.status == "succeeded":
+        out["download_url"] = f"/jobs/{job.job_id}/download"
+    else:
+        out["download_url"] = None
+    return out
+
+
+def _wait_job_terminal(job_id: str, poll_seconds: float = 0.25) -> JobRecord:
+    terminal = frozenset({"succeeded", "failed", "cancelled"})
+    while True:
+        row = auth_store.get_job(job_id)
+        if row and row.status in terminal:
+            return row
+        time.sleep(poll_seconds)
+
+
+async def _ingest_upload_create_job(request: Request, file: UploadFile) -> str:
+    user = _require_auth_user(request)
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="文件名不能为空")
+
+    try:
+        service.cleanup_old_jobs()
+        service.validate_extension(file.filename)
+        paths = service.create_job_paths(file.filename)
+
+        total_size = 0
+        with paths.input_file.open("wb") as buffer:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if total_size > config.max_file_size_bytes:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"文件过大，最大允许 {config.max_file_size_bytes} 字节",
+                    )
+                buffer.write(chunk)
+
+        await file.close()
+
+        auth_store.insert_job(
+            job_id=paths.job_id,
+            owner_username=user.username,
+            role_snapshot=user.role,
+            original_filename=file.filename,
+            input_file=str(paths.input_file.resolve()),
+            output_file=str(paths.output_file.resolve()),
+        )
+        job_worker.enqueue(paths.job_id)
+        return paths.job_id
+    except HTTPException:
+        raise
+    except ConversionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        log.exception("创建任务失败: %s", exc)
+        raise HTTPException(status_code=500, detail="创建任务失败") from exc
 
 
 @app.get("/")
@@ -86,63 +201,155 @@ def logout(request: Request) -> dict[str, str]:
 
 @app.get("/auth/me")
 def me(request: Request) -> dict[str, str]:
-    username = request.session.get("username")
-    if not username:
-        raise HTTPException(status_code=401, detail="未登录")
-    user = auth_store.get_user(str(username))
-    if not user:
-        request.session.clear()
-        raise HTTPException(status_code=401, detail="未登录")
+    user = _require_auth_user(request)
     return {"username": user.username, "role": user.role}
+
+
+@app.get("/auth/users")
+def list_auth_users(request: Request) -> dict[str, list[str]]:
+    user = _require_auth_user(request)
+    if not _is_admin(user):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    return {"usernames": auth_store.list_usernames()}
+
+
+@app.post("/jobs")
+async def create_job(request: Request, file: UploadFile = File(...)) -> dict[str, object]:
+    job_id = await _ingest_upload_create_job(request, file)
+    rec = auth_store.get_job(job_id)
+    if not rec:
+        raise HTTPException(status_code=500, detail="任务创建异常")
+    return {
+        "job_id": job_id,
+        "status": rec.status,
+        "created_at": rec.created_at,
+    }
+
+
+@app.get("/jobs")
+def list_jobs(
+    request: Request,
+    owner: str | None = Query(None, description="管理员按提交人筛选"),
+    status: str | None = Query(None, description="queued|running|succeeded|failed|cancelled"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+) -> dict[str, object]:
+    user = _require_auth_user(request)
+    offset = (page - 1) * page_size
+    items, total = auth_store.list_jobs(
+        viewer_username=user.username,
+        viewer_role=user.role,
+        owner_filter=owner if _is_admin(user) else None,
+        status_filter=status,
+        limit=page_size,
+        offset=offset,
+    )
+    return {
+        "items": [_job_to_api_dict(j) for j in items],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@app.get("/jobs/{job_id}")
+def get_job_detail(job_id: str, request: Request) -> dict[str, object]:
+    jid = _normalize_job_id(job_id)
+    user = _require_auth_user(request)
+    job = auth_store.get_job(jid)
+    if not job:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if not _can_access_job(user, job):
+        raise HTTPException(status_code=403, detail="无权访问该任务")
+    return _job_to_api_dict(job)
+
+
+@app.post("/jobs/{job_id}/cancel")
+def cancel_job(job_id: str, request: Request) -> dict[str, str]:
+    jid = _normalize_job_id(job_id)
+    user = _require_auth_user(request)
+    job = auth_store.get_job(jid)
+    if not job:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if not _can_access_job(user, job):
+        raise HTTPException(status_code=403, detail="无权操作该任务")
+
+    if job.status == "queued":
+        if auth_store.try_mark_job_cancelled_queued(jid):
+            return {"message": "已取消", "status": "cancelled"}
+        raise HTTPException(status_code=409, detail="任务状态已变更，请刷新")
+
+    if job.status == "running":
+        if auth_store.set_job_cancel_requested(jid):
+            return {"message": "已请求取消，将在当前步骤结束后生效", "status": "running"}
+        raise HTTPException(status_code=409, detail="任务状态已变更，请刷新")
+
+    raise HTTPException(status_code=400, detail="当前状态不可取消")
+
+
+@app.delete("/jobs/{job_id}")
+def delete_job_record(job_id: str, request: Request) -> dict[str, str]:
+    jid = _normalize_job_id(job_id)
+    user = _require_auth_user(request)
+    job = auth_store.get_job(jid)
+    if not job:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if not _can_access_job(user, job):
+        raise HTTPException(status_code=403, detail="无权删除该任务")
+    if job.status == "running":
+        raise HTTPException(
+            status_code=409,
+            detail="任务正在执行，请先点击「取消」结束后再删除记录",
+        )
+    if not auth_store.delete_job(jid):
+        raise HTTPException(status_code=404, detail="任务不存在")
+    _remove_job_workspace(jid)
+    return {"message": "已删除"}
+
+
+@app.get("/jobs/{job_id}/download")
+def download_job_result(job_id: str, request: Request) -> FileResponse:
+    jid = _normalize_job_id(job_id)
+    user = _require_auth_user(request)
+    job = auth_store.get_job(jid)
+    if not job:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if not _can_access_job(user, job):
+        raise HTTPException(status_code=403, detail="无权下载该任务")
+    if job.status != "succeeded":
+        raise HTTPException(status_code=400, detail="任务未完成或不可下载")
+    if not job.output_file:
+        raise HTTPException(status_code=404, detail="未找到转换结果")
+    md_file = Path(job.output_file)
+    if not md_file.is_file():
+        raise HTTPException(status_code=404, detail="未找到转换结果文件")
+    return FileResponse(
+        path=md_file,
+        media_type="text/markdown",
+        filename=md_file.name,
+    )
 
 
 @app.post("/convert")
 async def convert(request: Request, file: UploadFile = File(...)) -> dict[str, str]:
-    _require_login(request)
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="文件名不能为空")
+    """兼容旧客户端：创建异步任务并阻塞直到结束，返回原 download_url 形态。"""
+    job_id = await _ingest_upload_create_job(request, file)
+    final = _wait_job_terminal(job_id)
+    rec = auth_store.get_job(job_id)
+    filename = rec.original_filename if rec else ""
 
-    try:
-        service.cleanup_old_jobs()
-        service.validate_extension(file.filename)
-        job = service.create_job_paths(file.filename)
-
-        total_size = 0
-        with job.input_file.open("wb") as buffer:
-            while True:
-                chunk = await file.read(1024 * 1024)
-                if not chunk:
-                    break
-                total_size += len(chunk)
-                if total_size > config.max_file_size_bytes:
-                    raise HTTPException(
-                        status_code=413,
-                        detail=f"文件过大，最大允许 {config.max_file_size_bytes} 字节",
-                    )
-                buffer.write(chunk)
-
-        await file.close()
-        service.convert_to_markdown(str(job.input_file), str(job.output_file))
+    if final.status == "succeeded":
         return {
-            "job_id": job.job_id,
-            "filename": file.filename,
-            "download_url": f"/download/{job.job_id}",
+            "job_id": job_id,
+            "filename": filename,
+            "download_url": f"/download/{job_id}",
         }
-    except HTTPException:
-        raise
-    except ConversionError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001
-        log.exception("转换失败: %s", exc)
-        raise HTTPException(status_code=500, detail="转换失败，请联系管理员") from exc
+    if final.status == "cancelled":
+        raise HTTPException(status_code=400, detail=final.error_message or "任务已取消")
+    raise HTTPException(status_code=400, detail=final.error_message or "转换失败")
 
 
 @app.get("/download/{job_id}")
-def download(job_id: str, request: Request) -> FileResponse:
-    _require_login(request)
-    output_dir = config.output_dir / job_id
-    files = list(output_dir.glob("*.md"))
-    if not files:
-        raise HTTPException(status_code=404, detail="未找到转换结果")
-    md_file = files[0]
-    return FileResponse(path=md_file, media_type="text/markdown", filename=md_file.name)
+def download_legacy(job_id: str, request: Request) -> FileResponse:
+    """兼容旧 download_url：与 /jobs/{id}/download 相同校验。"""
+    return download_job_result(job_id, request)

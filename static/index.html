@@ -22,7 +22,6 @@
         --bg-glow-3: rgba(255, 61, 135, 0.12);
         --orb-1: rgba(255, 92, 92, 0.38);
         --orb-2: rgba(255, 67, 132, 0.28);
-        --theme-btn-bg: linear-gradient(140deg, rgba(26, 33, 53, 0.72), rgba(38, 19, 38, 0.66));
         --title-shadow: 0 14px 30px rgba(255, 78, 78, 0.2);
         --shell-bg:
           radial-gradient(120% 130% at 10% 0%, rgba(255, 80, 80, 0.14), transparent 48%),
@@ -83,7 +82,6 @@
         --bg-glow-3: rgba(168, 111, 255, 0.12);
         --orb-1: rgba(98, 124, 255, 0.24);
         --orb-2: rgba(139, 120, 255, 0.18);
-        --theme-btn-bg: linear-gradient(140deg, rgba(255, 255, 255, 0.76), rgba(241, 246, 255, 0.85));
         --title-shadow: 0 12px 26px rgba(79, 103, 255, 0.18);
         --shell-bg:
           radial-gradient(120% 130% at 10% 0%, rgba(94, 122, 255, 0.12), transparent 48%),
@@ -221,33 +219,39 @@
         font-size: 15px;
       }
 
-      .theme-btn {
-        margin-top: 0;
-        position: static;
-        width: 42px;
-        height: 42px;
+      /* 右上角统一工具栏（主题 / 用户 / 退出） */
+      .top-bar-icon-btn {
+        width: 38px;
+        height: 38px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border: 1px solid var(--stroke);
-        border-radius: 999px;
-        background: var(--theme-btn-bg);
+        border: none;
+        border-radius: 11px;
+        background: transparent;
         color: var(--text-main);
         font-size: 0;
         padding: 0;
         cursor: pointer;
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        box-shadow: 0 8px 18px color-mix(in srgb, var(--brand) 18%, transparent);
+        flex-shrink: 0;
+        transition:
+          background 0.2s ease,
+          color 0.2s ease,
+          transform 0.08s ease;
       }
 
-      .theme-btn:hover {
-        border-color: var(--stroke-strong);
+      .top-bar-icon-btn:hover {
+        background: color-mix(in srgb, var(--brand) 18%, transparent);
+        color: var(--brand);
       }
 
-      .theme-btn svg {
-        width: 18px;
-        height: 18px;
+      .top-bar-icon-btn:active {
+        transform: scale(0.96);
+      }
+
+      .top-bar-icon-btn svg {
+        width: 19px;
+        height: 19px;
       }
 
       .shell {
@@ -266,31 +270,108 @@
       }
 
       .top-actions {
-        display: flex;
-        justify-content: flex-end;
-        align-items: center;
-        gap: 10px;
         position: fixed;
         top: 14px;
         right: 14px;
         z-index: 40;
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .top-actions-bar {
+        display: flex;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 0;
+        min-height: 48px;
+        padding: 5px 6px 5px 5px;
+        border-radius: 14px;
+        border: 1px solid var(--stroke);
+        background: var(--glass-strong);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow:
+          0 10px 32px color-mix(in srgb, var(--text-main) 8%, transparent),
+          0 0 0 1px var(--shell-inner) inset;
+      }
+
+      .top-actions-sep {
+        width: 1px;
+        height: 26px;
+        margin: 0 2px 0 6px;
+        align-self: center;
+        flex-shrink: 0;
+        border-radius: 1px;
+        background: var(--section-divider);
+      }
+
+      .top-actions-bar:has(#userBadge.hidden) .top-actions-sep {
+        display: none;
+      }
+
+      .top-session-block {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 4px 0 2px;
+        min-height: 38px;
+      }
+
+      .top-actions-bar:has(#userBadge.hidden) .top-session-block {
+        display: none;
       }
 
       .user-badge {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        color: var(--text-sub);
+        max-width: min(220px, 42vw);
+        min-height: 36px;
+        padding: 4px 12px 4px 10px;
+        border-radius: 10px;
+        border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent);
+        background: linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--brand) 10%, transparent),
+          color-mix(in srgb, var(--brand-2) 6%, transparent)
+        );
+        color: var(--text-main);
         font-size: 13px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        background: var(--panel-bg, rgba(255, 255, 255, 0.06));
-        border: 1px solid var(--panel-border, rgba(255, 110, 110, 0.14));
+        font-weight: 600;
+        overflow: hidden;
+      }
+
+      .user-badge-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 1px;
+        min-width: 0;
+        flex: 1;
+      }
+
+      .user-badge-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        width: 100%;
+        max-width: 100%;
+        line-height: 1.25;
+      }
+
+      .user-badge-role {
+        font-size: 11px;
+        font-weight: 600;
+        opacity: 0.72;
+        line-height: 1.2;
+        white-space: nowrap;
       }
 
       .user-avatar {
-        width: 22px;
-        height: 22px;
+        width: 26px;
+        height: 26px;
+        flex-shrink: 0;
         border-radius: 999px;
         display: inline-flex;
         align-items: center;
@@ -299,21 +380,43 @@
         font-weight: 800;
         color: #fff;
         background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+        box-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 35%, transparent);
       }
 
-      .link-btn {
-        border: 1px solid var(--panel-border, rgba(255, 110, 110, 0.14));
-        background: var(--panel-bg, rgba(255, 255, 255, 0.06));
-        color: var(--text-sub);
-        cursor: pointer;
-        font-size: 12px;
-        padding: 6px 10px;
-        border-radius: 999px;
-      }
-
-      .link-btn:hover {
+      .top-actions-bar .link-btn {
+        height: 36px;
+        padding: 0 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 650;
+        white-space: nowrap;
+        border: 1px solid color-mix(in srgb, var(--brand) 38%, transparent);
+        background: linear-gradient(
+          145deg,
+          color-mix(in srgb, var(--brand) 14%, transparent),
+          color-mix(in srgb, var(--brand-2) 10%, transparent)
+        );
         color: var(--text-main);
-        border-color: var(--stroke-strong);
+        cursor: pointer;
+        box-shadow: 0 2px 10px color-mix(in srgb, var(--brand) 12%, transparent);
+        transition:
+          border-color 0.2s ease,
+          box-shadow 0.2s ease,
+          transform 0.08s ease,
+          filter 0.2s ease;
+      }
+
+      .top-actions-bar .link-btn:hover {
+        border-color: color-mix(in srgb, var(--brand) 55%, transparent);
+        filter: brightness(1.06);
+        box-shadow: 0 4px 16px color-mix(in srgb, var(--brand) 20%, transparent);
+      }
+
+      .top-actions-bar .link-btn:active {
+        transform: scale(0.98);
       }
 
       .hidden {
@@ -478,13 +581,19 @@
         font-size: 14px;
         font-weight: 650;
         cursor: pointer;
-        box-shadow: 0 10px 22px var(--button-shadow-1), 0 0 20px var(--button-shadow-2);
+        box-shadow:
+          0 10px 22px var(--button-shadow-1),
+          0 0 20px var(--button-shadow-2),
+          0 0 0 1px color-mix(in srgb, #fff 16%, transparent) inset;
         transition: transform 0.08s ease, filter 0.2s ease, box-shadow 0.2s ease;
       }
 
       .primary-btn:hover {
-        filter: brightness(1.05);
-        box-shadow: 0 14px 26px var(--button-shadow-hover-1), 0 0 28px var(--button-shadow-hover-2);
+        filter: brightness(1.06) saturate(1.04);
+        box-shadow:
+          0 14px 28px var(--button-shadow-hover-1),
+          0 0 32px var(--button-shadow-hover-2),
+          0 0 0 1px color-mix(in srgb, #fff 22%, transparent) inset;
       }
 
       .primary-btn:active {
@@ -797,11 +906,173 @@
         margin-bottom: 10px;
       }
 
+      .task-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-end;
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--panel-border);
+        background: var(--panel-bg);
+      }
+
+      .task-filters.hidden {
+        display: none !important;
+      }
+
+      .filter-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--text-sub);
+      }
+
+      .filter-field select {
+        min-width: 140px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--field-border);
+        background: var(--field-bg);
+        color: var(--field-text);
+        font-size: 13px;
+      }
+
+      .history-item {
+        align-items: flex-start;
+      }
+
+      .task-status-badge {
+        display: inline-block;
+        margin-top: 6px;
+        font-size: 11px;
+        font-weight: 650;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--panel-border);
+        color: var(--text-sub);
+      }
+
+      .task-status-queued {
+        border-color: var(--status-loading-border);
+        color: var(--status-loading-text);
+      }
+
+      .task-status-running {
+        border-color: var(--field-focus);
+        color: var(--status-loading-text);
+      }
+
+      .task-status-succeeded {
+        border-color: color-mix(in srgb, var(--success-text) 40%, transparent);
+        color: var(--success-text);
+      }
+
+      .task-status-failed {
+        border-color: color-mix(in srgb, var(--error-text) 45%, transparent);
+        color: var(--error-text);
+      }
+
+      .task-status-cancelled {
+        opacity: 0.85;
+      }
+
+      .task-error-line {
+        font-size: 12px;
+        color: var(--error-text);
+        margin-top: 6px;
+        max-width: 100%;
+        word-break: break-word;
+      }
+
+      .task-row-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: flex-end;
+        flex-shrink: 0;
+      }
+
+      .task-cancel-btn {
+        font-size: 12px;
+        font-weight: 650;
+        padding: 8px 12px;
+        border-radius: 9px;
+        border: 1px solid color-mix(in srgb, var(--status-loading-text) 42%, transparent);
+        background: linear-gradient(
+          165deg,
+          color-mix(in srgb, var(--status-loading-text) 18%, transparent),
+          color-mix(in srgb, var(--brand) 10%, transparent)
+        );
+        color: var(--status-loading-text);
+        cursor: pointer;
+        box-shadow: 0 2px 10px color-mix(in srgb, var(--brand) 12%, transparent);
+        transition:
+          filter 0.18s ease,
+          box-shadow 0.18s ease,
+          transform 0.08s ease,
+          border-color 0.18s ease;
+      }
+
+      .task-cancel-btn:hover {
+        filter: brightness(1.12);
+        border-color: color-mix(in srgb, var(--error-text) 55%, transparent);
+        color: var(--error-text);
+        box-shadow: 0 4px 16px color-mix(in srgb, var(--error-text) 18%, transparent);
+      }
+
+      .task-cancel-btn:active {
+        transform: scale(0.98);
+      }
+
+      .task-delete-btn {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 8px 12px;
+        border-radius: 9px;
+        border: 1px solid color-mix(in srgb, var(--text-sub) 28%, transparent);
+        background: linear-gradient(
+          165deg,
+          color-mix(in srgb, var(--text-sub) 12%, transparent),
+          color-mix(in srgb, var(--panel-border) 40%, transparent)
+        );
+        color: var(--text-sub);
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        transition:
+          filter 0.18s ease,
+          box-shadow 0.18s ease,
+          transform 0.08s ease,
+          border-color 0.18s ease,
+          color 0.18s ease;
+      }
+
+      body[data-theme="light"] .task-delete-btn {
+        box-shadow: 0 2px 8px color-mix(in srgb, var(--text-sub) 8%, transparent);
+      }
+
+      .task-delete-btn:hover {
+        border-color: color-mix(in srgb, var(--error-text) 45%, transparent);
+        background: linear-gradient(
+          165deg,
+          color-mix(in srgb, var(--error-text) 14%, transparent),
+          color-mix(in srgb, var(--error-text) 8%, transparent)
+        );
+        color: var(--error-text);
+        box-shadow: 0 4px 14px color-mix(in srgb, var(--error-text) 16%, transparent);
+      }
+
+      .task-delete-btn:active {
+        transform: scale(0.98);
+      }
+
       .download-btn {
         text-decoration: none;
         white-space: nowrap;
-        border-radius: 8px;
-        padding: 8px 12px;
+        border-radius: 9px;
+        padding: 8px 14px;
         font-size: 13px;
         font-weight: 650;
         color: #fff;
@@ -809,29 +1080,85 @@
         background:
           linear-gradient(90deg, var(--button-overlay-1), var(--button-overlay-2)),
           linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
-        box-shadow: 0 8px 18px var(--button-shadow-1);
+        box-shadow:
+          0 8px 20px var(--button-shadow-1),
+          0 0 0 1px color-mix(in srgb, #fff 18%, transparent) inset;
+        transition:
+          filter 0.2s ease,
+          box-shadow 0.2s ease,
+          transform 0.08s ease;
       }
 
       .download-btn:hover {
-        filter: brightness(1.05);
+        filter: brightness(1.08) saturate(1.05);
+        box-shadow:
+          0 12px 26px var(--button-shadow-hover-1),
+          0 0 24px var(--button-shadow-hover-2),
+          0 0 0 1px color-mix(in srgb, #fff 22%, transparent) inset;
+      }
+
+      .download-btn:active {
+        transform: scale(0.98);
       }
 
       .ghost-btn {
-        border: none;
-        background: transparent;
-        color: var(--text-sub);
+        border: 1px solid color-mix(in srgb, var(--brand) 36%, transparent);
+        background: linear-gradient(
+          155deg,
+          color-mix(in srgb, var(--brand) 11%, transparent),
+          color-mix(in srgb, var(--brand-2) 7%, transparent)
+        );
+        color: var(--text-main);
         font-size: 13px;
+        font-weight: 650;
         cursor: pointer;
+        padding: 8px 16px;
+        border-radius: 999px;
+        box-shadow: 0 4px 14px color-mix(in srgb, var(--brand) 12%, transparent);
+        transition:
+          border-color 0.2s ease,
+          background 0.2s ease,
+          box-shadow 0.2s ease,
+          transform 0.08s ease,
+          filter 0.2s ease;
       }
 
       .ghost-btn:hover {
         color: var(--text-main);
+        border-color: color-mix(in srgb, var(--brand) 58%, transparent);
+        filter: brightness(1.05);
+        box-shadow: 0 6px 20px color-mix(in srgb, var(--brand) 20%, transparent);
+      }
+
+      .ghost-btn:active {
+        transform: scale(0.98);
       }
 
       @media (max-width: 680px) {
         .shell { padding: 16px; }
         .auth-view { padding: 16px 6px 10px; }
-        .top-actions { top: 10px; right: 10px; gap: 6px; }
+        .top-actions { top: 10px; right: 10px; }
+        .top-actions-bar {
+          min-height: 46px;
+          padding: 4px 5px 4px 4px;
+          border-radius: 12px;
+        }
+        .top-bar-icon-btn {
+          width: 36px;
+          height: 36px;
+        }
+        .user-badge {
+          max-width: min(140px, 38vw);
+          padding: 0 8px 0 8px;
+          font-size: 12px;
+        }
+        .top-actions-bar .link-btn {
+          padding: 0 12px;
+          font-size: 12px;
+        }
+        .top-session-block {
+          gap: 8px;
+        }
       }
     </style>
   </head>
@@ -843,9 +1170,20 @@
       </header>
 
       <div class="top-actions">
-        <button id="themeToggle" class="theme-btn" type="button" aria-label="切换主题" title="切换主题"></button>
-        <span id="userBadge" class="user-badge hidden">未登录</span>
-        <button id="logoutBtn" class="link-btn hidden" type="button">退出登录</button>
+        <div class="top-actions-bar" role="toolbar" aria-label="顶部工具栏">
+          <button
+            id="themeToggle"
+            class="top-bar-icon-btn"
+            type="button"
+            aria-label="切换主题"
+            title="切换主题"
+          ></button>
+          <div class="top-actions-sep" aria-hidden="true"></div>
+          <div class="top-session-block">
+            <span id="userBadge" class="user-badge hidden">未登录</span>
+            <button id="logoutBtn" class="link-btn hidden" type="button">退出登录</button>
+          </div>
+        </div>
       </div>
 
       <section id="mainShell" class="shell login-shell">
@@ -927,8 +1265,26 @@
 
           <div id="history" class="history">
             <div class="history-title-row">
-              <p class="section-title" style="margin: 0">最近转换记录</p>
-              <button id="clearHistory" class="ghost-btn" type="button">清空</button>
+              <p class="section-title" style="margin: 0">任务列表</p>
+              <button id="refreshTasksBtn" class="ghost-btn" type="button">刷新</button>
+            </div>
+            <div id="taskFilters" class="task-filters hidden">
+              <label class="filter-field">
+                <span>用户</span>
+                <select id="taskOwnerFilter" aria-label="按用户筛选"></select>
+              </label>
+              <label class="filter-field">
+                <span>状态</span>
+                <select id="taskStatusFilter" aria-label="按状态筛选">
+                  <option value="">全部</option>
+                  <option value="queued">排队中</option>
+                  <option value="running">转换中</option>
+                  <option value="succeeded">已完成</option>
+                  <option value="failed">失败</option>
+                  <option value="cancelled">已取消</option>
+                </select>
+              </label>
+              <button id="applyTaskFiltersBtn" type="button" class="ghost-btn">应用筛选</button>
             </div>
             <div id="historyList" class="history-list"></div>
           </div>
@@ -956,7 +1312,11 @@
       const themeToggle = document.getElementById("themeToggle");
       const historyWrap = document.getElementById("history");
       const historyList = document.getElementById("historyList");
-      const clearHistoryBtn = document.getElementById("clearHistory");
+      const refreshTasksBtn = document.getElementById("refreshTasksBtn");
+      const taskFilters = document.getElementById("taskFilters");
+      const taskOwnerFilter = document.getElementById("taskOwnerFilter");
+      const taskStatusFilter = document.getElementById("taskStatusFilter");
+      const applyTaskFiltersBtn = document.getElementById("applyTaskFiltersBtn");
       const authBox = document.getElementById("authBox");
       const workArea = document.getElementById("workArea");
       const mainShell = document.getElementById("mainShell");
@@ -975,6 +1335,10 @@
         rememberedUser: "docling_remembered_user",
       };
       let currentFile = null;
+      let currentUser = null;
+      let taskPollTimer = null;
+      /** 每次点击上传自增，用于丢弃过期的 pollJobUntilTerminal，避免多次上传互相覆盖 UI */
+      let uploadGeneration = 0;
 
       let toastTimer = null;
       let windowDragDepth = 0;
@@ -1032,8 +1396,16 @@
         downloadBtn.href = "#";
       }
 
+      function stopTaskPolling() {
+        if (taskPollTimer) {
+          clearInterval(taskPollTimer);
+          taskPollTimer = null;
+        }
+      }
+
       function setAuthState(user) {
         if (user) {
+          currentUser = user;
           mainShell.classList.remove("login-shell");
           authBox.classList.add("hidden");
           workArea.classList.remove("hidden");
@@ -1041,21 +1413,46 @@
           logoutBtn.classList.remove("hidden");
           const name = user.username || "用户";
           const avatar = name.slice(0, 1).toUpperCase();
-          userBadge.innerHTML = '<span class="user-avatar">' + avatar + "</span><span>" + name + "</span>";
+          const roleHint = user.role === "admin" ? "（管理员）" : "";
+          userBadge.innerHTML =
+            '<span class="user-avatar">' +
+            avatar +
+            '</span><span class="user-badge-meta">' +
+            '<span class="user-badge-name">' +
+            String(name).replace(/</g, "&lt;") +
+            "</span>" +
+            (roleHint
+              ? '<span class="user-badge-role">' +
+                String(roleHint).replace(/</g, "&lt;") +
+                "</span>"
+              : "") +
+            "</span>";
+          if (user.role === "admin") {
+            taskFilters.classList.remove("hidden");
+            loadAdminUserFilters();
+          } else {
+            taskFilters.classList.add("hidden");
+          }
           updateConvertButtonState();
+          refreshTaskList();
           return;
         }
+        stopTaskPolling();
+        currentUser = null;
         mainShell.classList.add("login-shell");
         authBox.classList.remove("hidden");
         workArea.classList.add("hidden");
         userBadge.classList.add("hidden");
         logoutBtn.classList.add("hidden");
         userBadge.textContent = "未登录";
+        taskFilters.classList.add("hidden");
         currentFile = null;
         selectedFile.classList.add("hidden");
         selectedFile.textContent = "";
         resetResult();
         progressWrap.classList.remove("show");
+        historyWrap.classList.remove("show");
+        historyList.innerHTML = "";
         updateConvertButtonState();
       }
 
@@ -1077,46 +1474,227 @@
         applyTheme(theme);
       }
 
-      function loadHistory() {
+      function statusLabel(status) {
+        const map = {
+          queued: "排队中",
+          running: "转换中",
+          succeeded: "已完成",
+          failed: "失败",
+          cancelled: "已取消",
+        };
+        return map[status] || status;
+      }
+
+      function formatTime(iso) {
+        if (!iso) return "—";
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return iso;
+        return d.toLocaleString("zh-CN", { hour12: false });
+      }
+
+      async function loadAdminUserFilters() {
+        if (!currentUser || currentUser.role !== "admin") return;
         try {
-          const raw = localStorage.getItem(STORAGE_KEYS.history);
-          const parsed = raw ? JSON.parse(raw) : [];
-          return Array.isArray(parsed) ? parsed : [];
-        } catch (error) {
-          return [];
+          const resp = await fetch("/auth/users");
+          if (!resp.ok) return;
+          const data = await resp.json();
+          const names = data.usernames || [];
+          const prev = taskOwnerFilter.value;
+          taskOwnerFilter.innerHTML =
+            '<option value="">全部用户</option>' +
+            names
+              .map((u) => '<option value="' + u.replace(/"/g, "&quot;") + '">' + u + "</option>")
+              .join("");
+          if (prev && names.indexOf(prev) !== -1) {
+            taskOwnerFilter.value = prev;
+          }
+        } catch (e) {
+          /* ignore */
         }
       }
 
-      function saveHistory(records) {
-        localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(records.slice(0, 8)));
+      function updateTaskPollingFromItems(items) {
+        const needs = (items || []).some(function (j) {
+          return j.status === "queued" || j.status === "running";
+        });
+        if (needs) {
+          if (!taskPollTimer) {
+            taskPollTimer = setInterval(function () {
+              refreshTaskList({ silent: true });
+            }, 2500);
+          }
+        } else {
+          stopTaskPolling();
+        }
       }
 
-      function renderHistory() {
-        const records = loadHistory();
-        if (!records.length) {
-          historyWrap.classList.remove("show");
-          historyList.innerHTML = "";
+      function renderTaskItems(items) {
+        if (!items || !items.length) {
+          historyWrap.classList.add("show");
+          historyList.innerHTML =
+            '<p class="history-meta" style="margin:0">暂无任务。任务会保存在服务器，重新登录后仍可在此查看与管理。</p>';
           return;
         }
         historyWrap.classList.add("show");
-        historyList.innerHTML = records
-          .map((item) => {
-            const ts = new Date(item.time).toLocaleString("zh-CN", { hour12: false });
+        historyList.innerHTML = items
+          .map(function (job) {
+            const ownerLine =
+              currentUser && currentUser.role === "admin"
+                ? '<div class="history-meta">提交人：' + (job.owner_username || "—") + "</div>"
+                : "";
+            const err =
+              job.error_message && job.status !== "succeeded"
+                ? '<div class="task-error-line">' + String(job.error_message).replace(/</g, "&lt;") + "</div>"
+                : "";
+            const canCancel = job.status === "queued" || job.status === "running";
+            const cancelBtn = canCancel
+              ? '<button type="button" class="task-cancel-btn" data-job-cancel="' +
+                job.job_id +
+                '">取消</button>'
+              : "";
+            const canDelete = job.status !== "running";
+            const deleteBtn = canDelete
+              ? '<button type="button" class="task-delete-btn" data-job-delete="' +
+                job.job_id +
+                '">删除记录</button>'
+              : "";
+            const dl =
+              job.download_url && job.status === "succeeded"
+                ? '<a class="download-btn" href="' +
+                  job.download_url +
+                  '" target="_blank" rel="noopener">下载</a>'
+                : "";
             return (
               '<div class="history-item">' +
-              '<div><div class="filename">' + item.filename + '</div><div class="history-meta">' + ts + "</div></div>" +
-              '<a class="download-btn" href="' + item.downloadUrl + '" target="_blank" rel="noopener">下载</a>' +
+              '<div style="min-width:0">' +
+              '<div class="filename">' +
+              (job.original_filename || "").replace(/</g, "&lt;") +
+              "</div>" +
+              ownerLine +
+              '<div class="history-meta">' +
+              "创建：" +
+              formatTime(job.created_at) +
+              (job.finished_at ? " · 结束：" + formatTime(job.finished_at) : "") +
+              "</div>" +
+              '<span class="task-status-badge task-status-' +
+              job.status +
+              '">' +
+              statusLabel(job.status) +
+              "</span>" +
+              err +
+              "</div>" +
+              '<div class="task-row-actions">' +
+              dl +
+              cancelBtn +
+              deleteBtn +
+              "</div>" +
               "</div>"
             );
           })
           .join("");
       }
 
-      function appendHistory(record) {
-        const records = loadHistory();
-        const next = [record, ...records.filter((x) => x.downloadUrl !== record.downloadUrl)];
-        saveHistory(next);
-        renderHistory();
+      async function refreshTaskList(opts) {
+        opts = opts || {};
+        if (!currentUser) {
+          historyWrap.classList.remove("show");
+          historyList.innerHTML = "";
+          return;
+        }
+        try {
+          const params = new URLSearchParams();
+          params.set("page", "1");
+          params.set("page_size", "50");
+          if (currentUser.role === "admin") {
+            if (taskOwnerFilter.value) params.set("owner", taskOwnerFilter.value);
+            if (taskStatusFilter.value) params.set("status", taskStatusFilter.value);
+          }
+          const resp = await fetch("/jobs?" + params.toString(), {
+            credentials: "same-origin",
+            cache: "no-store",
+          });
+          if (resp.status === 401) {
+            setAuthState(null);
+            return;
+          }
+          const data = await resp.json();
+          if (!resp.ok) {
+            if (!opts.silent) showToast("error", data.detail || "加载任务失败");
+            return;
+          }
+          renderTaskItems(data.items || []);
+          updateTaskPollingFromItems(data.items || []);
+        } catch (e) {
+          if (!opts.silent) showToast("error", "加载任务列表失败");
+        }
+      }
+
+      async function pollJobUntilTerminal(jobId, generation) {
+        const terminal = { succeeded: 1, failed: 1, cancelled: 1 };
+        while (true) {
+          if (generation !== uploadGeneration) {
+            return;
+          }
+          try {
+            await refreshTaskList({ silent: true });
+            if (generation !== uploadGeneration) {
+              return;
+            }
+            const resp = await fetch("/jobs/" + encodeURIComponent(jobId), {
+              credentials: "same-origin",
+              cache: "no-store",
+            });
+            if (resp.status === 401) {
+              setAuthState(null);
+              return;
+            }
+            const job = await resp.json();
+            if (!resp.ok) {
+              if (resp.status === 404) {
+                progressWrap.classList.remove("show");
+                await refreshTaskList();
+                if (generation === uploadGeneration) {
+                  showToast("success", "该任务记录已不存在");
+                }
+                break;
+              }
+              if (generation === uploadGeneration) {
+                setStatus("error", job.detail || "无法获取任务状态");
+              }
+              break;
+            }
+            if (terminal[job.status]) {
+              if (generation !== uploadGeneration) {
+                return;
+              }
+              if (job.status === "succeeded") {
+                setStatus("success", "转换完成");
+                resultFilename.textContent = job.original_filename || "";
+                downloadBtn.href = job.download_url || "#";
+                result.classList.add("show");
+              } else {
+                setStatus("error", job.error_message || statusLabel(job.status));
+              }
+              progressWrap.classList.remove("show");
+              await refreshTaskList();
+              try {
+                fileInput.value = "";
+              } catch (e) {
+                /* ignore */
+              }
+              break;
+            }
+          } catch (e) {
+            if (generation === uploadGeneration) {
+              setStatus("error", "轮询任务状态失败");
+              progressWrap.classList.remove("show");
+            }
+            break;
+          }
+          await new Promise(function (r) {
+            setTimeout(r, 2000);
+          });
+        }
       }
 
       themeToggle.addEventListener("click", () => {
@@ -1124,9 +1702,73 @@
         saveTheme(current === "dark" ? "light" : "dark");
       });
 
-      clearHistoryBtn.addEventListener("click", () => {
-        localStorage.removeItem(STORAGE_KEYS.history);
-        renderHistory();
+      refreshTasksBtn.addEventListener("click", () => {
+        refreshTaskList();
+      });
+
+      applyTaskFiltersBtn.addEventListener("click", () => {
+        refreshTaskList();
+      });
+
+      historyList.addEventListener("click", async (event) => {
+        const delBtn = event.target.closest("[data-job-delete]");
+        if (delBtn) {
+          const jobId = delBtn.getAttribute("data-job-delete");
+          if (!jobId) return;
+          if (
+            !confirm(
+              "确定删除该任务记录？将同时删除服务器上的输入/输出文件（若仍存在），且不可恢复。"
+            )
+          ) {
+            return;
+          }
+          try {
+            const resp = await fetch("/jobs/" + encodeURIComponent(jobId), {
+              method: "DELETE",
+              credentials: "same-origin",
+              cache: "no-store",
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (resp.status === 401) {
+              setAuthState(null);
+              return;
+            }
+            if (!resp.ok) {
+              showToast("error", data.detail || "删除失败");
+              return;
+            }
+            showToast("success", data.message || "已删除");
+            await refreshTaskList();
+          } catch (e) {
+            showToast("error", "删除请求失败");
+          }
+          return;
+        }
+
+        const btn = event.target.closest("[data-job-cancel]");
+        if (!btn) return;
+        const jobId = btn.getAttribute("data-job-cancel");
+        if (!jobId) return;
+        try {
+          const resp = await fetch("/jobs/" + encodeURIComponent(jobId) + "/cancel", {
+            method: "POST",
+            credentials: "same-origin",
+            cache: "no-store",
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (resp.status === 401) {
+            setAuthState(null);
+            return;
+          }
+          if (!resp.ok) {
+            showToast("error", data.detail || "取消失败");
+            return;
+          }
+          showToast("success", data.message || "已处理");
+          refreshTaskList();
+        } catch (e) {
+          showToast("error", "取消请求失败");
+        }
       });
 
       loginBtn.addEventListener("click", async () => {
@@ -1271,14 +1913,20 @@
           setStatus("error", "请先选择要上传的文件");
           return;
         }
+        const myGen = ++uploadGeneration;
         const oldText = convertBtn.textContent;
         convertBtn.disabled = true;
-        convertBtn.textContent = "处理中...";
-        setStatus("loading", "正在解析文档，请稍候...");
+        convertBtn.textContent = "提交中...";
+        setStatus("loading", "任务已排队，正在转换，请稍候...");
         try {
           const formData = new FormData();
           formData.append("file", currentFile);
-          const resp = await fetch("/convert", { method: "POST", body: formData });
+          const resp = await fetch("/jobs", {
+            method: "POST",
+            body: formData,
+            credentials: "same-origin",
+            cache: "no-store",
+          });
           const payload = await resp.json();
           if (resp.status === 401) {
             setAuthState(null);
@@ -1286,23 +1934,29 @@
             return;
           }
           if (!resp.ok) {
-            setStatus("error", payload.detail || "转换失败，请稍后重试");
+            setStatus("error", payload.detail || "创建任务失败，请稍后重试");
+            progressWrap.classList.remove("show");
             return;
           }
-          setStatus("success", "转换成功");
-          resultFilename.textContent = payload.filename || currentFile.name;
-          downloadBtn.href = payload.download_url;
-          result.classList.add("show");
-          appendHistory({
-            filename: payload.filename || currentFile.name,
-            downloadUrl: payload.download_url,
-            time: Date.now(),
-          });
+          if (myGen !== uploadGeneration) {
+            return;
+          }
+          await refreshTaskList();
+          const jobId = payload.job_id;
+          if (jobId) {
+            convertBtn.textContent = "转换中...";
+            await pollJobUntilTerminal(jobId, myGen);
+          } else {
+            setStatus("error", "未返回任务 ID");
+            progressWrap.classList.remove("show");
+          }
         } catch (error) {
-          setStatus("error", "请求失败，请检查网络或服务状态");
+          if (myGen === uploadGeneration) {
+            setStatus("error", "请求失败，请检查网络或服务状态");
+            progressWrap.classList.remove("show");
+          }
         } finally {
           convertBtn.textContent = oldText;
-          progressWrap.classList.remove("show");
           updateConvertButtonState();
         }
       }
@@ -1314,7 +1968,6 @@
         usernameInput.value = rememberedUser;
         rememberMeInput.checked = true;
       }
-      renderHistory();
       updateConvertButtonState();
 
       (async function initAuth() {

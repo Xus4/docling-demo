@@ -49,7 +49,7 @@ class DashScopeClientConfig:
     api_key: str
     # 原生：…/api/v1；OpenAI 兼容：…/compatible-mode/v1（见百炼文档）
     base_url: str
-    timeout_sec: float = 180.0
+    timeout_sec: float = 300.0
     max_retries: int = 3
     retry_backoff_sec: float = 1.5
     # Qwen3.5 / Qwen3-VL：思考模式会把正文放在 reasoning_content，content 可能为空。

@@ -323,7 +323,7 @@ def main() -> int:
         "--pdf-vl-primary",
         action="store_true",
         help=(
-            "仅对 PDF：按页渲染为图片，逐页调用 Qwen-VL 转写为 Markdown（需 DASHSCOPE_API_KEY）。"
+            "仅对 PDF：按页渲染为图片，逐页调用 Qwen-VL 转写为 Markdown（需可用的 API 凭证，默认读环境变量配置）。"
             "不经过 Docling；与 --enable-llm 可同时用于对整篇结果再清洗。"
         ),
     )

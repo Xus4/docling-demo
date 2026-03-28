@@ -83,6 +83,7 @@ class AppConfig:
     pdf_vl_dpi: float
     pdf_vl_workers: int
     llm_model: str
+    llm_base_url: str
     pdf_vl_table_second_pass_max_tables: int
     max_num_pages: int | None
     llm_max_tokens: int | None
@@ -91,6 +92,7 @@ class AppConfig:
     llm_table_caption_max_chars: int
     pdf_caption_crop_figures: bool
     llm_enable_thinking: bool
+    llm_timeout_sec: float
     auth_db_path: Path
     session_secret: str
     initial_password: str
@@ -109,6 +111,8 @@ class AppConfig:
         cleanup_hours = int(os.getenv("CLEANUP_MAX_AGE_HOURS", "24"))
         max_num_pages_raw = os.getenv("MAX_NUM_PAGES", "").strip()
         llm_max_tokens_raw = os.getenv("LLM_MAX_TOKENS", "").strip()
+        llm_base_url_raw = os.getenv("LLM_BASE_URL", "").strip()
+        _default_llm_base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
         return cls(
             max_file_size_bytes=max_file_size_bytes,
             allowed_types=_parse_allowed_types(os.getenv("ALLOWED_TYPES")),
@@ -122,6 +126,7 @@ class AppConfig:
             pdf_vl_dpi=float(os.getenv("PDF_VL_DPI", "180")),
             pdf_vl_workers=max(1, int(os.getenv("PDF_VL_WORKERS", "10"))),
             llm_model=os.getenv("LLM_MODEL", "qwen3.5-35b-a3b"),
+            llm_base_url=llm_base_url_raw or _default_llm_base_url,
             pdf_vl_table_second_pass_max_tables=max(
                 1, int(os.getenv("PDF_VL_TABLE_SECOND_PASS_MAX_TABLES", "5"))
             ),
@@ -137,6 +142,9 @@ class AppConfig:
             ),
             llm_enable_thinking=_parse_bool(
                 os.getenv("LLM_ENABLE_THINKING"), default=True
+            ),
+            llm_timeout_sec=max(
+                30.0, float(os.getenv("LLM_TIMEOUT_SEC", "300"))
             ),
             auth_db_path=Path(
                 os.getenv("AUTH_DB_PATH", str(data_dir / "auth.db"))
@@ -166,6 +174,7 @@ class AppConfig:
             pdf_vl_dpi=self.pdf_vl_dpi,
             pdf_vl_workers=self.pdf_vl_workers,
             llm_model=self.llm_model,
+            llm_base_url=self.llm_base_url,
             pdf_vl_table_second_pass_max_tables=self.pdf_vl_table_second_pass_max_tables,
             max_num_pages=self.max_num_pages,
             llm_max_tokens=self.llm_max_tokens,
@@ -174,4 +183,5 @@ class AppConfig:
             llm_table_caption_max_chars=self.llm_table_caption_max_chars,
             pdf_caption_crop_figures=self.pdf_caption_crop_figures,
             llm_enable_thinking=self.llm_enable_thinking,
+            llm_timeout_sec=self.llm_timeout_sec,
         )

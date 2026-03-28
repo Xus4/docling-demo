@@ -123,7 +123,7 @@ class ConverterConfig:
     llm_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     llm_temperature: float = 0.2
     llm_max_tokens: Optional[int] = 8192
-    llm_timeout_sec: float = 180.0
+    llm_timeout_sec: float = 300.0
     llm_max_retries: int = 3
     llm_vl_image_mode: Literal["local_abs", "url"] = "local_abs"
     llm_cleanup_max_images: int = 6
@@ -425,13 +425,7 @@ class IndustrialDocConverter:
             _log.error("Import llm modules failed: %s", repr(e))
             return None
 
-        api_key = os.getenv(self.config.llm_api_key_env)
-        if not api_key:
-            _log.error(
-                "LLM enabled but env var not found: %s",
-                self.config.llm_api_key_env,
-            )
-            return None
+        api_key = os.getenv(self.config.llm_api_key_env) or ""
 
         client_cfg = DashScopeClientConfig(
             api_key=api_key,
@@ -458,13 +452,7 @@ class IndustrialDocConverter:
         except Exception as e:  # noqa: BLE001
             _log.error("Import dashscope_client failed: %s", repr(e))
             return None
-        api_key = os.getenv(self.config.llm_api_key_env)
-        if not api_key:
-            _log.error(
-                "需要环境变量 %s（pdf-vl-primary / LLM）",
-                self.config.llm_api_key_env,
-            )
-            return None
+        api_key = os.getenv(self.config.llm_api_key_env) or ""
         client_cfg = DashScopeClientConfig(
             api_key=api_key,
             base_url=self.config.llm_base_url,
@@ -635,7 +623,7 @@ class IndustrialDocConverter:
             client = self._create_dashscope_client()
             if client is None:
                 raise RuntimeError(
-                    f"pdf-vl-primary 需要环境变量 {self.config.llm_api_key_env} 且 httpx 可用"
+                    "pdf-vl-primary 需要 httpx 可用且 LLM HTTP 客户端可加载（检查依赖与导入错误日志）"
                 )
             _log.info(
                 "pdf-vl-primary：按页渲染 + Qwen-VL 转写，跳过 Docling；dpi=%s workers=%s max_pages=%s",
@@ -683,9 +671,8 @@ class IndustrialDocConverter:
         if self.config.enable_llm_refine:
             if refiner is None:
                 _log.warning(
-                    "已启用 LLM 清洗，但 refiner 未创建（请检查上文 ERROR，例如缺少 %s）。"
-                    "将仅尝试 Docling 输出。",
-                    self.config.llm_api_key_env,
+                    "已启用 LLM 清洗，但 refiner 未创建（请检查上文 ERROR，例如 LLM 相关模块导入失败）。"
+                    "将仅尝试 Docling 输出。"
                 )
             else:
                 _log.info(

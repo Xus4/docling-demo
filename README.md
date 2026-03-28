@@ -164,17 +164,28 @@ uvicorn webapp:app --host 0.0.0.0 --port 8000
 ### 4) 使用方式
 
 - 打开浏览器访问 `http://<服务器IP>:8000/`
-- 上传文件后等待处理
-- 转换完成后点击下载 Markdown
+- 登录后上传文件：任务进入**异步队列**，页面可查看**任务列表**与状态；完成后可下载 Markdown
+- 任务记录在 SQLite 中**持久化**：**退出登录或关闭浏览器后再次登录**，仍可看到历史任务；可对排队/已结束任务**删除记录**（并清理对应输入输出目录）；**执行中**的任务需先**取消**再删除
+- **管理员**可在任务列表中按**用户**、**状态**筛选；**普通用户**仅能看到自己的任务
+- 服务**重启**后，库中仍为 `queued` 的任务会自动重新进入内存队列继续排队执行
 
 接口说明：
 
 - `POST /auth/login`：登录
 - `POST /auth/logout`：退出登录
-- `GET /auth/me`：查看当前登录态
-- `POST /convert`：上传并转换文件（会校验文件类型和大小）
-- `GET /download/{job_id}`：下载 Markdown 文件
+- `GET /auth/me`：查看当前登录态（`username`、`role`）
+- `GET /auth/users`：**仅管理员**，返回系统用户列表（用于筛选等）
+- `POST /jobs`：上传文件并**创建异步任务**（立即返回 `job_id`、`status`、`created_at`）
+- `GET /jobs`：分页任务列表（`page`、`page_size`）；管理员可选 `owner`、`status` 筛选
+- `GET /jobs/{job_id}`：任务详情（含 `download_url`，仅成功时有值）
+- `POST /jobs/{job_id}/cancel`：取消任务（排队中立即取消；运行中为**软取消**，当前转换步骤结束后不再提供下载）
+- `DELETE /jobs/{job_id}`：**删除任务记录**（所有者或管理员；**进行中**的任务返回 409，需先取消）；并尝试删除 `data/input/<job_id>/` 与 `data/output/<job_id>/`
+- `GET /jobs/{job_id}/download`：下载该任务的 Markdown（**仅任务所有者或管理员**，且状态为 `succeeded`）
+- `POST /convert`：**兼容旧客户端**——内部创建异步任务并**阻塞直到结束**，响应仍为 `job_id`、`filename`、`download_url`（`download_url` 形态仍为 `/download/{job_id}`，与新版校验一致）
+- `GET /download/{job_id}`：兼容旧下载链接，权限与 `GET /jobs/{job_id}/download` 相同
 - `GET /health`：健康检查
+
+任务状态：`queued`（排队）→ `running`（转换中）→ `succeeded` | `failed` | `cancelled`。任务元数据持久化在 SQLite（默认与认证库同库：`AUTH_DB_PATH`），输入输出仍在 `data/input/<job_id>/`、`data/output/<job_id>/`。会话（登录 Cookie）与任务数据无关，**登出不会删除任务**。
 
 **管线并发（大页/扫描 PDF 防 OOM）**：`StandardPdfPipeline` 在 OCR / 版面 / 表格阶段之间用 **队列** 流水线处理多页；并发过高会让大页同时在内存里排队。可用 **`--pipeline-concurrency`**：`low`（batch≤2、队列≤16）或 **`minimal`**（batch=1、队列≤2，最省内存）。使用 **`--scan`** 或 **`--low-memory`** 且**未传** `--pipeline-concurrency` 时，**自动为 `minimal`**。需要略高吞吐可传 **`--pipeline-concurrency low`**；强行使用 Docling 默认并发可传 **`--pipeline-concurrency default`**（大扫描件易 OOM）。
 
