@@ -6,10 +6,19 @@ import threading
 import time
 from pathlib import Path
 
-from auth import AuthStore
+from auth import AuthStore, JobRecord
 from service import ConversionError, ConversionService
 
 log = logging.getLogger("job_worker")
+
+
+def _job_log_fields(job_id: str, rec: JobRecord | None) -> tuple[str, str, str]:
+    """用于日志：job_id、用户名、展示用文件名。"""
+    if not rec:
+        return job_id, "?", "?"
+    name = rec.original_filename or Path(rec.input_file).name
+    user = rec.owner_username or "?"
+    return job_id, user, name
 
 
 class JobQueueWorker:
@@ -54,12 +63,36 @@ class JobQueueWorker:
 
         rec = self.auth.get_job(job_id)
         if not rec or not rec.output_file:
+            jid, u, fn = _job_log_fields(job_id, rec)
+            log.warning(
+                "任务记录不完整 job_id=%s user=%s file=%s",
+                jid,
+                u,
+                fn,
+            )
             self.auth.mark_job_failed(job_id, "内部错误：任务记录不完整")
             return
 
         inp = Path(rec.input_file)
         out = Path(rec.output_file)
+        jid, user, fname = _job_log_fields(job_id, rec)
+        log.info(
+            "任务开始转换 job_id=%s user=%s file=%s input=%s output=%s",
+            jid,
+            user,
+            fname,
+            inp.name,
+            out.name,
+        )
+
         if not inp.is_file():
+            log.error(
+                "任务输入文件不存在 job_id=%s user=%s file=%s path=%s",
+                jid,
+                user,
+                fname,
+                inp,
+            )
             self.auth.mark_job_failed(job_id, "输入文件不存在")
             return
 
@@ -76,6 +109,15 @@ class JobQueueWorker:
                 note=f"PDF 已完成 {d}/{t} 页",
                 pages_done=d,
                 pages_total=t,
+            )
+            log.info(
+                "任务进度 job_id=%s user=%s file=%s pdf_pages=%s/%s progress_percent=%s",
+                jid,
+                user,
+                fname,
+                d,
+                t,
+                pct,
             )
 
         skip_pulse = inp.suffix.lower() == ".pdf" and bool(
@@ -98,6 +140,14 @@ class JobQueueWorker:
                 self.auth.update_job_progress(
                     job_id, percent=fake, note="正在转换文档…"
                 )
+                log.debug(
+                    "任务进度 job_id=%s user=%s file=%s "
+                    "pulse_percent=%s (无页级回调时的估算)",
+                    jid,
+                    user,
+                    fname,
+                    fake,
+                )
 
         pulse_thread: threading.Thread | None = None
         if not skip_pulse:
@@ -112,17 +162,36 @@ class JobQueueWorker:
                 str(inp), str(out), progress_callback=on_pdf_pages
             )
         except ConversionError as exc:
+            log.error(
+                "任务转换失败(业务) job_id=%s user=%s file=%s err=%s",
+                jid,
+                user,
+                fname,
+                exc,
+            )
             self.auth.mark_job_failed(job_id, str(exc))
             return
         except Exception as exc:  # noqa: BLE001
-            log.exception("转换失败 job_id=%s", job_id)
+            log.exception(
+                "任务转换失败(异常) job_id=%s user=%s file=%s",
+                jid,
+                user,
+                fname,
+            )
             self.auth.mark_job_failed(job_id, f"转换失败: {exc!s}"[:4000])
             return
         finally:
             stop_pulse.set()
 
         latest = self.auth.get_job(job_id)
-        if latest and latest.cancel_requested:
+        if not latest or latest.status != "running":
+            if out.exists():
+                try:
+                    out.unlink()
+                except OSError:
+                    pass
+            return
+        if latest.cancel_requested:
             self.auth.mark_job_cancelled_finished(job_id, "已取消")
             if out.exists():
                 try:
@@ -131,4 +200,24 @@ class JobQueueWorker:
                     pass
             return
 
-        self.auth.mark_job_succeeded(job_id, str(out.resolve()))
+        ok = self.auth.mark_job_succeeded(job_id, str(out.resolve()))
+        if ok:
+            log.info(
+                "任务完成 job_id=%s user=%s file=%s output=%s",
+                jid,
+                user,
+                fname,
+                out.name,
+            )
+        else:
+            log.info(
+                "任务未标成功(可能已取消) job_id=%s user=%s file=%s",
+                jid,
+                user,
+                fname,
+            )
+            if out.exists():
+                try:
+                    out.unlink()
+                except OSError:
+                    pass

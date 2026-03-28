@@ -125,6 +125,8 @@ class ConverterConfig:
     llm_max_tokens: Optional[int] = 8192
     llm_timeout_sec: float = 300.0
     llm_max_retries: int = 3
+    llm_retry_backoff_sec: float = 1.5
+    llm_max_reasoning_tokens: Optional[int] = 256
     llm_vl_image_mode: Literal["local_abs", "url"] = "local_abs"
     llm_cleanup_max_images: int = 6
     # 表格优先：对每个 table block 单独调用 Qwen-VL 修正单元格错字/漏字
@@ -134,8 +136,8 @@ class ConverterConfig:
     llm_table_context_lines: int = 2
     llm_allow_rerun: bool = False
     llm_rerun_max_attempts: int = 1
-    # Qwen3.5：思考模式会占用 completion token，content 可能为空；默认关闭（extra_body.enable_thinking）
-    llm_enable_thinking: bool = False
+    # Qwen3.5：思考模式会占用 completion token；默认开启以保障版式/表格质量（extra_body.enable_thinking）
+    llm_enable_thinking: bool = True
     # OpenAI 兼容：content 为空（含仅 reasoning）时最多请求次数，用尽仍空则抛错（见 DashScopeClient）
     llm_empty_content_max_attempts: int = 3
 
@@ -143,6 +145,7 @@ class ConverterConfig:
     llm_table_caption_max_tables: int = 20
     llm_table_caption_max_chars: int = 500
     llm_table_caption_context_lines: int = 3
+    llm_table_caption_max_tokens: int = 256
     # ---- PDF 方案 A：按页渲染 + Qwen-VL 转写（不经过 Docling）----
     pdf_vl_primary: bool = False
     pdf_vl_dpi: float = 180.0
@@ -432,7 +435,9 @@ class IndustrialDocConverter:
             base_url=self.config.llm_base_url,
             timeout_sec=self.config.llm_timeout_sec,
             max_retries=self.config.llm_max_retries,
+            retry_backoff_sec=self.config.llm_retry_backoff_sec,
             enable_thinking=self.config.llm_enable_thinking,
+            max_reasoning_tokens=self.config.llm_max_reasoning_tokens,
             empty_content_max_attempts=self.config.llm_empty_content_max_attempts,
         )
         client = DashScopeClient(client_cfg)
@@ -458,7 +463,9 @@ class IndustrialDocConverter:
             base_url=self.config.llm_base_url,
             timeout_sec=self.config.llm_timeout_sec,
             max_retries=self.config.llm_max_retries,
+            retry_backoff_sec=self.config.llm_retry_backoff_sec,
             enable_thinking=self.config.llm_enable_thinking,
+            max_reasoning_tokens=self.config.llm_max_reasoning_tokens,
             empty_content_max_attempts=self.config.llm_empty_content_max_attempts,
         )
         return DashScopeClient(client_cfg)
@@ -958,11 +965,13 @@ class IndustrialDocConverter:
                 context_text=context_text,
                 max_chars=self.config.llm_table_caption_max_chars,
             )
+            cap_tok = max(1, int(self.config.llm_table_caption_max_tokens))
+            mt = int(self.config.llm_max_tokens or cap_tok)
             text = client.generate_multimodal(
                 model=self.config.llm_model,
                 messages=messages,
                 temperature=0.0,
-                max_tokens=min(256, int(self.config.llm_max_tokens or 256)),
+                max_tokens=min(cap_tok, mt),
             )
             text = (text or "").strip()
 

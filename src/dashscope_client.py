@@ -44,6 +44,22 @@ def _is_openai_compatible_base_url(base_url: str) -> bool:
     return u.endswith("/v1")
 
 
+def _is_likely_ollama_openai_base_url(base_url: str) -> bool:
+    """
+    判断是否像 Ollama 的 OpenAI 兼容入口（默认端口 11434）。
+
+    Ollama 不识别百炼请求体里的 ``enable_thinking`` / ``max_reasoning_tokens``；
+    Qwen3.5 视觉在部分版本会把输出放进 ``message.thinking`` 而 ``content`` 为空，
+    需在 JSON 里使用 ``reasoning_effort``（或原生 API 的 ``think``）关闭思考。
+    """
+    u = (base_url or "").lower().rstrip("/")
+    if "dashscope" in u or "compatible-mode" in u:
+        return False
+    if not u.endswith("/v1"):
+        return False
+    return "11434" in u
+
+
 @dataclass(frozen=True)
 class DashScopeClientConfig:
     api_key: str
@@ -52,9 +68,9 @@ class DashScopeClientConfig:
     timeout_sec: float = 300.0
     max_retries: int = 3
     retry_backoff_sec: float = 1.5
-    # Qwen3.5 / Qwen3-VL：思考模式会把正文放在 reasoning_content，content 可能为空。
-    # 百炼文档：通过 extra_body.enable_thinking 控制；文档/转写默认关闭思考。
-    enable_thinking: bool = False
+    # Qwen3.5 / Qwen3-VL：思考走 reasoning_content；百炼用 extra_body.enable_thinking。
+    # 默认开启以保障质量；关闭时可省 completion token。
+    enable_thinking: bool = True
     # 仅 enable_thinking=True 时生效；关闭思考时请求里会强制 max_reasoning_tokens=0。
     max_reasoning_tokens: Optional[int] = 256
     # OpenAI 兼容：assistant.content 为空（含仅 reasoning_content 有字）时额外重试次数（含首次共 N 次请求）
@@ -115,6 +131,10 @@ class DashScopeClient:
             else:
                 # 关闭思考时仍可能消耗 reasoning_tokens 导致 content 为空，显式压零
                 payload["max_reasoning_tokens"] = 0
+        thinking_on = bool(self.cfg.enable_thinking) and not force_disable_thinking
+        if _is_likely_ollama_openai_base_url(self.cfg.base_url) and not thinking_on:
+            # Ollama /v1/chat/completions：见官方文档 Reasoning/thinking control
+            payload["reasoning_effort"] = "none"
         return payload
 
     @classmethod
@@ -348,6 +368,15 @@ class DashScopeClient:
                 ctd.get("text_tokens"),
                 ctd.get("reasoning_tokens"),
             )
+        th = msg.get("thinking")
+        if isinstance(th, str) and th.strip():
+            _log.warning(
+                "Ollama/Qwen：content 为空但 message.thinking 非空（约 %d 字符）。"
+                " 百炼字段 enable_thinking/max_reasoning_tokens 对 Ollama 无效；"
+                " 已对疑似 Ollama(端口 11434) 自动附加 reasoning_effort=none。"
+                " 若仍出现请升级 Ollama（≥0.17.4 相关修复）或换用非思考型模型。",
+                len(th),
+            )
         return ""
 
     @staticmethod
@@ -500,7 +529,9 @@ class DashScopeClient:
                         break
             rc = msg.get("reasoning_content")
             has_reasoning = isinstance(rc, str) and bool(rc.strip())
-            return has_reasoning and (not has_content)
+            th = msg.get("thinking")
+            has_thinking = isinstance(th, str) and bool(th.strip())
+            return (has_reasoning or has_thinking) and (not has_content)
         except Exception:
             return False
 

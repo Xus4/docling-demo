@@ -17,7 +17,12 @@ import re
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 ROOT = Path(__file__).resolve().parent
+load_dotenv(ROOT / ".env", override=False)
+
+from config import env_bool, env_float, env_int, env_str
 DEFAULT_LOG_FILE = ROOT / "data" / "output" / "convert.log"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -236,13 +241,16 @@ def main() -> int:
     parser.add_argument(
         "--llm-model",
         type=str,
-        default="qwen3.5-35b-a3b",
+        default=env_str("LLM_MODEL", "qwen3.5-35b-a3b"),
         help="千问模型名（pdf-vl / LLM 共用；默认与项目常用配置一致）。",
     )
     parser.add_argument(
         "--llm-base-url",
         type=str,
-        default="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        default=env_str(
+            "LLM_BASE_URL",
+            "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        ),
         metavar="URL",
         help=(
             "百炼 API 根地址。国内 OpenAI 兼容模式默认：…/compatible-mode/v1；"
@@ -252,29 +260,38 @@ def main() -> int:
     parser.add_argument(
         "--llm-temperature",
         type=float,
-        default=0.2,
+        default=env_float("LLM_TEMPERATURE", 0.2),
         help="LLM 采样温度（--pdf-vl-primary 且未显式传参时默认为 0）。",
     )
     parser.add_argument(
         "--llm-max-tokens",
         type=int,
-        default=8192,
+        default=env_int("LLM_MAX_TOKENS", 8192),
         help=(
             "LLM max_tokens（单次 completion 上限）。--pdf-vl-primary 且未显式传参时默认为 16384。"
         ),
     )
-    parser.add_argument(
+    thinking_group = parser.add_mutually_exclusive_group()
+    thinking_group.add_argument(
         "--llm-enable-thinking",
+        dest="llm_enable_thinking",
         action="store_true",
         help=(
-            "启用 Qwen3.5 等模型的思考模式（正文走 content，思考走 reasoning_content，"
-            "会额外消耗 completion token；文档转写默认关闭）。"
+            "启用 Qwen3.5 等模型的思考模式（默认已开启，利于质量；"
+            "正文应走 content，思考走 reasoning_content，会额外消耗 completion token）。"
         ),
     )
+    thinking_group.add_argument(
+        "--llm-disable-thinking",
+        dest="llm_enable_thinking",
+        action="store_false",
+        help="关闭思考模式（节省 token，可能降低复杂版式/表格表现）。",
+    )
+    parser.set_defaults(llm_enable_thinking=env_bool("LLM_ENABLE_THINKING", True))
     parser.add_argument(
         "--llm-empty-content-retries",
         type=int,
-        default=3,
+        default=env_int("LLM_EMPTY_CONTENT_MAX_ATTEMPTS", 3),
         metavar="N",
         help=(
             "OpenAI 兼容接口下 content 为空（含仅 reasoning 有字）时最多请求次数（默认 3）；"
@@ -290,7 +307,7 @@ def main() -> int:
         "--llm-vl-image-mode",
         type=str,
         choices=["local_abs", "url"],
-        default="local_abs",
+        default=env_str("LLM_VL_IMAGE_MODE", "local_abs"),
         help="给 Qwen-VL 的图片输入方式：local_abs 或 url。",
     )
 
@@ -302,19 +319,19 @@ def main() -> int:
     parser.add_argument(
         "--llm-table-max-tables",
         type=int,
-        default=10,
+        default=env_int("LLM_TABLE_CLEANUP_MAX_TABLES", 10),
         help="LLM 表格局部纠错最多处理多少个 table block。",
     )
     parser.add_argument(
         "--llm-table-max-images-per-table",
         type=int,
-        default=6,
+        default=env_int("LLM_TABLE_CLEANUP_MAX_IMAGES_PER_TABLE", 6),
         help="每个 table block 最多喂给 Qwen-VL 的图片张数（从 Markdown 中提取的 image refs 里选取）。",
     )
     parser.add_argument(
         "--llm-table-context-lines",
         type=int,
-        default=2,
+        default=env_int("LLM_TABLE_CONTEXT_LINES", 2),
         help="每个 table block 前最多取多少行作为上下文文本。",
     )
 
@@ -330,14 +347,14 @@ def main() -> int:
     parser.add_argument(
         "--pdf-vl-dpi",
         type=float,
-        default=180.0,
+        default=env_float("PDF_VL_DPI", 180.0),
         metavar="DPI",
         help="pdf-vl-primary 渲染 DPI（约 100~200；未显式传参时默认 180）。",
     )
     parser.add_argument(
         "--pdf-vl-workers",
         type=int,
-        default=10,
+        default=env_int("PDF_VL_WORKERS", 10),
         metavar="N",
         help="pdf-vl-primary 页级并发（默认 10；可按配额下调）。",
     )
@@ -354,7 +371,7 @@ def main() -> int:
     parser.add_argument(
         "--pdf-vl-table-second-pass-max-tables",
         type=int,
-        default=5,
+        default=env_int("PDF_VL_TABLE_SECOND_PASS_MAX_TABLES", 5),
         metavar="N",
         help="每页最多二次校对多少个可疑表格（默认 5）。",
     )
@@ -376,19 +393,19 @@ def main() -> int:
     parser.add_argument(
         "--llm-table-caption-max-tables",
         type=int,
-        default=20,
+        default=env_int("LLM_TABLE_CAPTION_MAX_TABLES", 20),
         help="每个文档最多为多少个表格生成语义补偿。",
     )
     parser.add_argument(
         "--llm-table-caption-max-chars",
         type=int,
-        default=500,
+        default=env_int("LLM_TABLE_CAPTION_MAX_CHARS", 500),
         help="每个表格说明的最大字符数。",
     )
     parser.add_argument(
         "--llm-table-caption-context-lines",
         type=int,
-        default=3,
+        default=env_int("LLM_TABLE_CAPTION_CONTEXT_LINES", 3),
         help="生成表格说明时，表格前后各带多少行上下文。",
     )
 
@@ -400,7 +417,7 @@ def main() -> int:
     parser.add_argument(
         "--pdf-caption-crop-max-per-page",
         type=int,
-        default=4,
+        default=env_int("PDF_CAPTION_CROP_MAX_PER_PAGE", 4),
         metavar="N",
         help="每页最多按图题裁出多少张图（默认 4）",
     )
@@ -573,7 +590,14 @@ def main() -> int:
         llm_table_caption_max_tables=int(args.llm_table_caption_max_tables),
         llm_table_caption_max_chars=int(args.llm_table_caption_max_chars),
         llm_table_caption_context_lines=int(args.llm_table_caption_context_lines),
+        llm_table_caption_max_tokens=env_int("LLM_TABLE_CAPTION_MAX_TOKENS", 256),
 
+        llm_api_key_env=env_str("LLM_API_KEY_ENV", "DASHSCOPE_API_KEY"),
+        llm_max_retries=env_int("LLM_MAX_RETRIES", 3),
+        llm_retry_backoff_sec=env_float("LLM_RETRY_BACKOFF_SEC", 1.5),
+        llm_max_reasoning_tokens=env_int("LLM_MAX_REASONING_TOKENS", 256),
+        llm_cleanup_max_images=env_int("LLM_CLEANUP_MAX_IMAGES", 6),
+        llm_rerun_max_attempts=env_int("LLM_RERUN_MAX_ATTEMPTS", 1),
 
         pdf_vl_primary=bool(args.pdf_vl_primary),
         pdf_vl_dpi=float(args.pdf_vl_dpi),

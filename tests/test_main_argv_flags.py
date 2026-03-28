@@ -1,7 +1,9 @@
 """cli_pdf_vl_defaults：显式传参检测（仅 ``--opt value``）。"""
 
+import os
 import unittest
 from argparse import Namespace
+from unittest.mock import patch
 
 from src.cli_pdf_vl_defaults import apply_pdf_vl_cli_defaults, argv_contains_long_option
 
@@ -25,6 +27,17 @@ class TestArgvContainsLongOption(unittest.TestCase):
 
 
 class TestApplyPdfVlDefaults(unittest.TestCase):
+    @patch.dict(
+        os.environ,
+        {
+            "PDF_VL_DPI": "",
+            "PDF_VL_WORKERS": "",
+            "PDF_VL_TABLE_SECOND_PASS_MAX_TABLES": "",
+            "LLM_TEMPERATURE": "",
+            "LLM_MAX_TOKENS": "",
+        },
+        clear=False,
+    )
     def test_sets_defaults_when_absent(self) -> None:
         args = Namespace(
             pdf_vl_primary=True,

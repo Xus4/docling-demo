@@ -39,8 +39,30 @@ logging.basicConfig(
 log = logging.getLogger("webapp")
 
 
+class _SuppressJobsListAccessLogFilter(logging.Filter):
+    """屏蔽前端轮询任务列表产生的 access 行：GET /jobs 或 GET /jobs?..."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            msg = record.getMessage()
+        except Exception:
+            return True
+        if '"GET /jobs?' in msg or '"GET /jobs HTTP' in msg:
+            return False
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_SuppressJobsListAccessLogFilter())
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
+    n_reset = auth_store.reset_orphan_running_jobs_to_queued()
+    if n_reset:
+        log.info(
+            "启动时将 %d 个残留「转换中」任务重置为排队（上次进程异常退出或重启导致）",
+            n_reset,
+        )
     n = job_worker.requeue_queued_from_db()
     if n:
         log.info("启动时已将 %d 个排队任务重新加入执行队列", n)
@@ -179,6 +201,14 @@ async def _ingest_upload_create_job(request: Request, file: UploadFile) -> str:
             output_file=str(paths.output_file.resolve()),
         )
         job_worker.enqueue(paths.job_id)
+        log.info(
+            "任务已创建并入队 job_id=%s user=%s role=%s file=%s size_bytes=%s",
+            paths.job_id,
+            user.username,
+            user.role,
+            file.filename,
+            total_size,
+        )
         return paths.job_id
     except HTTPException:
         raise
@@ -290,14 +320,17 @@ def cancel_job(job_id: str, request: Request) -> dict[str, str]:
     if not _can_access_job(user, job):
         raise HTTPException(status_code=403, detail="无权操作该任务")
 
-    if job.status == "queued":
-        if auth_store.try_mark_job_cancelled_queued(jid):
+    if job.status in ("queued", "running"):
+        if auth_store.try_mark_job_cancelled(jid):
+            log.info(
+                "任务已取消 job_id=%s owner=%s operator=%s file=%s prior_status=%s",
+                jid,
+                job.owner_username,
+                user.username,
+                job.original_filename,
+                job.status,
+            )
             return {"message": "已取消", "status": "cancelled"}
-        raise HTTPException(status_code=409, detail="任务状态已变更，请刷新")
-
-    if job.status == "running":
-        if auth_store.set_job_cancel_requested(jid):
-            return {"message": "已请求取消，将在当前步骤结束后生效", "status": "running"}
         raise HTTPException(status_code=409, detail="任务状态已变更，请刷新")
 
     raise HTTPException(status_code=400, detail="当前状态不可取消")

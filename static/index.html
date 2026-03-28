@@ -2107,7 +2107,7 @@
         const okCancel = await openThemedConfirm({
           title: "取消任务",
           message:
-            "确定要取消该任务吗？排队中的任务将从队列移除；若正在转换，将尽快中止（已写入的部分输出可能仍会保留）。",
+            "确定要取消该任务吗？将立即标记为已取消；若底层转换仍在进行，结束后不会保留结果。",
           confirmText: "确认取消",
           cancelText: "返回",
           danger: true,

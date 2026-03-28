@@ -283,10 +283,11 @@ class AuthStore:
             conn.commit()
             return cur.rowcount > 0
 
-    def mark_job_succeeded(self, job_id: str, output_file: str) -> None:
+    def mark_job_succeeded(self, job_id: str, output_file: str) -> bool:
+        """仅当仍为 running 时标记成功，避免覆盖用户已取消等终态。"""
         now = _utc_now_iso()
         with self._connect() as conn:
-            conn.execute(
+            cur = conn.execute(
                 """
                 UPDATE jobs SET
                     status = 'succeeded',
@@ -297,16 +298,18 @@ class AuthStore:
                     progress_note = NULL,
                     progress_pages_done = NULL,
                     progress_pages_total = NULL
-                WHERE job_id = ?
+                WHERE job_id = ? AND status = 'running'
                 """,
                 (output_file, now, job_id),
             )
             conn.commit()
+            return cur.rowcount > 0
 
-    def mark_job_failed(self, job_id: str, error_message: str) -> None:
+    def mark_job_failed(self, job_id: str, error_message: str) -> bool:
+        """仅当仍为 running 时标记失败。"""
         now = _utc_now_iso()
         with self._connect() as conn:
-            conn.execute(
+            cur = conn.execute(
                 """
                 UPDATE jobs SET
                     status = 'failed',
@@ -316,11 +319,12 @@ class AuthStore:
                     progress_note = NULL,
                     progress_pages_done = NULL,
                     progress_pages_total = NULL
-                WHERE job_id = ?
+                WHERE job_id = ? AND status = 'running'
                 """,
                 (now, error_message[:4000], job_id),
             )
             conn.commit()
+            return cur.rowcount > 0
 
     def mark_job_cancelled_finished(self, job_id: str, message: str | None = None) -> None:
         now = _utc_now_iso()
@@ -344,7 +348,11 @@ class AuthStore:
             conn.commit()
 
     def try_mark_job_cancelled_queued(self, job_id: str) -> bool:
-        """排队中任务直接标记为已取消。"""
+        """兼容旧名：等价于 try_mark_job_cancelled。"""
+        return self.try_mark_job_cancelled(job_id)
+
+    def try_mark_job_cancelled(self, job_id: str) -> bool:
+        """排队中或执行中任务立即标为已取消（不依赖 worker 轮询）。"""
         now = _utc_now_iso()
         with self._connect() as conn:
             cur = conn.execute(
@@ -353,19 +361,43 @@ class AuthStore:
                     status = 'cancelled',
                     finished_at = ?,
                     error_message = '已取消',
+                    output_file = NULL,
+                    cancel_requested = 0,
                     progress_percent = NULL,
                     progress_note = NULL,
                     progress_pages_done = NULL,
                     progress_pages_total = NULL
-                WHERE job_id = ? AND status = 'queued'
+                WHERE job_id = ? AND status IN ('queued', 'running')
                 """,
                 (now, job_id),
             )
             conn.commit()
             return cur.rowcount > 0
 
+    def reset_orphan_running_jobs_to_queued(self) -> int:
+        """
+        进程崩溃/重启后，库中可能残留 status=running 但已无 worker 执行。
+        重置为 queued 并清除进度，便于启动后重新入队。
+        """
+        with self._connect() as conn:
+            cur = conn.execute(
+                """
+                UPDATE jobs SET
+                    status = 'queued',
+                    started_at = NULL,
+                    cancel_requested = 0,
+                    progress_percent = NULL,
+                    progress_note = NULL,
+                    progress_pages_done = NULL,
+                    progress_pages_total = NULL
+                WHERE status = 'running'
+                """
+            )
+            conn.commit()
+            return int(cur.rowcount) if cur.rowcount is not None else 0
+
     def set_job_cancel_requested(self, job_id: str) -> bool:
-        """运行中任务请求软取消。"""
+        """运行中任务请求软取消（遗留；取消接口已改为立即 try_mark_job_cancelled）。"""
         with self._connect() as conn:
             cur = conn.execute(
                 """
