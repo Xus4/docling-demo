@@ -39,8 +39,14 @@ logging.basicConfig(
 log = logging.getLogger("webapp")
 
 
+_JOB_STATUS_POLL_RE = re.compile(
+    r"GET /jobs/[a-f0-9]{32} HTTP/",
+    re.IGNORECASE,
+)
+
+
 class _SuppressJobsListAccessLogFilter(logging.Filter):
-    """屏蔽前端轮询任务列表产生的 access 行：GET /jobs 或 GET /jobs?..."""
+    """屏蔽前端轮询产生的 access 行：GET /jobs、GET /jobs?...、GET /jobs/{job_id}。"""
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:
@@ -48,6 +54,8 @@ class _SuppressJobsListAccessLogFilter(logging.Filter):
         except Exception:
             return True
         if '"GET /jobs?' in msg or '"GET /jobs HTTP' in msg:
+            return False
+        if _JOB_STATUS_POLL_RE.search(msg):
             return False
         return True
 

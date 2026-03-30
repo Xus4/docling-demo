@@ -913,11 +913,35 @@
       }
 
       .progress-track {
+        position: relative;
         width: 100%;
         height: 7px;
         border-radius: 999px;
         overflow: hidden;
         background: color-mix(in srgb, var(--brand) 14%, transparent);
+      }
+
+      .progress-fill {
+        display: none;
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 0%;
+        max-width: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--brand), var(--brand-2));
+        transition: width 0.12s ease-out;
+        z-index: 1;
+        pointer-events: none;
+      }
+
+      .progress-wrap.progress-upload .progress-fill {
+        display: block;
+      }
+
+      .progress-wrap.progress-upload .progress-bar-indeterminate {
+        display: none;
       }
 
       .progress-bar {
@@ -1448,8 +1472,9 @@
 
           <div id="progressWrap" class="progress-wrap" aria-live="polite">
             <p class="progress-text">文档解析中，请稍候...</p>
-            <div class="progress-track">
-              <div class="progress-bar"></div>
+            <div id="progressTrack" class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+              <div class="progress-bar progress-bar-indeterminate"></div>
             </div>
           </div>
 
@@ -1519,6 +1544,8 @@
       const selectedFile = document.getElementById("selectedFile");
       const convertBtn = document.getElementById("convertBtn");
       const progressWrap = document.getElementById("progressWrap");
+      const progressTrack = document.getElementById("progressTrack");
+      const progressFill = document.getElementById("progressFill");
       const statusBox = document.getElementById("statusBox");
       const result = document.getElementById("result");
       const resultFilename = document.getElementById("resultFilename");
@@ -1571,9 +1598,72 @@
         convertBtn.disabled = !currentFile;
       }
 
+      function formatBytes(n) {
+        const x = Number(n);
+        if (!Number.isFinite(x) || x < 0) return "0 B";
+        if (x < 1024) return x + " B";
+        if (x < 1048576) return (x / 1024).toFixed(1) + " KB";
+        return (x / 1048576).toFixed(1) + " MB";
+      }
+
+      /** 根据秒数格式化为中文剩余时间文案（用于上传 ETA） */
+      function formatEtaSeconds(sec) {
+        const s = Number(sec);
+        if (!Number.isFinite(s) || s <= 0) return "";
+        const ceil = Math.ceil(s);
+        if (ceil < 60) return ceil + " 秒";
+        if (ceil < 3600) {
+          const m = Math.floor(ceil / 60);
+          const rs = ceil % 60;
+          if (rs === 0) return m + " 分钟";
+          return m + " 分 " + rs + " 秒";
+        }
+        const h = Math.floor(ceil / 3600);
+        const m = Math.floor((ceil % 3600) / 60);
+        if (m === 0) return h + " 小时";
+        return h + " 小时 " + m + " 分";
+      }
+
+      /**
+       * 用已传字节与耗时估算剩余时间；起步阶段返回空串避免抖动。
+       * @returns {string} 如 " · 剩余约 12 秒"，无可估算时 ""
+       */
+      function formatUploadEta(loaded, total, elapsedSec) {
+        const L = Number(loaded);
+        const T = Number(total);
+        const elapsed = Number(elapsedSec);
+        if (!Number.isFinite(L) || !Number.isFinite(T) || T <= 0 || L <= 0 || L >= T) {
+          return "";
+        }
+        if (!Number.isFinite(elapsed) || elapsed < 0.45) {
+          return "";
+        }
+        const speed = L / elapsed;
+        if (speed < 200) {
+          return "";
+        }
+        const etaSec = (T - L) / speed;
+        if (!Number.isFinite(etaSec) || etaSec < 0.5) {
+          return "";
+        }
+        if (etaSec > 48 * 3600) {
+          return " · 剩余超过 48 小时";
+        }
+        return " · 剩余约 " + formatEtaSeconds(etaSec);
+      }
+
+      function resetProgressBar() {
+        progressWrap.classList.remove("progress-upload");
+        if (progressFill) progressFill.style.width = "0%";
+        if (progressTrack) {
+          progressTrack.setAttribute("aria-valuenow", "0");
+        }
+      }
+
       function setStatus(type, text) {
         if (type === "loading") {
           statusBox.className = "status-box";
+          resetProgressBar();
           progressWrap.classList.add("show");
           const progressText = progressWrap.querySelector(".progress-text");
           progressText.textContent = text || "正在解析文档，请稍候...";
@@ -2273,8 +2363,71 @@
         resetResult();
       });
 
+      function postJobsWithUploadProgress(formData, myGen) {
+        const progressText = progressWrap.querySelector(".progress-text");
+        return new Promise(function (resolve, reject) {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/jobs");
+          xhr.withCredentials = true;
+          let uploadT0 = 0;
+          xhr.upload.addEventListener("progress", function (e) {
+            if (myGen !== uploadGeneration) {
+              return;
+            }
+            const fileSize = currentFile && currentFile.size ? currentFile.size : 0;
+            const total =
+              e.lengthComputable && e.total > 0 ? e.total : fileSize > 0 ? fileSize : 0;
+            const elapsedSec = uploadT0 > 0 ? (performance.now() - uploadT0) / 1000 : 0;
+            if (total > 0 && progressFill) {
+              progressWrap.classList.add("progress-upload");
+              const pct = Math.min(100, Math.round((e.loaded / total) * 100));
+              progressFill.style.width = pct + "%";
+              if (progressTrack) {
+                progressTrack.setAttribute("aria-valuenow", String(pct));
+              }
+              const eta = formatUploadEta(e.loaded, total, elapsedSec);
+              progressText.textContent =
+                "上传中 " +
+                pct +
+                "%（" +
+                formatBytes(e.loaded) +
+                " / " +
+                formatBytes(total) +
+                "）" +
+                eta;
+            } else {
+              progressWrap.classList.remove("progress-upload");
+              if (progressFill) progressFill.style.width = "0%";
+              if (progressTrack) progressTrack.setAttribute("aria-valuenow", "0");
+              progressText.textContent = "上传中… " + formatBytes(e.loaded);
+            }
+          });
+          xhr.onload = function () {
+            if (myGen !== uploadGeneration) {
+              return;
+            }
+            let payload = null;
+            try {
+              payload = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+            } catch (err) {
+              payload = { detail: xhr.responseText || "响应解析失败" };
+            }
+            resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, payload: payload });
+          };
+          xhr.onerror = function () {
+            if (myGen !== uploadGeneration) {
+              return;
+            }
+            reject(new Error("network"));
+          };
+          uploadT0 = performance.now();
+          xhr.send(formData);
+        });
+      }
+
       async function uploadAndConvert() {
         resetResult();
+        resetProgressBar();
         progressWrap.classList.remove("show");
         statusBox.className = "status-box";
         statusBox.textContent = "";
@@ -2286,44 +2439,56 @@
         const oldText = convertBtn.textContent;
         convertBtn.disabled = true;
         convertBtn.textContent = "提交中...";
+        const progressText = progressWrap.querySelector(".progress-text");
         try {
+          progressWrap.classList.add("show");
+          progressWrap.classList.add("progress-upload");
+          if (progressFill) progressFill.style.width = "0%";
+          if (progressTrack) progressTrack.setAttribute("aria-valuenow", "0");
+          progressText.textContent = "开始上传…";
+
           const formData = new FormData();
           formData.append("file", currentFile);
-          const resp = await fetch("/jobs", {
-            method: "POST",
-            body: formData,
-            credentials: "same-origin",
-            cache: "no-store",
-          });
-          const payload = await resp.json();
-          if (resp.status === 401) {
+
+          const { ok, status, payload } = await postJobsWithUploadProgress(formData, myGen);
+
+          if (myGen !== uploadGeneration) {
+            return;
+          }
+          if (progressFill) progressFill.style.width = "100%";
+          if (progressTrack) progressTrack.setAttribute("aria-valuenow", "100");
+          progressText.textContent = "上传完成，正在创建任务…";
+
+          if (status === 401) {
             setAuthState(null);
             setStatus("error", "登录已失效，请重新登录");
             progressWrap.classList.remove("show");
+            resetProgressBar();
             return;
           }
-          if (!resp.ok) {
-            setStatus("error", payload.detail || "创建任务失败，请稍后重试");
+          if (!ok) {
+            setStatus("error", (payload && payload.detail) || "创建任务失败，请稍后重试");
             progressWrap.classList.remove("show");
-            return;
-          }
-          if (myGen !== uploadGeneration) {
+            resetProgressBar();
             return;
           }
           await refreshTaskList();
           progressWrap.classList.remove("show");
-          const jobId = payload.job_id;
+          resetProgressBar();
+          const jobId = payload && payload.job_id;
           if (jobId) {
             convertBtn.textContent = "处理中...";
             await pollJobUntilTerminal(jobId, myGen);
           } else {
             setStatus("error", "未返回任务 ID");
             progressWrap.classList.remove("show");
+            resetProgressBar();
           }
         } catch (error) {
           if (myGen === uploadGeneration) {
             setStatus("error", "请求失败，请检查网络或服务状态");
             progressWrap.classList.remove("show");
+            resetProgressBar();
           }
         } finally {
           convertBtn.textContent = oldText;
