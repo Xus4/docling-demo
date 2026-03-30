@@ -1282,6 +1282,12 @@
         transform: scale(0.98);
       }
 
+      .upload-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 10px;
+      }
+
       .task-delete-btn {
         font-size: 12px;
         font-weight: 600;
@@ -1514,6 +1520,9 @@
               <div id="progressFill" class="progress-fill" style="width: 0%"></div>
               <div class="progress-bar progress-bar-indeterminate"></div>
             </div>
+            <div class="upload-actions">
+              <button id="uploadCancelBtn" type="button" class="task-cancel-btn" hidden>取消上传</button>
+            </div>
           </div>
 
           <div id="statusBox" class="status-box" aria-live="polite"></div>
@@ -1585,6 +1594,7 @@
       const progressTrack = document.getElementById("progressTrack");
       const progressFill = document.getElementById("progressFill");
       const progressElapsedLine = document.getElementById("progressElapsedLine");
+      const uploadCancelBtn = document.getElementById("uploadCancelBtn");
       const statusBox = document.getElementById("statusBox");
       const result = document.getElementById("result");
       const resultFilename = document.getElementById("resultFilename");
@@ -1633,6 +1643,8 @@
       let pollOverlayInterval = null;
       /** 每次点击上传自增，用于丢弃过期的 pollJobUntilTerminal，避免多次上传互相覆盖 UI */
       let uploadGeneration = 0;
+      /** 正在进行中的上传 XHR（用于点击「取消上传」时 abort） */
+      let uploadXhr = null;
 
       let toastTimer = null;
       let windowDragDepth = 0;
@@ -2604,6 +2616,7 @@
           const xhr = new XMLHttpRequest();
           xhr.open("POST", "/jobs");
           xhr.withCredentials = true;
+          uploadXhr = xhr;
           let uploadT0 = 0;
           xhr.upload.addEventListener("progress", function (e) {
             if (myGen !== uploadGeneration) {
@@ -2638,6 +2651,7 @@
             }
           });
           xhr.onload = function () {
+            if (uploadXhr === xhr) uploadXhr = null;
             if (myGen !== uploadGeneration) {
               return;
             }
@@ -2650,10 +2664,18 @@
             resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, payload: payload });
           };
           xhr.onerror = function () {
+            if (uploadXhr === xhr) uploadXhr = null;
             if (myGen !== uploadGeneration) {
               return;
             }
             reject(new Error("network"));
+          };
+          xhr.onabort = function () {
+            if (uploadXhr === xhr) uploadXhr = null;
+            if (myGen !== uploadGeneration) {
+              return;
+            }
+            reject(new Error("aborted"));
           };
           uploadT0 = performance.now();
           xhr.send(formData);
@@ -2681,6 +2703,10 @@
           if (progressFill) progressFill.style.width = "0%";
           if (progressTrack) progressTrack.setAttribute("aria-valuenow", "0");
           progressText.textContent = "开始上传…";
+          if (uploadCancelBtn) {
+            uploadCancelBtn.hidden = false;
+            uploadCancelBtn.disabled = false;
+          }
 
           const formData = new FormData();
           formData.append("file", currentFile);
@@ -2689,6 +2715,11 @@
 
           if (myGen !== uploadGeneration) {
             return;
+          }
+          // 上传请求已经结束：进入任务创建/轮询阶段，不再需要「取消上传」按钮。
+          if (uploadCancelBtn) {
+            uploadCancelBtn.hidden = true;
+            uploadCancelBtn.disabled = false;
           }
           if (progressFill) progressFill.style.width = "100%";
           if (progressTrack) progressTrack.setAttribute("aria-valuenow", "100");
@@ -2720,17 +2751,47 @@
           }
         } catch (error) {
           if (myGen === uploadGeneration) {
-            setStatus("error", "请求失败，请检查网络或服务状态");
-            progressWrap.classList.remove("show");
-            resetProgressBar();
+            const message = String((error && error.message) || "");
+            if (message === "aborted") {
+              setStatus("success", "已取消上传");
+              progressWrap.classList.remove("show");
+              resetProgressBar();
+            } else {
+              setStatus("error", "请求失败，请检查网络或服务状态");
+              progressWrap.classList.remove("show");
+              resetProgressBar();
+            }
           }
         } finally {
           convertBtn.textContent = oldText;
+          if (uploadCancelBtn) {
+            uploadCancelBtn.hidden = true;
+            uploadCancelBtn.disabled = false;
+          }
           updateConvertButtonState();
         }
       }
 
       convertBtn.addEventListener("click", uploadAndConvert);
+      if (uploadCancelBtn) {
+        uploadCancelBtn.addEventListener("click", async () => {
+          if (!uploadXhr) return;
+          const okCancel = await openThemedConfirm({
+            title: "取消上传",
+            message: "确定取消当前上传吗？取消后不会创建转换任务。",
+            confirmText: "确认取消",
+            cancelText: "返回",
+            danger: true,
+          });
+          if (!okCancel) return;
+          if (uploadCancelBtn) uploadCancelBtn.disabled = true;
+          try {
+            uploadXhr.abort();
+          } catch (e) {
+            /* ignore */
+          }
+        });
+      }
       applyTheme(localStorage.getItem(STORAGE_KEYS.theme) || "dark");
       const rememberedUser = localStorage.getItem(STORAGE_KEYS.rememberedUser) || "";
       if (rememberedUser) {

@@ -179,6 +179,7 @@ async def _ingest_upload_create_job(request: Request, file: UploadFile) -> str:
     if not file.filename:
         raise HTTPException(status_code=400, detail="文件名不能为空")
 
+    paths = None
     try:
         service.cleanup_old_jobs()
         service.validate_extension(file.filename)
@@ -187,6 +188,9 @@ async def _ingest_upload_create_job(request: Request, file: UploadFile) -> str:
         total_size = 0
         with paths.input_file.open("wb") as buffer:
             while True:
+                # 客户端主动取消/断开上传连接时，避免写入半成品并创建 job。
+                if await request.is_disconnected():
+                    raise HTTPException(status_code=499, detail="客户端已取消上传")
                 chunk = await file.read(1024 * 1024)
                 if not chunk:
                     break
@@ -197,6 +201,10 @@ async def _ingest_upload_create_job(request: Request, file: UploadFile) -> str:
                         detail=f"文件过大，最大允许 {config.max_file_size_bytes} 字节",
                     )
                 buffer.write(chunk)
+
+            # 上传读取循环退出后再做一次断开检测，避免尾部 race condition。
+            if await request.is_disconnected():
+                raise HTTPException(status_code=499, detail="客户端已取消上传")
 
         await file.close()
 
@@ -218,7 +226,10 @@ async def _ingest_upload_create_job(request: Request, file: UploadFile) -> str:
             total_size,
         )
         return paths.job_id
-    except HTTPException:
+    except HTTPException as exc:
+        if paths:
+            # 上传中断/超限等场景下，清理本次已创建的临时输入/输出目录。
+            _remove_job_workspace(paths.job_id)
         raise
     except ConversionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
