@@ -103,10 +103,18 @@ class JobQueueWorker:
             d = max(0, min(int(done), t))
             pct = int(round(100.0 * d / t))
             pct = max(0, min(100, pct))
+            # 对于 pdf-vl-primary：progress_callback 在「逐页转写」结束时才会回调到 done==total。
+            # 但逐页转写完成后仍可能继续进行 LLM refine / 表格说明 / 图片说明等后处理，
+            # 若直接显示 100% 会导致用户误以为“已经全部完成”。
+            if d >= t and pct >= 100:
+                pct = 98
+            note = f"PDF 已完成 {d}/{t} 页"
+            if d >= t:
+                note = "PDF 页码已完成，正在后处理…"
             self.auth.update_job_progress(
                 job_id,
                 percent=pct,
-                note=f"PDF 已完成 {d}/{t} 页",
+                note=note,
                 pages_done=d,
                 pages_total=t,
             )
@@ -120,9 +128,10 @@ class JobQueueWorker:
                 pct,
             )
 
-        skip_pulse = inp.suffix.lower() == ".pdf" and bool(
-            self.service.app_config.pdf_vl_primary
-        )
+        # 始终保留 pulse 线程：当存在页级进度回调时（progress_pages_total != None）
+        # 会先“原样等待”；当页码回调已完成（progress_pages_done >= progress_pages_total）时，
+        # 用少量增长表示后处理仍在进行，避免前端长期停在 98/100。
+        skip_pulse = False
 
         def pulse_loop() -> None:
             t0 = time.monotonic()
@@ -131,15 +140,37 @@ class JobQueueWorker:
                 if not j or j.status != "running":
                     return
                 if j.progress_pages_total is not None:
+                    # pdf-vl-primary：逐页回调存在
+                    if (
+                        j.progress_pages_done is not None
+                        and j.progress_pages_total is not None
+                        and j.progress_pages_done >= j.progress_pages_total
+                    ):
+                        # 页码已完成：仅在没到 99 的情况下做一次后处理进度补偿
+                        cur = j.progress_percent
+                        if cur is not None and cur >= 99:
+                            continue
+                        self.auth.update_job_progress(
+                            job_id,
+                            percent=99,
+                            note="PDF 页码已完成，正在后处理…",
+                        )
+                        log.debug(
+                            "任务进度 job_id=%s user=%s file=%s pulse_percent=%s (后处理补偿)",
+                            jid,
+                            user,
+                            fname,
+                            99,
+                        )
                     continue
+
+                # 非页级回调场景：使用估算进度
                 elapsed = time.monotonic() - t0
                 fake = min(88, 2 + int(elapsed * 1.15))
                 cur = j.progress_percent
                 if cur is not None and cur >= fake:
                     continue
-                self.auth.update_job_progress(
-                    job_id, percent=fake, note="正在转换文档…"
-                )
+                self.auth.update_job_progress(job_id, percent=fake, note="正在转换文档…")
                 log.debug(
                     "任务进度 job_id=%s user=%s file=%s "
                     "pulse_percent=%s (无页级回调时的估算)",
@@ -150,13 +181,12 @@ class JobQueueWorker:
                 )
 
         pulse_thread: threading.Thread | None = None
-        if not skip_pulse:
-            pulse_thread = threading.Thread(
-                target=pulse_loop,
-                name=f"job-progress-{job_id[:8]}",
-                daemon=True,
-            )
-            pulse_thread.start()
+        pulse_thread = threading.Thread(
+            target=pulse_loop,
+            name=f"job-progress-{job_id[:8]}",
+            daemon=True,
+        )
+        pulse_thread.start()
         try:
             self.service.convert_to_markdown(
                 str(inp), str(out), progress_callback=on_pdf_pages
