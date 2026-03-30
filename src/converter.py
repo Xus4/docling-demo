@@ -153,6 +153,8 @@ class ConverterConfig:
     llm_enable_thinking: bool = True
     # OpenAI 兼容：content 为空（含仅 reasoning）时最多请求次数，用尽仍空则抛错（见 DashScopeClient）
     llm_empty_content_max_attempts: int = 3
+    # True：OpenAI 兼容 /chat/completions 流式拉取并在日志中实时打印模型输出（环境变量 LLM_LOG_STREAM_RESPONSE）
+    llm_log_stream_response: bool = False
 
     llm_table_caption: bool = False
     llm_table_caption_max_tables: int = 20
@@ -509,6 +511,7 @@ class IndustrialDocConverter:
             enable_thinking=self.config.llm_enable_thinking,
             max_reasoning_tokens=self.config.llm_max_reasoning_tokens,
             empty_content_max_attempts=self.config.llm_empty_content_max_attempts,
+            log_stream_response=self.config.llm_log_stream_response,
         )
         client = DashScopeClient(client_cfg)
         return DoclingMarkdownRefiner(
@@ -537,6 +540,7 @@ class IndustrialDocConverter:
             enable_thinking=self.config.llm_enable_thinking,
             max_reasoning_tokens=self.config.llm_max_reasoning_tokens,
             empty_content_max_attempts=self.config.llm_empty_content_max_attempts,
+            log_stream_response=self.config.llm_log_stream_response,
         )
         return DashScopeClient(client_cfg)
 

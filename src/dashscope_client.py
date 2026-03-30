@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import base64
+import json
 import logging
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -75,6 +77,33 @@ class DashScopeClientConfig:
     max_reasoning_tokens: Optional[int] = 256
     # OpenAI 兼容：assistant.content 为空（含仅 reasoning_content 有字）时额外重试次数（含首次共 N 次请求）
     empty_content_max_attempts: int = 3
+    # True：OpenAI 兼容 /chat/completions 使用 stream，正文与思考链增量均写入 INFO 日志（见 LLM_LOG_STREAM_RESPONSE）
+    log_stream_response: bool = False
+
+
+def _httpx_timeout(timeout_sec: float) -> httpx.Timeout:
+    """
+    长耗时 LLM 请求（含流式）：read 需覆盖首包延迟（大图预填 / 慢速 27B）与包间隔。
+    connect 单独限制，避免把「等首 token」误算成连接阶段；write/pool 与 read 对齐以免流式挂起。
+    """
+    t = max(30.0, float(timeout_sec))
+    c = min(120.0, t)
+    return httpx.Timeout(connect=c, read=t, write=t, pool=t)
+
+
+def _flush_logging_handlers() -> None:
+    """尽量立刻刷出日志，便于流式片段实时可见。"""
+    for lg in (logging.root, _log):
+        for h in getattr(lg, "handlers", []) or []:
+            try:
+                h.flush()
+            except Exception:
+                pass
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:
+        pass
 
 
 class DashScopeClient:
@@ -294,7 +323,7 @@ class DashScopeClient:
                         msg_summary,
                     )
                 t0 = time.perf_counter()
-                with httpx.Client(timeout=self.cfg.timeout_sec) as client:
+                with httpx.Client(timeout=_httpx_timeout(self.cfg.timeout_sec)) as client:
                     resp = client.post(url, json=payload, headers=headers)
                 resp.raise_for_status()
                 data = resp.json()
@@ -312,6 +341,7 @@ class DashScopeClient:
                     usage,
                     request_id,
                 )
+                _log.info("LLM 本次交互耗时 %.3f 秒", elapsed)
                 return data
             except Exception as e:  # noqa: BLE001 - keep broad for network/runtime
                 last_exc = e
@@ -327,6 +357,187 @@ class DashScopeClient:
                 )
                 time.sleep(sleep_s)
         # should be unreachable
+        assert last_exc is not None
+        raise last_exc
+
+    @staticmethod
+    def _append_openai_delta_to_buffers(
+        delta: dict[str, Any],
+        *,
+        acc_content: list[str],
+        acc_reasoning: list[str],
+    ) -> None:
+        """从流式 chunk 的 delta 中取出文本并写入缓冲区；正文与思考链均打 INFO（便于实时查看）。"""
+        c = delta.get("content")
+        if isinstance(c, str) and c:
+            acc_content.append(c)
+            _log.info("LLM stream out | %s", c)
+            _flush_logging_handlers()
+        elif isinstance(c, list):
+            for item in c:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("type") == "text" and isinstance(item.get("text"), str):
+                    t = item["text"]
+                    acc_content.append(t)
+                    _log.info("LLM stream out | %s", t)
+                    _flush_logging_handlers()
+        rc = delta.get("reasoning_content")
+        if isinstance(rc, str) and rc:
+            acc_reasoning.append(rc)
+            _log.info("LLM stream reasoning | %s", rc)
+            _flush_logging_handlers()
+        th = delta.get("thinking")
+        if isinstance(th, str) and th:
+            acc_reasoning.append(th)
+            _log.info("LLM stream thinking | %s", th)
+            _flush_logging_handlers()
+
+    def _post_openai_chat_completions_stream(
+        self, url: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """
+        OpenAI 兼容流式：``stream: true`` + SSE，拼出与单次 JSON 等价的 choices[0].message。
+        仅在 ``log_stream_response`` 为 True 时使用。
+        """
+        headers = {
+            "Authorization": f"Bearer {self.cfg.api_key}",
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+        }
+        stream_payload = dict(payload)
+        stream_payload["stream"] = True
+
+        kind = self._endpoint_kind_from_url(url)
+        model = str(payload.get("model") or "?")
+        messages = payload.get("messages") or []
+        temp = payload.get("temperature")
+        max_tok = payload.get("max_tokens")
+        msg_summary = self._summarize_messages_for_log(messages)
+        rf = "openai"
+
+        last_exc: Optional[Exception] = None
+        for attempt in range(1, self.cfg.max_retries + 1):
+            try:
+                if attempt == 1:
+                    _log.info(
+                        "LLM call start (stream): kind=%s model=%s temperature=%s max_tokens=%s "
+                        "result_format=%s messages=%s",
+                        kind,
+                        model,
+                        temp,
+                        max_tok,
+                        rf,
+                        msg_summary,
+                    )
+                t0 = time.perf_counter()
+                acc_content: list[str] = []
+                acc_reasoning: list[str] = []
+                usage: Optional[dict[str, Any]] = None
+                request_id: Optional[str] = None
+
+                with httpx.Client(timeout=_httpx_timeout(self.cfg.timeout_sec)) as client:
+                    with client.stream(
+                        "POST", url, json=stream_payload, headers=headers
+                    ) as resp:
+                        resp.raise_for_status()
+                        for line in resp.iter_lines():
+                            if line is None:
+                                continue
+                            if isinstance(line, bytes):
+                                line = line.decode("utf-8", errors="replace")
+                            line = line.strip()
+                            if not line or line.startswith(":"):
+                                continue
+                            if not line.startswith("data: "):
+                                continue
+                            data_str = line[6:].strip()
+                            if data_str == "[DONE]":
+                                break
+                            try:
+                                chunk: dict[str, Any] = json.loads(data_str)
+                            except json.JSONDecodeError:
+                                continue
+                            rid = chunk.get("request_id") or chunk.get("id")
+                            if rid:
+                                request_id = str(rid)
+                            u = chunk.get("usage")
+                            if isinstance(u, dict):
+                                usage = u
+                            choices = chunk.get("choices") or []
+                            if not choices:
+                                continue
+                            ch0 = choices[0] or {}
+                            delta = ch0.get("delta")
+                            if isinstance(delta, dict) and delta:
+                                DashScopeClient._append_openai_delta_to_buffers(
+                                    delta,
+                                    acc_content=acc_content,
+                                    acc_reasoning=acc_reasoning,
+                                )
+                            # 少数实现仅在最后一包给完整 message（含整段思考链）
+                            msg_final = ch0.get("message")
+                            if isinstance(msg_final, dict) and msg_final:
+                                sub = msg_final.get("content")
+                                if isinstance(sub, str) and sub and not acc_content:
+                                    acc_content.append(sub)
+                                    _log.info("LLM stream out | %s", sub)
+                                    _flush_logging_handlers()
+                                if not acc_reasoning:
+                                    rc_f = msg_final.get("reasoning_content")
+                                    if isinstance(rc_f, str) and rc_f:
+                                        acc_reasoning.append(rc_f)
+                                        _log.info("LLM stream reasoning | %s", rc_f)
+                                        _flush_logging_handlers()
+                                    th_f = msg_final.get("thinking")
+                                    if isinstance(th_f, str) and th_f:
+                                        acc_reasoning.append(th_f)
+                                        _log.info("LLM stream thinking | %s", th_f)
+                                        _flush_logging_handlers()
+                elapsed = time.perf_counter() - t0
+                full_content = "".join(acc_content)
+                msg_out: dict[str, Any] = {"content": full_content}
+                if acc_reasoning:
+                    msg_out["reasoning_content"] = "".join(acc_reasoning)
+                out: dict[str, Any] = {
+                    "choices": [
+                        {
+                            "message": msg_out,
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": usage,
+                }
+                if request_id:
+                    out["id"] = request_id
+                    out["request_id"] = request_id
+                _log.info(
+                    "LLM call done (stream): kind=%s model=%s elapsed=%.3fs attempt=%s/%s "
+                    "usage=%s request_id=%s out_chars=%s",
+                    kind,
+                    model,
+                    elapsed,
+                    attempt,
+                    self.cfg.max_retries,
+                    usage,
+                    request_id,
+                    len(full_content),
+                )
+                _log.info("LLM 本次交互耗时 %.3f 秒", elapsed)
+                return out
+            except Exception as e:  # noqa: BLE001
+                last_exc = e
+                if attempt >= self.cfg.max_retries:
+                    raise
+                sleep_s = self.cfg.retry_backoff_sec * (2 ** (attempt - 1))
+                _log.warning(
+                    "DashScope stream request failed (attempt=%s/%s): %s; sleep %.1fs",
+                    attempt,
+                    self.cfg.max_retries,
+                    repr(e),
+                    sleep_s,
+                )
+                time.sleep(sleep_s)
         assert last_exc is not None
         raise last_exc
 
@@ -480,7 +691,10 @@ class DashScopeClient:
                 max_tokens=max_tokens,
                 force_disable_thinking=force_off,
             )
-            response_json = self._post_json(url, payload)
+            if self.cfg.log_stream_response:
+                response_json = self._post_openai_chat_completions_stream(url, payload)
+            else:
+                response_json = self._post_json(url, payload)
             last_json = response_json
             text = self._extract_openai_assistant_text(response_json)
             if text.strip():

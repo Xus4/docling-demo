@@ -1130,6 +1130,13 @@
         align-items: flex-start;
       }
 
+      /* 占满除右侧操作列外的宽度，避免进度条轨道被 flex 挤成一条窄带 */
+      .task-item-main {
+        flex: 1 1 0;
+        min-width: 0;
+        align-self: stretch;
+      }
+
       .task-status-badge {
         display: inline-block;
         margin-top: 6px;
@@ -1181,14 +1188,18 @@
 
       .task-progress-wrap {
         margin-top: 8px;
+        width: 100%;
         max-width: 100%;
+        box-sizing: border-box;
       }
 
       .task-progress-bar-bg {
+        width: 100%;
         height: 6px;
         border-radius: 999px;
         background: color-mix(in srgb, var(--text-sub) 22%, transparent);
         overflow: hidden;
+        box-sizing: border-box;
       }
 
       .task-progress-bar-fill {
@@ -1951,8 +1962,8 @@
                 : "";
             let progressBlock = "";
             if (job.status === "running") {
-              let pct = job.progress_percent;
-              if (pct == null || typeof pct !== "number" || Number.isNaN(pct)) {
+              let pct = Number(job.progress_percent);
+              if (!Number.isFinite(pct)) {
                 pct = 0;
               }
               pct = Math.max(0, Math.min(100, pct));
@@ -2005,7 +2016,7 @@
                 : "";
             return (
               '<div class="history-item">' +
-              '<div style="min-width:0">' +
+              '<div class="task-item-main">' +
               '<div class="filename">' +
               (job.original_filename || "").replace(/</g, "&lt;") +
               "</div>" +

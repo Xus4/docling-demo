@@ -134,6 +134,7 @@ class AppConfig:
     llm_enable_thinking: bool
     llm_timeout_sec: float
     llm_empty_content_max_attempts: int
+    llm_log_stream_response: bool
     llm_vl_image_mode: str
     llm_cleanup_max_images: int
     enable_llm_refine: bool
@@ -208,6 +209,7 @@ class AppConfig:
             llm_empty_content_max_attempts=max(
                 1, min(10, env_int("LLM_EMPTY_CONTENT_MAX_ATTEMPTS", 3))
             ),
+            llm_log_stream_response=env_bool("LLM_LOG_STREAM_RESPONSE", False),
             llm_vl_image_mode=env_str("LLM_VL_IMAGE_MODE", "local_abs"),
             llm_cleanup_max_images=max(1, env_int("LLM_CLEANUP_MAX_IMAGES", 6)),
             enable_llm_refine=env_bool("LLM_ENABLE_REFINE", False),
@@ -275,6 +277,7 @@ class AppConfig:
             llm_enable_thinking=self.llm_enable_thinking,
             llm_timeout_sec=self.llm_timeout_sec,
             llm_empty_content_max_attempts=self.llm_empty_content_max_attempts,
+            llm_log_stream_response=self.llm_log_stream_response,
             llm_vl_image_mode=vim_mode,
             llm_cleanup_max_images=self.llm_cleanup_max_images,
             llm_table_refine=self.llm_table_refine,

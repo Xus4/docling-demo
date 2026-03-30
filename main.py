@@ -299,6 +299,16 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--llm-log-stream-response",
+        dest="llm_log_stream_response",
+        action=argparse.BooleanOptionalAction,
+        default=env_bool("LLM_LOG_STREAM_RESPONSE", False),
+        help=(
+            "OpenAI 兼容 /chat/completions 使用流式响应，并在日志中实时打印模型输出（"
+            "正文为 LLM stream out，思考链为 LLM stream reasoning/thinking）。需 LLM_BASE_URL 为兼容地址。"
+        ),
+    )
+    parser.add_argument(
         "--llm-allow-rerun",
         action="store_true",
         help="允许根据质量检查结果对 Docling 进行最多 1 次 rerun（提升 OCR/表格精度）。",
@@ -600,6 +610,7 @@ def main() -> int:
         llm_max_tokens=args.llm_max_tokens,
         llm_enable_thinking=bool(args.llm_enable_thinking),
         llm_empty_content_max_attempts=int(args.llm_empty_content_retries),
+        llm_log_stream_response=bool(args.llm_log_stream_response),
         llm_allow_rerun=bool(args.llm_allow_rerun),
         llm_vl_image_mode=str(args.llm_vl_image_mode),
 
