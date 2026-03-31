@@ -1133,6 +1133,7 @@ class IndustrialDocConverter:
                 messages=messages,
                 temperature=0.0,
                 max_tokens=min(256, int(self.config.llm_max_tokens or 256)),
+                biz_stage="图片语义增强",
             )
             text = (text or "").strip()
             if not text:
@@ -1259,6 +1260,7 @@ class IndustrialDocConverter:
                 messages=messages,
                 temperature=0.0,
                 max_tokens=cap_tok,
+                biz_stage="表格语义增强",
             )
 
             text = (text or "").strip()

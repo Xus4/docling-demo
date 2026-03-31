@@ -3,6 +3,8 @@ docling>=2.0,<3
 magic-pdf>=1.0.0
 # MinerU 运行时依赖（部分版本会动态导入）
 ultralytics>=8.0.0
+doclayout-yolo
+rapid-table
 easyocr>=1.7.0
 pandas>=2.0.0
 openpyxl>=3.1.0

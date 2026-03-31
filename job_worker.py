@@ -78,13 +78,15 @@ class JobQueueWorker:
         out = Path(rec.output_file)
         jid, user, fname = _job_log_fields(job_id, rec)
         log.info(
-            "阶段=开始执行 job_id=%s user=%s file=%s input=%s output=%s",
+            "阶段=任务执行启动 job_id=%s user=%s file=%s input=%s output=%s",
             jid,
             user,
             fname,
             inp.name,
             out.name,
         )
+        # 严格真实进度模式：启动后先展示“准备中”，不写入估算百分比。
+        self.auth.update_job_progress(job_id, note="图转文准备中（正在初始化）")
 
         if not inp.is_file():
             log.error(
@@ -120,7 +122,7 @@ class JobQueueWorker:
                 pages_total=t,
             )
             log.info(
-                "阶段=页级进度 job_id=%s user=%s file=%s pdf_pages=%s/%s progress_percent=%s",
+                "阶段=图转文进度 job_id=%s user=%s file=%s pdf_pages=%s/%s progress_percent=%s",
                 jid,
                 user,
                 fname,
@@ -135,7 +137,6 @@ class JobQueueWorker:
         skip_pulse = False
 
         def pulse_loop() -> None:
-            t0 = time.monotonic()
             while not stop_pulse.wait(2.0):
                 j = self.auth.get_job(job_id)
                 if not j or j.status != "running":
@@ -157,7 +158,7 @@ class JobQueueWorker:
                             note="PDF 页码已完成，正在后处理…",
                         )
                         log.debug(
-                            "阶段=后处理补偿 job_id=%s user=%s file=%s pulse_percent=%s",
+                            "阶段=文档后处理进度补偿 job_id=%s user=%s file=%s pulse_percent=%s",
                             jid,
                             user,
                             fname,
@@ -169,20 +170,10 @@ class JobQueueWorker:
                 if j.progress_pages_done is not None or j.progress_pages_total is not None:
                     continue
 
-                # 非页级回调场景：使用估算进度
-                elapsed = time.monotonic() - t0
-                fake = min(88, 2 + int(elapsed * 1.15))
-                cur = j.progress_percent
-                if cur is not None and cur >= fake:
-                    continue
-                self.auth.update_job_progress(job_id, percent=fake, note="正在转换文档…")
-                log.debug(
-                    "阶段=估算进度 job_id=%s user=%s file=%s pulse_percent=%s",
-                    jid,
-                    user,
-                    fname,
-                    fake,
-                )
+                # 严格真实进度模式：无页级回调前不再写入估算百分比，避免“进度快跑”错觉。
+                # 这里只保留文案兜底（若启动时文案已写入则不重复更新）。
+                if not j.progress_note:
+                    self.auth.update_job_progress(job_id, note="图转文准备中（正在初始化）")
 
         pulse_thread: threading.Thread | None = None
         pulse_thread = threading.Thread(
@@ -197,7 +188,7 @@ class JobQueueWorker:
             )
         except ConversionError as exc:
             log.error(
-                "阶段=失败(业务) job_id=%s user=%s file=%s err=%s",
+                "阶段=任务失败(业务) job_id=%s user=%s file=%s err=%s",
                 jid,
                 user,
                 fname,
@@ -207,7 +198,7 @@ class JobQueueWorker:
             return
         except Exception as exc:  # noqa: BLE001
             log.exception(
-                "阶段=失败(异常) job_id=%s user=%s file=%s",
+                "阶段=任务失败(异常) job_id=%s user=%s file=%s",
                 jid,
                 user,
                 fname,
@@ -246,7 +237,7 @@ class JobQueueWorker:
         )
         if ok:
             log.info(
-                "阶段=完成 job_id=%s user=%s file=%s output=%s",
+                "阶段=任务完成 job_id=%s user=%s file=%s output=%s",
                 jid,
                 user,
                 fname,
@@ -254,13 +245,13 @@ class JobQueueWorker:
             )
             if conv_result.pdf_vl_failed_pages:
                 log.warning(
-                    "阶段=完成(部分页失败) job_id=%s pages=%s",
+                    "阶段=任务完成(部分页图转文失败) job_id=%s pages=%s",
                     jid,
                     list(conv_result.pdf_vl_failed_pages),
                 )
         else:
             log.info(
-                "阶段=完成未落库(可能已取消) job_id=%s user=%s file=%s",
+                "阶段=任务完成未落库(可能已取消) job_id=%s user=%s file=%s",
                 jid,
                 user,
                 fname,

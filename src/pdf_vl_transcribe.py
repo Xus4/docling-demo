@@ -249,6 +249,7 @@ def _review_suspicious_tables_with_llm(
             messages,
             temperature=temperature,
             max_tokens=max_tokens,
+            biz_stage="表格语义增强",
         )
         fixed = _normalize_markdown_output(raw)
         fixed_table = _extract_first_table_block(fixed)
@@ -2282,6 +2283,7 @@ def transcribe_pdf_with_vl(
                         messages,
                         temperature=temperature,
                         max_tokens=max_tokens,
+                        biz_stage="图转文",
                     )
                     page_md = _normalize_markdown_output(raw_last).strip()
                     if page_md:

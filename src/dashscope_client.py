@@ -289,7 +289,13 @@ class DashScopeClient:
                 out.append({"role": role, "content": str(c)})
         return out
 
-    def _post_json(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def _post_json(
+        self,
+        url: str,
+        payload: dict[str, Any],
+        *,
+        biz_stage: str = "文本语义增强",
+    ) -> dict[str, Any]:
         headers = {
             "Authorization": f"Bearer {self.cfg.api_key}",
             "Content-Type": "application/json",
@@ -313,7 +319,8 @@ class DashScopeClient:
             try:
                 if attempt == 1:
                     _log.info(
-                        "阶段=LLM调用开始 kind=%s model=%s temperature=%s max_tokens=%s result_format=%s messages=%s",
+                        "阶段=%s(LLM调用开始) kind=%s model=%s temperature=%s max_tokens=%s result_format=%s messages=%s",
+                        biz_stage,
                         kind,
                         model,
                         temp,
@@ -330,7 +337,8 @@ class DashScopeClient:
                 usage = data.get("usage")
                 request_id = data.get("request_id") or data.get("id")
                 _log.info(
-                    "阶段=LLM调用结束 kind=%s model=%s elapsed=%.3fs attempt=%s/%s usage=%s request_id=%s",
+                    "阶段=%s(LLM调用结束) kind=%s model=%s elapsed=%.3fs attempt=%s/%s usage=%s request_id=%s",
+                    biz_stage,
                     kind,
                     model,
                     elapsed,
@@ -339,7 +347,7 @@ class DashScopeClient:
                     usage,
                     request_id,
                 )
-                _log.info("LLM 本次交互耗时 %.3f 秒", elapsed)
+                _log.info("阶段=%s(交互耗时统计) elapsed=%.3fs", biz_stage, elapsed)
                 return data
             except Exception as e:  # noqa: BLE001 - keep broad for network/runtime
                 last_exc = e
@@ -392,7 +400,11 @@ class DashScopeClient:
             _flush_logging_handlers()
 
     def _post_openai_chat_completions_stream(
-        self, url: str, payload: dict[str, Any]
+        self,
+        url: str,
+        payload: dict[str, Any],
+        *,
+        biz_stage: str = "文本语义增强",
     ) -> dict[str, Any]:
         """
         OpenAI 兼容流式：``stream: true`` + SSE，拼出与单次 JSON 等价的 choices[0].message。
@@ -419,7 +431,8 @@ class DashScopeClient:
             try:
                 if attempt == 1:
                     _log.info(
-                        "阶段=LLM调用开始(流式) kind=%s model=%s temperature=%s max_tokens=%s result_format=%s messages=%s",
+                        "阶段=%s(LLM调用开始-流式) kind=%s model=%s temperature=%s max_tokens=%s result_format=%s messages=%s",
+                        biz_stage,
                         kind,
                         model,
                         temp,
@@ -509,7 +522,8 @@ class DashScopeClient:
                     out["id"] = request_id
                     out["request_id"] = request_id
                 _log.info(
-                    "阶段=LLM调用结束(流式) kind=%s model=%s elapsed=%.3fs attempt=%s/%s usage=%s request_id=%s out_chars=%s",
+                    "阶段=%s(LLM调用结束-流式) kind=%s model=%s elapsed=%.3fs attempt=%s/%s usage=%s request_id=%s out_chars=%s",
+                    biz_stage,
                     kind,
                     model,
                     elapsed,
@@ -519,7 +533,7 @@ class DashScopeClient:
                     request_id,
                     len(full_content),
                 )
-                _log.info("LLM 本次交互耗时 %.3f 秒", elapsed)
+                _log.info("阶段=%s(交互耗时统计) elapsed=%.3fs", biz_stage, elapsed)
                 return out
             except Exception as e:  # noqa: BLE001
                 last_exc = e
@@ -657,6 +671,7 @@ class DashScopeClient:
         *,
         temperature: Optional[float],
         max_tokens: Optional[int],
+        biz_stage: str = "文本语义增强",
     ) -> str:
         """
         OpenAI 兼容 /chat/completions：带输出约束与「空 content」重试。
@@ -688,9 +703,11 @@ class DashScopeClient:
                 force_disable_thinking=force_off,
             )
             if self.cfg.log_stream_response:
-                response_json = self._post_openai_chat_completions_stream(url, payload)
+                response_json = self._post_openai_chat_completions_stream(
+                    url, payload, biz_stage=biz_stage
+                )
             else:
-                response_json = self._post_json(url, payload)
+                response_json = self._post_json(url, payload, biz_stage=biz_stage)
             last_json = response_json
             text = self._extract_openai_assistant_text(response_json)
             if text.strip():
@@ -753,6 +770,7 @@ class DashScopeClient:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         result_format: str = "message",
+        biz_stage: str = "文本语义增强",
     ) -> str:
         base = self.cfg.base_url.rstrip("/")
         if _is_openai_compatible_base_url(base):
@@ -761,6 +779,7 @@ class DashScopeClient:
                 messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                biz_stage=biz_stage,
             )
         url = base + "/services/aigc/multimodal-generation/generation"
         payload = {
@@ -772,7 +791,7 @@ class DashScopeClient:
             payload["parameters"]["temperature"] = float(temperature)
         if max_tokens is not None:
             payload["parameters"]["max_tokens"] = int(max_tokens)
-        response_json = self._post_json(url, payload)
+        response_json = self._post_json(url, payload, biz_stage=biz_stage)
         return self._extract_text(response_json)
 
 

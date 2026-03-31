@@ -148,11 +148,9 @@ class DoclingMarkdownRefiner:
         user_message = build_vl_user_message(text=user_text, image_paths=image_inputs)
         messages = [m for m in messages if m.get("role") != "user"] + [user_message]
 
-        refined = self.client.generate_multimodal(
-            self.model,
-            messages,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
+        refined = self._generate_multimodal_with_stage(
+            messages=messages,
+            biz_stage="文本语义增强",
         )
         refined = _normalize_markdown_output(refined)
         _log.info("LLM cleanup done in %.2fs", time.time() - start)
@@ -176,11 +174,9 @@ class DoclingMarkdownRefiner:
         )
         # quality_check 只需要文本；不再额外提供图片（降低 cost）。
         # 但仍使用 multimodal endpoint（model='qwen-*-vl'），传纯文本即可。
-        qc_raw = self.client.generate_multimodal(
-            self.model,
-            messages,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
+        qc_raw = self._generate_multimodal_with_stage(
+            messages=messages,
+            biz_stage="语义质量验收",
         )
         _log.info("LLM quality_check done in %.2fs", time.time() - start)
         return _parse_quality_check(qc_raw)
@@ -277,11 +273,9 @@ class DoclingMarkdownRefiner:
             }
             messages = [m for m in messages if m.get("role") != "user"] + [user_message]
 
-            refined_table_out = self.client.generate_multimodal(
-                self.model,
-                messages,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
+            refined_table_out = self._generate_multimodal_with_stage(
+                messages=messages,
+                biz_stage="表格语义增强",
             )
             refined_table_out = _normalize_markdown_output(refined_table_out)
             refined_table_only = self._extract_first_table_block(refined_table_out)
@@ -315,4 +309,31 @@ class DoclingMarkdownRefiner:
             len(table_blocks),
         )
         return refined_md
+
+    def _generate_multimodal_with_stage(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        biz_stage: str,
+    ) -> str:
+        """
+        兼容旧版/测试桩客户端：若不支持 biz_stage 参数，则自动回退旧调用。
+        """
+        try:
+            return self.client.generate_multimodal(
+                self.model,
+                messages,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                biz_stage=biz_stage,
+            )
+        except TypeError as e:
+            if "biz_stage" not in str(e):
+                raise
+            return self.client.generate_multimodal(
+                self.model,
+                messages,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+            )
 

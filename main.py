@@ -67,7 +67,7 @@ def _configure_logging(log_file: Path | None, verbose: bool) -> None:
         handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
     logging.basicConfig(
         level=level,
-        format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
+        format="%(asctime)s | %(levelname)-7s | %(name)s | tid=%(thread)d | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=handlers,
         force=True,
