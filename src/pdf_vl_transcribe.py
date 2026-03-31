@@ -1903,7 +1903,12 @@ def get_mineru_image_positions(
         from magic_pdf.model.magic_model import MagicModel
         from magic_pdf.config.ocr_content_type import CategoryId
     except ImportError:
-        _log.warning("Magic-PDF not available for image position detection")
+        _log.warning(
+            "MinerU（magic-pdf）未安装，本页跳过 Magic-PDF 图片定位，将用 PyMuPDF 提取 bbox；"
+            "page=%s file=%s",
+            page_index + 1,
+            pdf_path.name,
+        )
         return []
 
     try:
@@ -1942,7 +1947,12 @@ def get_mineru_image_positions(
         return image_bboxes
 
     except Exception as e:
-        _log.warning("Magic-PDF image position detection failed: %s", repr(e))
+        _log.warning(
+            "MinerU（Magic-PDF）本页图片定位失败，将回退 PyMuPDF；page=%s file=%s err=%s",
+            page_index + 1,
+            pdf_path.name,
+            repr(e),
+        )
         return []
 
 
