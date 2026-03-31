@@ -702,13 +702,15 @@ class DashScopeClient:
 
         Qwen3.5 等模型可能把全文写进 reasoning_content；此处禁止接受该结果。
         若出现 content 为空，会在 empty_content_max_attempts 次内重试：
-        - 保持思考模式开启（优先质量）
+        - 优先保持思考模式开启（优先质量）
         - 追加“让思考收敛、正文必须进 content”的提示
         - 在重试时适度收紧 max_reasoning_tokens，避免思考撑爆上下文
+        - 若上轮判定为 reasoning-only，则下轮自动关闭 thinking 兜底
         """
         url = self.cfg.base_url.rstrip("/") + "/chat/completions"
         n = max(1, min(10, int(self.cfg.empty_content_max_attempts)))
         last_json: Optional[dict[str, Any]] = None
+        last_reasoning_only = False
 
         for attempt in range(n):
             retry_hint = attempt > 0
@@ -725,16 +727,18 @@ class DashScopeClient:
                     temp = 0.0
                 else:
                     temp = min(float(temp), 0.2)
+            # 若上轮已出现“仅思考无正文”，当前轮关闭 thinking 兜底，避免持续空 content。
+            force_disable_thinking = retry_hint and last_reasoning_only
 
             payload = self._openai_chat_completions_payload(
                 model=model,
                 messages=om,
                 temperature=temp,
                 max_tokens=max_tokens,
-                force_disable_thinking=False,
+                force_disable_thinking=force_disable_thinking,
             )
             # 重试时保持思考开启，但收紧 reasoning token，避免“思考”挤占输出窗口
-            if attempt > 0 and bool(payload.get("enable_thinking")):
+            if retry_hint and bool(payload.get("enable_thinking")):
                 # 若未设置则给一个保守上限；若已设置则取更小者
                 cur = payload.get("max_reasoning_tokens")
                 try:
@@ -755,11 +759,13 @@ class DashScopeClient:
 
             rid = response_json.get("id") or response_json.get("request_id")
             ro = self._is_reasoning_only_openai_response(response_json)
+            last_reasoning_only = ro
             _log.warning(
-                "OpenAI 兼容接口无可用正文: attempt=%s/%s reasoning_only=%s request_id=%s",
+                "OpenAI 兼容接口无可用正文: attempt=%s/%s reasoning_only=%s force_disable_next=%s request_id=%s",
                 attempt + 1,
                 n,
                 ro,
+                (attempt + 1 < n) and ro,
                 rid,
             )
 

@@ -116,6 +116,51 @@ class TestDashScopeExtract(unittest.TestCase):
         self.assertIn("仍为空", str(ctx.exception))
         self.assertEqual(post.call_count, 2)
 
+    def test_openai_generate_disables_thinking_after_reasoning_only(self) -> None:
+        cfg = DashScopeClientConfig(
+            api_key="k",
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            empty_content_max_attempts=2,
+            enable_thinking=True,
+            max_reasoning_tokens=256,
+        )
+        c = DashScopeClient(cfg)
+        first = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "reasoning_content": "only reasoning",
+                    }
+                }
+            ],
+            "id": "req-1",
+        }
+        second = {
+            "choices": [{"message": {"role": "assistant", "content": "ok"}}],
+            "id": "req-2",
+        }
+        payloads: list[dict] = []
+
+        def _fake_post(url: str, payload: dict, biz_stage: str = "") -> dict:
+            payloads.append(payload)
+            return first if len(payloads) == 1 else second
+
+        with patch.object(c, "_post_json", side_effect=_fake_post) as post:
+            out = c._openai_chat_completions_generate(
+                "m",
+                [{"role": "user", "content": "hi"}],
+                temperature=0.1,
+                max_tokens=50,
+            )
+        self.assertEqual(out, "ok")
+        self.assertEqual(post.call_count, 2)
+        self.assertIs(payloads[0].get("enable_thinking"), True)
+        self.assertEqual(payloads[0].get("max_reasoning_tokens"), 256)
+        self.assertIs(payloads[1].get("enable_thinking"), False)
+        self.assertEqual(payloads[1].get("max_reasoning_tokens"), 0)
+
     def test_reasoning_only_response_detection(self) -> None:
         resp = {
             "choices": [
