@@ -1916,7 +1916,27 @@ def get_mineru_image_positions(
         pdf_bits = reader.read(str(pdf_path))
         dataset = PymuDocDataset(pdf_bits)
 
-        model_list = doc_analyze(doc=dataset, ocr=True, show_log=False)
+        # magic-pdf 的 doc_analyze 在不同版本里参数名/位置可能不同：
+        # - 有的版本是 doc_analyze(doc=dataset, ...)
+        # - 有的版本是 doc_analyze(dataset=dataset, ...) 或 doc_analyze(dataset, ...)
+        # 这里做兼容调用，避免因关键字不匹配直接触发整页回退。
+        try:
+            import inspect
+
+            sig = inspect.signature(doc_analyze)
+            params = sig.parameters
+            if "doc" in params:
+                model_list = doc_analyze(doc=dataset, ocr=True, show_log=False)
+            elif "dataset" in params:
+                model_list = doc_analyze(dataset=dataset, ocr=True, show_log=False)
+            else:
+                model_list = doc_analyze(dataset, ocr=True, show_log=False)
+        except TypeError:
+            # 最后兜底：有些实现只接受位置参数（甚至不支持 ocr/show_log）
+            try:
+                model_list = doc_analyze(dataset, ocr=True, show_log=False)
+            except TypeError:
+                model_list = doc_analyze(dataset)
 
         magic_model = MagicModel(model_list, dataset)
 
