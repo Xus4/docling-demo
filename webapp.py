@@ -20,6 +20,7 @@ from auth import AuthStore, AuthUser, JobRecord
 from config import AppConfig
 from job_worker import JobQueueWorker
 from service import ConversionError, ConversionService
+from src.logging_utils import configure_logging, log_event, short_job_id
 
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "static"
@@ -35,12 +36,7 @@ auth_store.bootstrap_users(
 )
 job_worker = JobQueueWorker(auth_store, service)
 
-logging.basicConfig(
-    level=logging.DEBUG if config.debug else logging.INFO,
-    format="%(asctime)s · %(levelname)-7s · %(name)s · %(message)s",
-)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
+configure_logging(verbose=bool(config.debug), log_file=None, app="webapp")
 log = logging.getLogger("webapp")
 
 
@@ -72,13 +68,10 @@ logging.getLogger("uvicorn.access").addFilter(_SuppressJobsListAccessLogFilter()
 async def _lifespan(app: FastAPI):
     n_reset = auth_store.reset_orphan_running_jobs_to_queued()
     if n_reset:
-        log.info(
-            "启动时将 %d 个残留「转换中」任务重置为排队（上次进程异常退出或重启导致）",
-            n_reset,
-        )
+        log_event(log, logging.INFO, "worker.recover.running_to_queued", count=n_reset)
     n = job_worker.requeue_queued_from_db()
     if n:
-        log.info("启动时已将 %d 个排队任务重新加入执行队列", n)
+        log_event(log, logging.INFO, "worker.recover.queued_requeued", count=n)
     yield
 
 app = FastAPI(
@@ -240,13 +233,15 @@ async def _ingest_upload_create_job(request: Request, file: UploadFile) -> str:
             output_file=str(paths.output_file.resolve()),
         )
         job_worker.enqueue(paths.job_id)
-        log.info(
-            "任务已创建并入队 job_id=%s user=%s role=%s file=%s size_bytes=%s",
-            paths.job_id,
-            user.username,
-            user.role,
-            file.filename,
-            total_size,
+        log_event(
+            log,
+            logging.INFO,
+            "job.created",
+            job=short_job_id(paths.job_id),
+            user=user.username,
+            role=user.role,
+            file=file.filename,
+            size_bytes=total_size,
         )
         return paths.job_id
     except HTTPException as exc:
@@ -257,7 +252,7 @@ async def _ingest_upload_create_job(request: Request, file: UploadFile) -> str:
     except ConversionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
-        log.exception("创建任务失败: %s", exc)
+        log.exception("event=job.create.failed")
         raise HTTPException(status_code=500, detail="创建任务失败") from exc
 
 
@@ -370,13 +365,15 @@ def cancel_job(job_id: str, request: Request) -> dict[str, str]:
                     job_worker.cancel(jid)
                 except Exception:  # noqa: BLE001
                     pass
-            log.info(
-                "任务已取消 job_id=%s owner=%s operator=%s file=%s prior_status=%s",
-                jid,
-                job.owner_username,
-                user.username,
-                job.original_filename,
-                job.status,
+            log_event(
+                log,
+                logging.INFO,
+                "job.cancelled",
+                job=short_job_id(jid),
+                owner=job.owner_username,
+                operator=user.username,
+                file=job.original_filename,
+                prior_status=job.status,
             )
             return {"message": "已取消", "status": "cancelled"}
         raise HTTPException(status_code=409, detail="任务状态已变更，请刷新")
@@ -438,7 +435,7 @@ def download_job_result(
     try:
         zip_path = _zip_job_output_folder(job_dir)
     except Exception as exc:
-        log.exception("打包下载失败 job_id=%s dir=%s", jid, job_dir)
+        log.exception("event=job.download.zip_failed job=%s dir=%s", short_job_id(jid), job_dir)
         raise HTTPException(status_code=500, detail="打包下载失败") from exc
     background_tasks.add_task(lambda p=zip_path: p.unlink(missing_ok=True))
     return FileResponse(

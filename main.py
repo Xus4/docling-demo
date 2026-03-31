@@ -36,6 +36,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 from src.cli_pdf_vl_defaults import apply_pdf_vl_cli_defaults
 from src.converter import ConverterConfig, IndustrialDocConverter
+from src.logging_utils import configure_logging, log_event, kv
 
 
 def _sanitize_model_dir(name: str) -> str:
@@ -57,23 +58,6 @@ def _effective_output_dir(args: argparse.Namespace, output_root: Path) -> Path:
     if args.enable_llm or args.pdf_vl_primary:
         return output_root / _sanitize_model_dir(str(args.llm_model))
     return output_root / "docling"
-
-
-def _configure_logging(log_file: Path | None, verbose: bool) -> None:
-    level = logging.DEBUG if verbose else logging.INFO
-    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
-    if log_file is not None:
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s · %(levelname)-7s · %(name)s · %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        handlers=handlers,
-        force=True,
-    )
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def main() -> int:
@@ -468,16 +452,16 @@ def main() -> int:
             log_path = args.log_file
     else:
         log_path = None
-    _configure_logging(log_path, args.verbose)
+    configure_logging(verbose=args.verbose, log_file=log_path, app="main")
     log = logging.getLogger("main")
 
     input_dir: Path = args.input_dir.resolve()
     if not input_dir.is_dir():
-        log.error("输入目录不存在: %s", input_dir)
+        log_event(log, logging.ERROR, "cli.input.missing", path=input_dir)
         return 2
 
     if args.output_by_model:
-        log.info("按模型分类输出：父目录=%s，本趟写入=%s", output_root, output_dir)
+        log_event(log, logging.INFO, "cli.output.by_model", root=output_root, target=output_dir)
 
     device = "cpu" if args.cpu else args.device.strip()
     if device.lower().startswith("cuda"):
@@ -518,13 +502,11 @@ def main() -> int:
             log.warning("未安装 torch，无法检测 CUDA；若 Docling 报错请检查 PyTorch 安装。")
 
     if args.scan and args.no_ocr:
-        log.warning(
-            "已指定 --scan（扫描件），但同时使用 --no-ocr：若无文字层，输出可能几乎为空。"
-        )
+        log_event(log, logging.WARNING, "cli.scan.without_ocr")
 
     ocr_quality = args.ocr_quality
     if args.low_memory and ocr_quality == "high":
-        log.warning("低内存模式会强制将 OCR 质量降为 fast（忽略 --ocr-quality high）")
+        log_event(log, logging.WARNING, "cli.ocr_quality.downgraded", from_mode="high", to_mode="fast")
         ocr_quality = "fast"
 
     rich = args.rich_images and not args.low_memory and not args.scan
@@ -547,9 +529,7 @@ def main() -> int:
         log.error("--scan-max-scale 建议在 0.2~2.0 之间")
         return 2
     if args.scan_max_scale is not None and not args.scan:
-        log.warning(
-            "--scan-max-scale 仅在 --scan 时生效；当前未使用 --scan，该参数将被忽略"
-        )
+        log_event(log, logging.WARNING, "cli.scan_max_scale.ignored", scan=False, scan_max_scale=args.scan_max_scale)
 
     if args.pdf_vl_primary and args.pdf_vl_dpi < 72:
         log.warning("--pdf-vl-dpi 过低可能影响识别，建议 100~200")
@@ -568,15 +548,16 @@ def main() -> int:
         return 2
 
     if args.pdf_vl_primary:
-        log.info(
-            "pdf-vl-primary：dpi=%s workers=%s table_2nd_pass_max=%s llm_model=%s "
-            "llm_temperature=%s llm_max_tokens=%s",
-            args.pdf_vl_dpi,
-            args.pdf_vl_workers,
-            args.pdf_vl_table_second_pass_max_tables,
-            args.llm_model,
-            args.llm_temperature,
-            args.llm_max_tokens,
+        log_event(
+            log,
+            logging.INFO,
+            "pdf_vl.config",
+            dpi=args.pdf_vl_dpi,
+            workers=args.pdf_vl_workers,
+            table_second_pass_max=args.pdf_vl_table_second_pass_max_tables,
+            llm_model=args.llm_model,
+            temperature=args.llm_temperature,
+            max_tokens=args.llm_max_tokens,
         )
 
     cfg = ConverterConfig(
@@ -654,7 +635,7 @@ def main() -> int:
         files = files[: args.max_files]
 
     if not files:
-        log.warning("未在 %s 下找到可转换文件（pdf/docx/pptx/html/xlsx/常见图片）", input_dir)
+        log_event(log, logging.WARNING, "convert.files.empty", input_dir=input_dir)
         return 0
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -665,31 +646,23 @@ def main() -> int:
         rel = src.relative_to(input_dir)
         md_out = (output_dir / rel).with_suffix(".md")
         pct = 100.0 * i / total
-        log.info("[%s/%s] (%.1f%%) %s", i, total, pct, src)
+        log.info(kv(event="convert.file.start", idx=f"{i}/{total}", progress=f"{pct:.1f}%", source=src))
         if args.skip_existing and md_out.is_file():
-            log.info("         (跳过，已存在: %s)", md_out)
+            log_event(log, logging.INFO, "convert.file.skip_existing", output=md_out)
             skipped += 1
             continue
         try:
             converter.convert_path_to_markdown(src, md_out)
-            log.info("         => %s", md_out)
+            log_event(log, logging.INFO, "convert.file.ok", output=md_out)
             ok += 1
         except Exception:
             if args.enable_llm:
-                log.warning(
-                    "LLM 未执行：该文件在 Docling 转换阶段失败（--enable-llm 仅在成功生成 .md 之后调用大模型）。"
-                )
-            log.exception("         !! 失败: %s", src)
+                log_event(log, logging.WARNING, "convert.file.llm_skipped_due_to_docling_error", source=src)
+            log.exception(kv(event="convert.file.failed", source=src))
             failed += 1
             converter.invalidate_converter_cache()
 
-    log.info(
-        "完成: 成功 %s, 失败 %s, 跳过 %s, 输出目录 %s",
-        ok,
-        failed,
-        skipped,
-        output_dir,
-    )
+    log_event(log, logging.INFO, "convert.done", ok=ok, failed=failed, skipped=skipped, output_dir=output_dir)
     return 0 if failed == 0 else 1
 
 

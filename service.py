@@ -63,11 +63,15 @@ class ConversionService:
         output_path: str,
         *,
         progress_callback: Callable[[int, int], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> ConvertToMarkdownResult:
         src = Path(input_path).resolve()
         dst = Path(output_path).resolve()
         self.converter.convert_path_to_markdown(
-            src, dst, progress_callback=progress_callback
+            src,
+            dst,
+            progress_callback=progress_callback,
+            cancel_check=cancel_check,
         )
         failed = self.converter.last_pdf_vl_failed_pages
         pages = tuple(failed) if failed else ()

@@ -11,15 +11,9 @@ from pathlib import Path
 from auth import AuthStore, JobRecord
 from config import AppConfig
 from service import ConversionError, ConversionService
+from src.logging_utils import log_event, short_job_id
 
 log = logging.getLogger("job_worker")
-
-
-def _job_short(job_id: str) -> str:
-    """日志展示用短 id，便于扫读；完整 id 仍可从库中查。"""
-    if len(job_id) <= 10:
-        return job_id
-    return f"{job_id[:8]}…"
 
 
 def _job_log_fields(job_id: str, rec: JobRecord | None) -> tuple[str, str, str]:
@@ -53,6 +47,10 @@ def _run_conversion_in_subprocess(
 
     # 进度写入：pdf-vl-primary 有页级回调；其它路径只写 note（严格真实进度模式下也不会乱写百分比）。
     def on_pdf_pages(done: int, total: int) -> None:
+        # 子进程内协作取消：若任务已不再 running，则立刻抛错中断后续流程
+        j = auth.get_job(job_id)
+        if not j or j.status != "running":
+            raise RuntimeError("任务已取消")
         t = max(int(total), 1)
         d = max(0, min(int(done), t))
         pct = int(round(100.0 * d / t))
@@ -74,9 +72,16 @@ def _run_conversion_in_subprocess(
         auth.mark_job_failed(job_id, "输入文件不存在")
         return
 
+    def cancel_check() -> bool:
+        j = auth.get_job(job_id)
+        return (not j) or j.status != "running"
+
     try:
         conv_result = service.convert_to_markdown(
-            str(inp), str(out), progress_callback=on_pdf_pages
+            str(inp),
+            str(out),
+            progress_callback=on_pdf_pages,
+            cancel_check=cancel_check,
         )
     except ConversionError as exc:
         auth.mark_job_failed(job_id, str(exc))
@@ -158,7 +163,7 @@ class JobQueueWorker:
             try:
                 self._process_one(job_id)
             except Exception:  # noqa: BLE001
-                log.exception("[job] worker 异常 · job %s", _job_short(job_id))
+                log.exception("event=worker.loop.error job=%s", short_job_id(job_id))
             finally:
                 self._q.task_done()
 
@@ -169,25 +174,22 @@ class JobQueueWorker:
         rec = self.auth.get_job(job_id)
         if not rec or not rec.output_file:
             jid, u, fn = _job_log_fields(job_id, rec)
-            log.warning(
-                "[job] 记录不完整 · %s · %s · job %s",
-                u,
-                fn,
-                _job_short(jid),
-            )
+            log_event(log, logging.WARNING, "job.record.incomplete", job=short_job_id(jid), user=u, file=fn)
             self.auth.mark_job_failed(job_id, "内部错误：任务记录不完整")
             return
 
         inp = Path(rec.input_file)
         out = Path(rec.output_file)
         jid, user, fname = _job_log_fields(job_id, rec)
-        log.info(
-            "[job] 开始 · %s · %s → %s · %s · job %s",
-            user,
-            fname,
-            inp.name,
-            out.name,
-            _job_short(jid),
+        log_event(
+            log,
+            logging.INFO,
+            "job.start",
+            job=short_job_id(jid),
+            user=user,
+            file=fname,
+            input=inp.name,
+            output=out.name,
         )
         # 严格真实进度模式：启动后先展示“准备中”，不写入估算百分比。
         self.auth.update_job_progress(job_id, note="图转文准备中（正在初始化）")

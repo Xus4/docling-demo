@@ -690,6 +690,7 @@ class IndustrialDocConverter:
         source: Path,
         markdown_out: Path,
         progress_callback: Optional[Callable[[int, int], None]] = None,
+        cancel_check: Optional[Callable[[], bool]] = None,
     ) -> None:
         """
         Convert a single file to Markdown. Images referenced from the .md are
@@ -714,6 +715,9 @@ class IndustrialDocConverter:
                 raise RuntimeError(
                     "pdf-vl-primary 需要 httpx 可用且 LLM HTTP 客户端可加载（检查依赖与导入错误日志）"
                 )
+            if cancel_check is not None and cancel_check():
+                _log.info("[pdf-vl] 已取消：跳过转换 %s", source.name)
+                raise RuntimeError("任务已取消")
             _log.info(
                 "[pdf-vl] 逐页转写 · 跳过 Docling · dpi=%s · workers=%s · max_pages=%s",
                 self.config.pdf_vl_dpi,
@@ -735,6 +739,7 @@ class IndustrialDocConverter:
                 temperature=self.config.llm_temperature,
                 max_tokens=self.config.llm_max_tokens,
                 progress_callback=progress_callback,
+                cancel_check=cancel_check,
             )
             self._last_pdf_vl_failed_pages = pdf_vl_failed
             if self.config.markdown_escape_dimension_asterisks:
@@ -743,14 +748,23 @@ class IndustrialDocConverter:
             if self.config.enable_llm_refine:
                 refiner = self._create_llm_refiner()
                 if refiner is not None:
+                    if cancel_check is not None and cancel_check():
+                        _log.info("[pdf-vl] 已取消：跳过 LLM refine %s", source.name)
+                        raise RuntimeError("任务已取消")
                     self._apply_llm_refine_once_to_file(markdown_out, refiner)
 
             final_md = markdown_out.read_text(encoding="utf-8")
 
             if self.config.llm_table_caption:
+                if cancel_check is not None and cancel_check():
+                    _log.info("[pdf-vl] 已取消：跳过表格语义补偿 %s", source.name)
+                    raise RuntimeError("任务已取消")
                 final_md = self._append_table_captions_to_markdown(final_md)
 
             if self.config.llm_image_caption:
+                if cancel_check is not None and cancel_check():
+                    _log.info("[pdf-vl] 已取消：跳过图片语义补偿 %s", source.name)
+                    raise RuntimeError("任务已取消")
                 final_md = self._append_image_captions_to_markdown(final_md, markdown_out)
 
             if self.config.markdown_escape_dimension_asterisks:

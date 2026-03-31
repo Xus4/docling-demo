@@ -22,6 +22,7 @@ from typing import Callable, Optional
 from .dashscope_client import DashScopeClient, build_system_message, build_vl_user_message
 from .llm_markdown_refiner import _normalize_markdown_output
 from .llm_prompts import build_table_cleanup_messages
+from .logging_utils import kv, log_event
 from .vl_markdown_utils import (
     extract_markdown_table_blocks,
     table_column_count,
@@ -266,7 +267,7 @@ def _review_suspicious_tables_with_llm(
         lines[tb.start_line : tb.end_line + 1] = new_lines
         reviewed += 1
     if reviewed > 0:
-        _log.info("[pdf-vl] 表格复核 · 修正 %s 处", reviewed)
+        log_event(_log, logging.INFO, "pdf_vl.table_review.patched", patched=reviewed)
     return "\n".join(lines), reviewed
 
 
@@ -2196,6 +2197,7 @@ def transcribe_pdf_with_vl(
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     progress_callback: Optional[Callable[[int, int], None]] = None,
+    cancel_check: Optional[Callable[[], bool]] = None,
 ) -> tuple[str, list[int]]:
     """
     逐页渲染 PDF → PNG（临时文件），每页一次 multimodal 调用，拼接为单个 Markdown。
@@ -2229,19 +2231,24 @@ def transcribe_pdf_with_vl(
         tmp_root = Path(tempfile.gettempdir()) / "docling_pdf_vl_pages"
         tmp_root.mkdir(parents=True, exist_ok=True)
 
-        _log.info(
-            "[pdf-vl] 准备 · %s · 共 %s 页 · 处理 %s 页 · dpi=%s · workers=%s · table_review=%s · crop_figures=%s",
-            pdf_path.name,
-            n,
-            limit,
-            dpi_f,
-            workers_i,
-            bool(table_second_pass),
-            bool(caption_crop_figures and markdown_out_path is not None),
+        log_event(
+            _log,
+            logging.INFO,
+            "pdf_vl.run.start",
+            file=pdf_path.name,
+            total_pages=n,
+            process_pages=limit,
+            dpi=dpi_f,
+            workers=workers_i,
+            table_review=bool(table_second_pass),
+            crop_figures=bool(caption_crop_figures and markdown_out_path is not None),
         )
 
         page_pngs: list[Path] = []
         for page_index in range(limit):
+            if cancel_check is not None and cancel_check():
+                log_event(_log, logging.INFO, "pdf_vl.render.cancelled", rendered=len(page_pngs), total=limit)
+                break
             t0 = time.perf_counter()
             page = doc[page_index]
             pix = page.get_pixmap(dpi=int(round(dpi_f)))
@@ -2259,25 +2266,21 @@ def transcribe_pdf_with_vl(
             except Exception:
                 size_kb = 0
             _log.info(
-                "[pdf-vl] 第 %s/%s 页 · 渲染PNG · %.2fs · %sx%s · %sKB",
-                page_index + 1,
-                limit,
-                time.perf_counter() - t0,
-                w,
-                h,
-                size_kb,
+                kv(
+                    event="pdf_vl.page.rendered",
+                    page=f"{page_index + 1}/{limit}",
+                    elapsed=f"{time.perf_counter() - t0:.2f}s",
+                    size=f"{w}x{h}",
+                    kb=size_kb,
+                )
             )
 
         vl_failed_pages_1based: list[int] = []
 
         def _one_page(i: int, image_path: Path) -> tuple[int, str]:
-            _log.info(
-                "[pdf-vl] 第 %s/%s 页 · 开始 · dpi %s · %s",
-                i + 1,
-                limit,
-                dpi_f,
-                pdf_path.name,
-            )
+            if cancel_check is not None and cancel_check():
+                return i, "（已取消）\n"
+            _log.info(kv(event="pdf_vl.page.start", page=f"{i + 1}/{limit}", dpi=dpi_f, file=pdf_path.name))
             try:
                 page_t0 = time.perf_counter()
                 img_kb = 0
@@ -2285,13 +2288,7 @@ def transcribe_pdf_with_vl(
                     img_kb = int(round(image_path.stat().st_size / 1024.0))
                 except Exception:
                     img_kb = 0
-                _log.info(
-                    "[pdf-vl] 第 %s/%s 页 · 输入图像 · %sKB · %s",
-                    i + 1,
-                    limit,
-                    img_kb,
-                    image_path.name,
-                )
+                _log.info(kv(event="pdf_vl.page.image", page=f"{i + 1}/{limit}", kb=img_kb, image=image_path.name))
                 user_text = _VL_USER_TMPL.format(
                     name=pdf_path.name,
                     idx=i + 1,
@@ -2304,6 +2301,8 @@ def transcribe_pdf_with_vl(
                 page_md = ""
                 raw_last = ""
                 for attempt in range(1, 4):
+                    if cancel_check is not None and cancel_check():
+                        return i, "（已取消）\n"
                     raw_last = client.generate_multimodal(
                         model,
                         messages,
@@ -2314,45 +2313,24 @@ def transcribe_pdf_with_vl(
                     page_md = _normalize_markdown_output(raw_last).strip()
                     if page_md:
                         break
-                    _log.warning(
-                        "[pdf-vl] 第 %s/%s 页 · 空输出 · 重试第 %s 次 · %s",
-                        i + 1,
-                        limit,
-                        attempt,
-                        pdf_path.name,
-                    )
+                    _log.warning(kv(event="pdf_vl.page.empty_retry", page=f"{i + 1}/{limit}", attempt=attempt, file=pdf_path.name))
                     if attempt < 3:
                         time.sleep(1.5 * attempt)
                 if not page_md:
                     snippet = (raw_last or "")[:400].replace("\n", "\\n")
-                    _log.error(
-                        "[pdf-vl] 第 %s/%s 页 · 空输出已占位 · %s · snippet=%s",
-                        i + 1,
-                        limit,
-                        pdf_path.name,
-                        snippet,
-                    )
+                    _log.error(kv(event="pdf_vl.page.empty_placeholder", page=f"{i + 1}/{limit}", file=pdf_path.name, snippet=snippet))
                     page_md = "（本页模型输出为空）"
-                    _log.info(
-                        "[pdf-vl] 第 %s/%s 页 · 产出 · 占位正文",
-                        i + 1,
-                        limit,
-                    )
+                    _log.info(kv(event="pdf_vl.page.output.placeholder", page=f"{i + 1}/{limit}"))
                 else:
                     # 产出快速统计（便于扫读）
                     n_chars_raw = len(page_md)
                     n_lines_raw = page_md.count("\n") + 1 if page_md else 0
                     n_tables_raw = len(extract_markdown_table_blocks(page_md))
-                    _log.info(
-                        "[pdf-vl] 第 %s/%s 页 · 产出 · %s 行 · %s 字 · 表 %s",
-                        i + 1,
-                        limit,
-                        n_lines_raw,
-                        n_chars_raw,
-                        n_tables_raw,
-                    )
+                    _log.info(kv(event="pdf_vl.page.output.raw", page=f"{i + 1}/{limit}", lines=n_lines_raw, chars=n_chars_raw, tables=n_tables_raw))
                     page_md = _normalize_gfm_tables(page_md)
                     if table_second_pass:
+                        if cancel_check is not None and cancel_check():
+                            return i, "（已取消）\n"
                         t_review0 = time.perf_counter()
                         page_md, reviewed_n = _review_suspicious_tables_with_llm(
                             client=client,
@@ -2363,15 +2341,11 @@ def transcribe_pdf_with_vl(
                             max_tokens=max_tokens,
                             max_tables=max(1, int(table_second_pass_max_tables)),
                         )
-                        _log.info(
-                            "[pdf-vl] 第 %s/%s 页 · 表格复核 · 修正 %s 处 · %.2fs",
-                            i + 1,
-                            limit,
-                            reviewed_n,
-                            time.perf_counter() - t_review0,
-                        )
+                        _log.info(kv(event="pdf_vl.page.table_review.done", page=f"{i + 1}/{limit}", patched=reviewed_n, elapsed=f"{time.perf_counter() - t_review0:.2f}s"))
 
                     if caption_crop_figures and markdown_out_path is not None:
+                        if cancel_check is not None and cancel_check():
+                            return i, "（已取消）\n"
                         t_crop0 = time.perf_counter()
                         try:
                             caption_and_refs = crop_figures_by_docling_layout(
@@ -2384,85 +2358,77 @@ def transcribe_pdf_with_vl(
                                 dpi=dpi_f,
                             )
                             if caption_and_refs:
-                                _log.info(
-                                    "[pdf-vl] 第 %s/%s 页 · 配图裁剪 · %s 张 · %s",
-                                    i + 1,
-                                    limit,
-                                    len(caption_and_refs),
-                                    pdf_path.name,
-                                )
+                                _log.info(kv(event="pdf_vl.page.figure_crop.patched", page=f"{i + 1}/{limit}", images=len(caption_and_refs), file=pdf_path.name))
                                 page_md = inject_cropped_figures_into_page_markdown(
                                     page_md=page_md,
                                     caption_and_refs=caption_and_refs,
                                 )
-                            _log.info(
-                                "[pdf-vl] 第 %s/%s 页 · 配图裁剪 · 完成 · %.2fs · %s 张",
-                                i + 1,
-                                limit,
-                                time.perf_counter() - t_crop0,
-                                len(caption_and_refs) if caption_and_refs else 0,
-                            )
+                            _log.info(kv(event="pdf_vl.page.figure_crop.done", page=f"{i + 1}/{limit}", elapsed=f"{time.perf_counter() - t_crop0:.2f}s", images=len(caption_and_refs) if caption_and_refs else 0))
                         except Exception as e:
-                            _log.warning(
-                                "[pdf-vl] 第 %s/%s 页 · 配图裁剪失败(已忽略) · %s · %s",
-                                i + 1,
-                                limit,
-                                pdf_path.name,
-                                repr(e),
-                            )
-                            _log.info(
-                                "[pdf-vl] 第 %s/%s 页 · 配图裁剪 · 失败已忽略 · %.2fs",
-                                i + 1,
-                                limit,
-                                time.perf_counter() - t_crop0,
-                            )
+                            _log.warning(kv(event="pdf_vl.page.figure_crop.failed_ignored", page=f"{i + 1}/{limit}", file=pdf_path.name, err=repr(e)))
+                            _log.info(kv(event="pdf_vl.page.figure_crop.ignored", page=f"{i + 1}/{limit}", elapsed=f"{time.perf_counter() - t_crop0:.2f}s"))
 
-                _log.info(
-                    "[pdf-vl] 第 %s/%s 页 · 完成 · %.2fs · %s",
-                    i + 1,
-                    limit,
-                    time.perf_counter() - page_t0,
-                    pdf_path.name,
-                )
+                _log.info(kv(event="pdf_vl.page.done", page=f"{i + 1}/{limit}", elapsed=f"{time.perf_counter() - page_t0:.2f}s", file=pdf_path.name))
                 return i, page_md
             except Exception as e:
                 vl_failed_pages_1based.append(i + 1)
-                _log.error(
-                    "[pdf-vl] 第 %s/%s 页 · 失败已跳过 · %s · %s",
-                    i + 1,
-                    limit,
-                    pdf_path.name,
-                    repr(e),
-                )
+                _log.error(kv(event="pdf_vl.page.failed_skipped", page=f"{i + 1}/{limit}", file=pdf_path.name, err=repr(e)))
                 return i, _markdown_for_failed_vl_page()
 
 
         if workers_i == 1:
             page_md_map: dict[int, str] = {}
             for i, p in enumerate(page_pngs):
+                if cancel_check is not None and cancel_check():
+                    break
                 idx, md = _one_page(i, p)
                 page_md_map[idx] = md
                 if progress_callback is not None:
                     progress_callback(i + 1, limit)
         else:
-            _log.info(
-                "[pdf-vl] 并发转写 · workers=%s · 共 %s 页 · %s",
-                workers_i,
-                limit,
-                pdf_path.name,
-            )
+            log_event(_log, logging.INFO, "pdf_vl.run.parallel", workers=workers_i, pages=limit, file=pdf_path.name)
             page_md_map = {}
             done_pages = 0
             with ThreadPoolExecutor(max_workers=workers_i) as ex:
-                futs = [ex.submit(_one_page, i, p) for i, p in enumerate(page_pngs)]
-                for fut in as_completed(futs):
-                    idx, md = fut.result()
-                    page_md_map[idx] = md
-                    done_pages += 1
-                    if progress_callback is not None:
-                        progress_callback(done_pages, limit)
+                it = iter(list(enumerate(page_pngs)))
+                in_flight = set()
+                # 先投递一批
+                while len(in_flight) < workers_i:
+                    try:
+                        i, p = next(it)
+                    except StopIteration:
+                        break
+                    if cancel_check is not None and cancel_check():
+                        break
+                    in_flight.add(ex.submit(_one_page, i, p))
 
-        for i in range(limit):
+                while in_flight:
+                    if cancel_check is not None and cancel_check():
+                        log_event(_log, logging.INFO, "pdf_vl.parallel.cancelled", in_flight=len(in_flight))
+                    for fut in as_completed(list(in_flight), timeout=None):
+                        in_flight.remove(fut)
+                        idx, md = fut.result()
+                        page_md_map[idx] = md
+                        done_pages += 1
+                        if progress_callback is not None:
+                            progress_callback(done_pages, limit)
+                        # 继续补充新任务（若未取消）
+                        if cancel_check is None or not cancel_check():
+                            try:
+                                ni, np_ = next(it)
+                            except StopIteration:
+                                continue
+                            in_flight.add(ex.submit(_one_page, ni, np_))
+                        # 每完成一个就跳出 for，回到 while 重新检查取消（更快响应）
+                        break
+
+        # 若取消：只拼接已完成页，其余输出占位并终止
+        cancelled = bool(cancel_check is not None and cancel_check())
+        effective_limit = limit
+        if cancelled:
+            effective_limit = max(page_md_map.keys(), default=-1) + 1
+            effective_limit = max(0, min(effective_limit, limit))
+        for i in range(effective_limit):
             parts.append(f"## 第 {i + 1} / {limit} 页\n\n")
             parts.append(page_md_map.get(i, "（本页模型输出缺失）"))
             parts.append("\n\n---\n\n")
