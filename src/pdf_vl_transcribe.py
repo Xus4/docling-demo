@@ -265,7 +265,7 @@ def _review_suspicious_tables_with_llm(
         lines[tb.start_line : tb.end_line + 1] = new_lines
         reviewed += 1
     if reviewed > 0:
-        _log.info("pdf-vl: table second-pass reviewed=%s", reviewed)
+        _log.info("阶段=表格二次校对 reviewed=%s", reviewed)
     return "\n".join(lines)
 
 
@@ -2237,7 +2237,13 @@ def transcribe_pdf_with_vl(
         vl_failed_pages_1based: list[int] = []
 
         def _one_page(i: int, image_path: Path) -> tuple[int, str]:
-            _log.info("pdf-vl: page start %s/%s dpi=%s", i + 1, limit, dpi_f)
+            _log.info(
+                "阶段=页转写开始 page=%s/%s dpi=%s file=%s",
+                i + 1,
+                limit,
+                dpi_f,
+                pdf_path.name,
+            )
             try:
                 user_text = _VL_USER_TMPL.format(
                     name=pdf_path.name,
@@ -2261,19 +2267,21 @@ def transcribe_pdf_with_vl(
                     if page_md:
                         break
                     _log.warning(
-                        "pdf-vl: page %s/%s 模型输出为空，重试 %s/2",
+                        "阶段=页转写空输出(重试) page=%s/%s attempt=%s file=%s",
                         i + 1,
                         limit,
                         attempt,
+                        pdf_path.name,
                     )
                     if attempt < 3:
                         time.sleep(1.5 * attempt)
                 if not page_md:
                     snippet = (raw_last or "")[:400].replace("\n", "\\n")
                     _log.error(
-                        "pdf-vl: page %s/%s 仍为空；原始片段(前400字符): %s",
+                        "阶段=页转写空输出(占位) page=%s/%s file=%s raw_snippet=%s",
                         i + 1,
                         limit,
+                        pdf_path.name,
                         snippet,
                     )
                     page_md = "（本页模型输出为空）"
@@ -2303,10 +2311,11 @@ def transcribe_pdf_with_vl(
                             )
                             if caption_and_refs:
                                 _log.info(
-                                    "pdf-vl: page %s/%s cropped figures=%s",
+                                    "阶段=配图裁剪 page=%s/%s cropped=%s file=%s",
                                     i + 1,
                                     limit,
                                     len(caption_and_refs),
+                                    pdf_path.name,
                                 )
                                 page_md = inject_cropped_figures_into_page_markdown(
                                     page_md=page_md,
@@ -2314,20 +2323,27 @@ def transcribe_pdf_with_vl(
                                 )
                         except Exception as e:
                             _log.warning(
-                                "pdf-vl: page %s/%s caption crop failed: %s",
+                                "阶段=配图裁剪失败(忽略) page=%s/%s file=%s err=%s",
                                 i + 1,
                                 limit,
+                                pdf_path.name,
                                 repr(e),
                             )
 
-                _log.info("pdf-vl: page done %s/%s", i + 1, limit)
+                _log.info(
+                    "阶段=页转写完成 page=%s/%s file=%s",
+                    i + 1,
+                    limit,
+                    pdf_path.name,
+                )
                 return i, page_md
             except Exception as e:
                 vl_failed_pages_1based.append(i + 1)
                 _log.error(
-                    "pdf-vl: page %s/%s 处理失败，已写入占位内容；其余页继续。err=%s",
+                    "阶段=页转写失败(已跳过) page=%s/%s file=%s err=%s",
                     i + 1,
                     limit,
+                    pdf_path.name,
                     repr(e),
                 )
                 return i, _markdown_for_failed_vl_page()
@@ -2341,7 +2357,12 @@ def transcribe_pdf_with_vl(
                 if progress_callback is not None:
                     progress_callback(i + 1, limit)
         else:
-            _log.info("pdf-vl: concurrent workers=%s pages=%s", workers_i, limit)
+            _log.info(
+                "阶段=并发页转写 workers=%s pages=%s file=%s",
+                workers_i,
+                limit,
+                pdf_path.name,
+            )
             page_md_map = {}
             done_pages = 0
             with ThreadPoolExecutor(max_workers=workers_i) as ex:

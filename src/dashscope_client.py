@@ -313,8 +313,7 @@ class DashScopeClient:
             try:
                 if attempt == 1:
                     _log.info(
-                        "LLM call start: kind=%s model=%s temperature=%s max_tokens=%s "
-                        "result_format=%s messages=%s",
+                        "阶段=LLM调用开始 kind=%s model=%s temperature=%s max_tokens=%s result_format=%s messages=%s",
                         kind,
                         model,
                         temp,
@@ -331,8 +330,7 @@ class DashScopeClient:
                 usage = data.get("usage")
                 request_id = data.get("request_id") or data.get("id")
                 _log.info(
-                    "LLM call done: kind=%s model=%s elapsed=%.3fs attempt=%s/%s "
-                    "usage=%s request_id=%s",
+                    "阶段=LLM调用结束 kind=%s model=%s elapsed=%.3fs attempt=%s/%s usage=%s request_id=%s",
                     kind,
                     model,
                     elapsed,
@@ -421,8 +419,7 @@ class DashScopeClient:
             try:
                 if attempt == 1:
                     _log.info(
-                        "LLM call start (stream): kind=%s model=%s temperature=%s max_tokens=%s "
-                        "result_format=%s messages=%s",
+                        "阶段=LLM调用开始(流式) kind=%s model=%s temperature=%s max_tokens=%s result_format=%s messages=%s",
                         kind,
                         model,
                         temp,
@@ -512,8 +509,7 @@ class DashScopeClient:
                     out["id"] = request_id
                     out["request_id"] = request_id
                 _log.info(
-                    "LLM call done (stream): kind=%s model=%s elapsed=%.3fs attempt=%s/%s "
-                    "usage=%s request_id=%s out_chars=%s",
+                    "阶段=LLM调用结束(流式) kind=%s model=%s elapsed=%.3fs attempt=%s/%s usage=%s request_id=%s out_chars=%s",
                     kind,
                     model,
                     elapsed,

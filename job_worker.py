@@ -78,7 +78,7 @@ class JobQueueWorker:
         out = Path(rec.output_file)
         jid, user, fname = _job_log_fields(job_id, rec)
         log.info(
-            "任务开始转换 job_id=%s user=%s file=%s input=%s output=%s",
+            "阶段=开始执行 job_id=%s user=%s file=%s input=%s output=%s",
             jid,
             user,
             fname,
@@ -120,7 +120,7 @@ class JobQueueWorker:
                 pages_total=t,
             )
             log.info(
-                "任务进度 job_id=%s user=%s file=%s pdf_pages=%s/%s progress_percent=%s",
+                "阶段=页级进度 job_id=%s user=%s file=%s pdf_pages=%s/%s progress_percent=%s",
                 jid,
                 user,
                 fname,
@@ -157,7 +157,7 @@ class JobQueueWorker:
                             note="PDF 页码已完成，正在后处理…",
                         )
                         log.debug(
-                            "任务进度 job_id=%s user=%s file=%s pulse_percent=%s (后处理补偿)",
+                            "阶段=后处理补偿 job_id=%s user=%s file=%s pulse_percent=%s",
                             jid,
                             user,
                             fname,
@@ -177,8 +177,7 @@ class JobQueueWorker:
                     continue
                 self.auth.update_job_progress(job_id, percent=fake, note="正在转换文档…")
                 log.debug(
-                    "任务进度 job_id=%s user=%s file=%s "
-                    "pulse_percent=%s (无页级回调时的估算)",
+                    "阶段=估算进度 job_id=%s user=%s file=%s pulse_percent=%s",
                     jid,
                     user,
                     fname,
@@ -198,7 +197,7 @@ class JobQueueWorker:
             )
         except ConversionError as exc:
             log.error(
-                "任务转换失败(业务) job_id=%s user=%s file=%s err=%s",
+                "阶段=失败(业务) job_id=%s user=%s file=%s err=%s",
                 jid,
                 user,
                 fname,
@@ -208,7 +207,7 @@ class JobQueueWorker:
             return
         except Exception as exc:  # noqa: BLE001
             log.exception(
-                "任务转换失败(异常) job_id=%s user=%s file=%s",
+                "阶段=失败(异常) job_id=%s user=%s file=%s",
                 jid,
                 user,
                 fname,
@@ -247,7 +246,7 @@ class JobQueueWorker:
         )
         if ok:
             log.info(
-                "任务完成 job_id=%s user=%s file=%s output=%s",
+                "阶段=完成 job_id=%s user=%s file=%s output=%s",
                 jid,
                 user,
                 fname,
@@ -255,13 +254,13 @@ class JobQueueWorker:
             )
             if conv_result.pdf_vl_failed_pages:
                 log.warning(
-                    "任务成功但部分页转写失败 job_id=%s pages=%s",
+                    "阶段=完成(部分页失败) job_id=%s pages=%s",
                     jid,
                     list(conv_result.pdf_vl_failed_pages),
                 )
         else:
             log.info(
-                "任务未标成功(可能已取消) job_id=%s user=%s file=%s",
+                "阶段=完成未落库(可能已取消) job_id=%s user=%s file=%s",
                 jid,
                 user,
                 fname,

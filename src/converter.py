@@ -716,7 +716,7 @@ class IndustrialDocConverter:
                     "pdf-vl-primary 需要 httpx 可用且 LLM HTTP 客户端可加载（检查依赖与导入错误日志）"
                 )
             _log.info(
-                "pdf-vl-primary：按页渲染 + Qwen-VL 转写，跳过 Docling；dpi=%s workers=%s max_pages=%s",
+                "阶段=PDF逐页转写(跳过Docling) dpi=%s workers=%s max_pages=%s",
                 self.config.pdf_vl_dpi,
                 self.config.pdf_vl_workers,
                 self.config.max_num_pages,
