@@ -164,6 +164,10 @@ class JobQueueWorker:
                         )
                     continue
 
+                # 已有页级字段时不应走估算支路（避免与 on_pdf_pages 交错写入时把 note 盖成「正在转换文档…」）
+                if j.progress_pages_done is not None or j.progress_pages_total is not None:
+                    continue
+
                 # 非页级回调场景：使用估算进度
                 elapsed = time.monotonic() - t0
                 fake = min(88, 2 + int(elapsed * 1.15))

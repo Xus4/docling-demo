@@ -16,6 +16,21 @@
 | `data/input/images/` | PNG / JPEG / TIFF / BMP / WEBP |
 | `data/output/` | 输出的 `.md` 及 Docling 抽取的图片（与 `save_as_markdown` 行为一致） |
 
+## 项目结构（代码）
+
+| 路径 | 说明 |
+|------|------|
+| `main.py` | 命令行入口：批量扫描输入目录、日志、单文件失败不阻断整批 |
+| `webapp.py` | FastAPI 应用（静态页、认证、任务与下载） |
+| `service.py` | `ConversionService`：校验扩展名、落盘上传、调用转换器 |
+| `job_worker.py` | 单进程后台线程：内存队列 + SQLite 任务状态 |
+| `auth.py` | SQLite 用户与任务表、会话侧配合 `SessionMiddleware` |
+| `config.py` | `AppConfig.from_env()`，供 Web 与 `build_converter_config()` 使用 |
+| `src/converter.py` | `IndustrialDocConverter`：Docling 管线、XLSX/pandas、可选 LLM/VL 后处理 |
+| `src/pdf_vl_transcribe.py` 等 | PDF 按页 Qwen-VL、Markdown 精修等子能力 |
+
+依赖安装见根目录 `requirements.txt`（版本为下界约束；若需可复现构建，建议在生产或 CI 中锁定具体版本）。
+
 ## 环境（Windows / PowerShell）
 
 ```powershell
@@ -72,14 +87,11 @@ pip install -r requirements.txt
 
 ### 2) 配置管理员参数（环境变量）
 
-推荐使用 `.env` 文件（更方便保存配置）：
+推荐使用仓库根目录下的 **`.env`** 保存本地配置（`main.py` 与 `webapp.py` 启动时均会加载）。在仓库根目录**新建** `.env` 并按需填写变量（下表与示例）；不要将含 **API 密钥、会话密钥、初始密码** 的 `.env` **提交到 Git**。
 
-```powershell
-Copy-Item .env.example .env
-```
+**优先级**：**系统环境变量** > **`.env` 文件** > **代码默认值**。
 
-然后编辑 `.env` 中的参数；程序启动时会自动读取该文件。  
-优先级为：**系统环境变量 > `.env` 文件 > 代码默认值**。
+**CLI 与 Web**：批量转换使用 `python main.py` 及**命令行参数**（可用环境变量辅助部分开关）；Web 服务主要读取 **`AppConfig` 对应的环境变量**（见下）。二者默认值并非逐参一一对应——例如 `main.py` 在**未**使用 `--pdf-vl-primary` 时，部分 LLM 相关 CLI 默认值与 Web 侧不同；若需行为对齐，请在 CLI 中**显式传入**与线上一致的参数，或对照 `config.py` / `main.py` 中的解析逻辑。
 
 ```powershell
 $env:MAX_FILE_SIZE="20MB"
@@ -118,6 +130,12 @@ $env:CLEANUP_MAX_AGE_HOURS="24"
 - `INITIAL_PASSWORD`（初始化新用户统一密码，入库为哈希）
 - `AUTH_ADMIN_USERNAME`（默认 `admin`）
 - `AUTH_USERS`（普通用户列表，逗号分隔）
+
+**安全（部署前必读）**：
+
+- 生产环境务必修改 **`SESSION_SECRET`**、**`INITIAL_PASSWORD`**，并为管理员设置强密码策略（首次用户由 `bootstrap_users` 按 `INITIAL_PASSWORD` 入库）。
+- 公网访问请使用 **HTTPS**，并在反向代理后评估 Cookie 的 `Secure` / `SameSite` 策略（当前应用侧 `https_only` 需与部署方式一致）。
+- **`DASHSCOPE_API_KEY`** 等密钥仅通过环境变量或 `.env` 注入，勿写入业务代码或截图。
 
 示例（接近你原来的 CLI 设定）：
 
@@ -168,6 +186,7 @@ uvicorn webapp:app --host 0.0.0.0 --port 8000
 - 任务记录在 SQLite 中**持久化**：**退出登录或关闭浏览器后再次登录**，仍可看到历史任务；可对排队/已结束任务**删除记录**（并清理对应输入输出目录）；**执行中**的任务需先**取消**再删除
 - **管理员**可在任务列表中按**用户**、**状态**筛选；**普通用户**仅能看到自己的任务
 - 服务**重启**后，库中仍为 `queued` 的任务会自动重新进入内存队列继续排队执行
+- **并发模型**：当前为**单进程、单后台 Worker 线程**顺序执行任务；适合内网 MVP。长任务会阻塞队列中后续任务；多实例部署需自行避免重复消费同一队列（本仓库未内置分布式队列）。
 
 接口说明：
 
@@ -282,6 +301,12 @@ python main.py --no-log-file
 
 - `src/converter.py`：`IndustrialDocConverter`（Docling 管道配置 + XLSX/pandas）
 - `main.py`：批量扫描、日志、单文件失败不影响整体
+
+## 测试
+
+```powershell
+python -m pytest tests -q
+```
 
 ## 百炼千问接入（可选）
 

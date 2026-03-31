@@ -77,8 +77,9 @@ class AuthStore:
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=10.0)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout = 5000")
         return conn
 
     def _init_db(self) -> None:
@@ -121,6 +122,11 @@ class AuthStore:
                 "CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status)"
             )
             self._migrate_jobs_progress_columns(conn)
+            # 多连接并发读写时降低锁冲突；失败时忽略（如部分网络盘不支持 WAL）
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.OperationalError:
+                pass
             conn.commit()
 
     def bootstrap_users(

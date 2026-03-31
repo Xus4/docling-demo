@@ -2045,6 +2045,14 @@
         } else if (job.status === "running") {
           const raw = job.progress_note != null ? String(job.progress_note).trim() : "";
           main = raw || "转换中…";
+          const pd = job.progress_pages_done;
+          const pt = job.progress_pages_total;
+          if (pd != null && pt != null && Number(pt) > 0) {
+            const hasFractionInNote = /PDF\s*已完成\s*\d+\s*\/\s*\d+\s*页/.test(raw);
+            if (!hasFractionInNote) {
+              main = main + " · 页 " + pd + "/" + pt;
+            }
+          }
         }
         progressText.textContent = main;
         if (progressElapsedLine) {
@@ -2105,7 +2113,7 @@
           if (!taskPollTimer) {
             taskPollTimer = setInterval(function () {
               refreshTaskList({ silent: true });
-            }, 2500);
+            }, 1500);
           }
         } else {
           stopTaskPolling();
@@ -2156,10 +2164,11 @@
                 noteRaw === "转换中…" ||
                 noteRaw === "开始处理…" ||
                 /正在转换文档/.test(noteRaw);
+              const hasPageInNote = /PDF\s*已完成\s*\d+\s*\/\s*\d+\s*页/.test(noteRaw);
               if (
-                genericProgressNote &&
                 job.progress_pages_done != null &&
-                job.progress_pages_total != null
+                job.progress_pages_total != null &&
+                (genericProgressNote || !hasPageInNote)
               ) {
                 pageHint =
                   " · 页 " + job.progress_pages_done + "/" + job.progress_pages_total;
@@ -2380,7 +2389,7 @@
             break;
           }
           await new Promise(function (r) {
-            setTimeout(r, 2000);
+            setTimeout(r, 1000);
           });
         }
       }

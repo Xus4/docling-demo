@@ -2229,7 +2229,7 @@ def transcribe_pdf_with_vl(
                 build_system_message(_VL_SYSTEM),
                 build_vl_user_message(text=user_text, image_paths=[str(image_path)]),
             ]
-            _log.info("pdf-vl: page %s/%s dpi=%s", i + 1, limit, dpi_f)
+            _log.info("pdf-vl: page start %s/%s dpi=%s", i + 1, limit, dpi_f)
             page_md = ""
             raw_last = ""
             for attempt in range(1, 4):
@@ -2302,6 +2302,7 @@ def transcribe_pdf_with_vl(
                             repr(e),
                         )
 
+            _log.info("pdf-vl: page done %s/%s", i + 1, limit)
             return i, page_md
 
 
