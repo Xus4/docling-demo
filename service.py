@@ -18,8 +18,11 @@ class ConversionError(Exception):
 @dataclass
 class ConversionJobPaths:
     job_id: str
-    input_file: Path
-    output_file: Path
+    input_root: Path
+    output_root: Path
+    input_entry: Path
+    output_entry: Path
+    is_directory: bool
 
 
 @dataclass(frozen=True)
@@ -45,14 +48,33 @@ class ConversionService:
             raise ConversionError(f"不支持的文件类型: .{ext}")
         return ext
 
-    def create_job_paths(self, filename: str) -> ConversionJobPaths:
+    def is_supported_file(self, path: Path) -> bool:
+        ext = path.suffix.lower().lstrip(".")
+        return bool(ext) and ext in self.app_config.allowed_types
+
+    def create_job_paths(self, entry_name: str, *, is_directory: bool = False) -> ConversionJobPaths:
         job_id = uuid.uuid4().hex
-        safe_name = Path(filename).name
-        input_file = self.app_config.input_dir / job_id / safe_name
-        output_file = self.app_config.output_dir / job_id / f"{Path(safe_name).stem}.md"
-        input_file.parent.mkdir(parents=True, exist_ok=True)
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        return ConversionJobPaths(job_id=job_id, input_file=input_file, output_file=output_file)
+        safe_name = Path(entry_name).name or "upload"
+        input_root = self.app_config.input_dir / job_id
+        output_root = self.app_config.output_dir / job_id
+        input_root.mkdir(parents=True, exist_ok=True)
+        output_root.mkdir(parents=True, exist_ok=True)
+
+        if is_directory:
+            input_entry = input_root / safe_name
+            output_entry = output_root / safe_name
+        else:
+            input_entry = input_root / safe_name
+            output_entry = output_root / f"{Path(safe_name).stem}.md"
+
+        return ConversionJobPaths(
+            job_id=job_id,
+            input_root=input_root,
+            output_root=output_root,
+            input_entry=input_entry,
+            output_entry=output_entry,
+            is_directory=is_directory,
+        )
 
     def save_upload_file(self, source_path: Path, target_path: Path) -> None:
         shutil.copy2(source_path, target_path)
@@ -76,6 +98,9 @@ class ConversionService:
         failed = self.converter.last_pdf_vl_failed_pages
         pages = tuple(failed) if failed else ()
         return ConvertToMarkdownResult(dst, pages)
+
+    def iter_supported_files(self, input_root: Path):
+        yield from IndustrialDocConverter.iter_supported_files(input_root)
 
     def cleanup_old_jobs(self) -> None:
         if not self.app_config.auto_cleanup:

@@ -5,7 +5,6 @@ import logging
 import multiprocessing as mp
 import queue
 import threading
-import time
 from pathlib import Path
 
 from auth import AuthStore, JobRecord
@@ -17,7 +16,6 @@ log = logging.getLogger("job_worker")
 
 
 def _job_log_fields(job_id: str, rec: JobRecord | None) -> tuple[str, str, str]:
-    """用于日志：job_id、用户名、展示用文件名。"""
     if not rec:
         return job_id, "?", "?"
     name = rec.original_filename or Path(rec.input_file).name
@@ -25,27 +23,14 @@ def _job_log_fields(job_id: str, rec: JobRecord | None) -> tuple[str, str, str]:
     return job_id, user, name
 
 
-def _run_conversion_in_subprocess(
+def _run_single_file_conversion(
     *,
     job_id: str,
-    auth_db_path_str: str,
-    input_file: str,
-    output_file: str,
+    auth: AuthStore,
+    service: ConversionService,
+    input_file: Path,
+    output_file: Path,
 ) -> None:
-    """
-    子进程任务执行入口：
-    - 重新构造 ConversionService（避免跨进程共享重对象）
-    - 仅在 DB 状态仍为 running 时写入 succeeded/failed（避免覆盖用户取消）
-    """
-    # 子进程内尽量延迟初始化，降低 spawn 成本。
-    config = AppConfig.from_env()
-    service = ConversionService(config)
-    auth = AuthStore(Path(auth_db_path_str))
-
-    inp = Path(input_file)
-    out = Path(output_file)
-
-    # 进度写入：pdf-vl-primary 有页级回调；其它路径只写 note（严格真实进度模式下也不会乱写百分比）。
     def on_pdf_pages(done: int, total: int) -> None:
         # 子进程内协作取消：若任务已不再 running，则立刻抛错中断后续流程
         j = auth.get_job(job_id)
@@ -68,7 +53,7 @@ def _run_conversion_in_subprocess(
             pages_total=t,
         )
 
-    if not inp.is_file():
+    if not input_file.is_file():
         auth.mark_job_failed(job_id, "输入文件不存在")
         return
 
@@ -78,15 +63,30 @@ def _run_conversion_in_subprocess(
 
     try:
         conv_result = service.convert_to_markdown(
-            str(inp),
-            str(out),
-            progress_callback=on_pdf_pages,
-            cancel_check=cancel_check,
-        )
+    str(input_file),
+    str(output_file),
+    progress_callback=on_pdf_pages,
+    cancel_check=cancel_check,
+)
+
     except ConversionError as exc:
+        auth.update_job_file_counts(
+            job_id,
+            total_files=1,
+            processed_files=1,
+            succeeded_files=0,
+            failed_files=1,
+        )
         auth.mark_job_failed(job_id, str(exc))
         return
     except Exception as exc:  # noqa: BLE001
+        auth.update_job_file_counts(
+            job_id,
+            total_files=1,
+            processed_files=1,
+            succeeded_files=0,
+            failed_files=1,
+        )
         auth.mark_job_failed(job_id, f"转换失败: {exc!s}"[:4000])
         return
 
@@ -97,17 +97,163 @@ def _run_conversion_in_subprocess(
             ensure_ascii=False,
         )
 
-    # 若已被取消/终态，不写入成功并清理输出，避免“取消了但生成了结果”。
     latest = auth.get_job(job_id)
     if not latest or latest.status != "running":
-        if out.exists():
+        if output_file.exists():
             try:
-                out.unlink()
+                output_file.unlink()
             except OSError:
                 pass
         return
 
-    auth.mark_job_succeeded(job_id, str(out.resolve()), result_extra=result_extra)
+    auth.update_job_file_counts(
+        job_id,
+        total_files=1,
+        processed_files=1,
+        succeeded_files=1,
+        failed_files=0,
+    )
+    auth.mark_job_succeeded(job_id, str(output_file.resolve()), result_extra=result_extra)
+
+
+def _run_directory_conversion(
+    *,
+    job_id: str,
+    auth: AuthStore,
+    service: ConversionService,
+    input_root: Path,
+    output_root: Path,
+) -> None:
+    if not input_root.is_dir():
+        auth.mark_job_failed(job_id, "输入目录不存在")
+        return
+
+    files = list(service.iter_supported_files(input_root))
+    total = len(files)
+    auth.update_job_file_counts(
+        job_id,
+        total_files=total,
+        processed_files=0,
+        succeeded_files=0,
+        failed_files=0,
+    )
+
+    if total <= 0:
+        auth.mark_job_failed(job_id, "文件夹中没有可处理的文件")
+        return
+
+    processed = 0
+    succeeded = 0
+    failed = 0
+    failed_items: list[dict[str, str]] = []
+
+    for idx, src in enumerate(files, start=1):
+        latest = auth.get_job(job_id)
+        if not latest or latest.status != "running":
+            return
+
+        rel = src.relative_to(input_root)
+        dst = (output_root / rel).with_suffix(".md")
+        dst.parent.mkdir(parents=True, exist_ok=True)
+
+        pct = int(round(((idx - 1) / total) * 100))
+        auth.update_job_progress(
+            job_id,
+            percent=max(0, min(99, pct)),
+            note=f"正在处理 {idx}/{total}：{rel.as_posix()}",
+            pages_done=None,
+            pages_total=None,
+        )
+
+        try:
+            service.convert_to_markdown(str(src), str(dst))
+            succeeded += 1
+        except Exception as exc:  # noqa: BLE001
+            failed += 1
+            failed_items.append(
+                {
+                    "file": rel.as_posix(),
+                    "error": str(exc)[:500],
+                }
+            )
+
+        processed += 1
+        auth.update_job_file_counts(
+            job_id,
+            total_files=total,
+            processed_files=processed,
+            succeeded_files=succeeded,
+            failed_files=failed,
+        )
+        pct_done = int(round((processed / total) * 100))
+        if processed < total:
+            pct_done = min(pct_done, 99)
+        auth.update_job_progress(
+            job_id,
+            percent=pct_done,
+            note=f"已完成 {processed}/{total} 个文件（成功 {succeeded}，失败 {failed}）",
+        )
+
+    latest = auth.get_job(job_id)
+    if not latest or latest.status != "running":
+        return
+
+    if succeeded <= 0:
+        msg = "文件夹处理完成，但没有成功转换的文件"
+        if failed_items:
+            msg += f"；失败 {failed} 个"
+        auth.mark_job_failed(job_id, msg[:4000])
+        return
+
+    result_extra = None
+    if failed_items:
+        result_extra = json.dumps(
+            {
+                "failed_files": failed_items[:200],
+                "summary": {
+                    "total_files": total,
+                    "processed_files": processed,
+                    "succeeded_files": succeeded,
+                    "failed_files": failed,
+                },
+            },
+            ensure_ascii=False,
+        )
+
+    auth.mark_job_succeeded(job_id, str(output_root.resolve()), result_extra=result_extra)
+
+
+def _run_conversion_in_subprocess(
+    *,
+    job_id: str,
+    auth_db_path_str: str,
+    input_file: str,
+    output_file: str,
+    input_root: str | None,
+    output_root: str | None,
+    is_directory: int,
+) -> None:
+    config = AppConfig.from_env()
+    service = ConversionService(config)
+    auth = AuthStore(Path(auth_db_path_str))
+
+    if int(is_directory):
+        _run_directory_conversion(
+            job_id=job_id,
+            auth=auth,
+            service=service,
+            input_root=Path(input_root or ""),
+            output_root=Path(output_root or ""),
+        )
+        return
+
+    _run_single_file_conversion(
+        job_id=job_id,
+        auth=auth,
+        service=service,
+        input_file=Path(input_file),
+        output_file=Path(output_file),
+    )
 
 
 class JobQueueWorker:
@@ -133,18 +279,12 @@ class JobQueueWorker:
         self._q.put(job_id)
 
     def requeue_queued_from_db(self) -> int:
-        """服务启动后将库中排队任务重新放入内存队列（与持久化一致）。"""
         ids = self.auth.list_queued_job_ids()
         for jid in ids:
             self._q.put(jid)
         return len(ids)
 
     def cancel(self, job_id: str) -> bool:
-        """
-        尝试终止当前正在执行的子进程（若该 job 正在运行）。
-
-        返回是否对“当前活跃 job”发起了终止动作（best-effort，不保证立刻终止成功）。
-        """
         with self._active_lock:
             if self._active_job_id != job_id:
                 return False
@@ -191,10 +331,8 @@ class JobQueueWorker:
             input=inp.name,
             output=out.name,
         )
-        # 严格真实进度模式：启动后先展示“准备中”，不写入估算百分比。
         self.auth.update_job_progress(job_id, note="图转文准备中（正在初始化）")
 
-        # 将实际转换放到子进程，便于「取消」时直接终止，让队列可以立刻拉起下一个任务。
         proc = mp.Process(
             target=_run_conversion_in_subprocess,
             kwargs={
@@ -202,6 +340,9 @@ class JobQueueWorker:
                 "auth_db_path_str": str(self.auth.db_path),
                 "input_file": str(inp),
                 "output_file": str(out),
+                "input_root": rec.input_root,
+                "output_root": rec.output_root,
+                "is_directory": rec.is_directory,
             },
             name=f"docling-job-{job_id[:8]}",
             daemon=True,
@@ -212,7 +353,6 @@ class JobQueueWorker:
 
         proc.start()
         try:
-            # 等待子进程结束；若任务被取消则立即终止子进程，释放 worker 去处理下一个排队任务。
             while proc.is_alive():
                 latest = self.auth.get_job(job_id)
                 if not latest or latest.status != "running":
@@ -229,7 +369,6 @@ class JobQueueWorker:
                     self._active_job_id = None
                     self._active_proc = None
 
-        # 若子进程异常退出且任务仍处于 running，则标记失败（避免永远卡在 running）。
         latest = self.auth.get_job(job_id)
         if latest and latest.status == "running" and proc.exitcode not in (0, None):
             self.auth.mark_job_failed(job_id, "转换进程异常退出")

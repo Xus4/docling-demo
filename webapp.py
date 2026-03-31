@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from fastapi.responses import HTMLResponse
 import json
 import logging
 import os
@@ -10,7 +10,16 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi import (
+    BackgroundTasks,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -73,6 +82,7 @@ async def _lifespan(app: FastAPI):
     if n:
         log_event(log, logging.INFO, "worker.recover.queued_requeued", count=n)
     yield
+
 
 app = FastAPI(
     title="Docling Demo Web Service",
@@ -139,6 +149,11 @@ def _job_to_api_dict(job: JobRecord) -> dict[str, object | None]:
         "started_at": job.started_at,
         "finished_at": job.finished_at,
         "error_message": job.error_message,
+        "is_directory": bool(job.is_directory),
+        "total_files": job.total_files,
+        "processed_files": job.processed_files,
+        "succeeded_files": job.succeeded_files,
+        "failed_files": job.failed_files,
     }
     if job.status == "succeeded":
         out["download_url"] = f"/jobs/{job.job_id}/download"
@@ -161,6 +176,7 @@ def _job_to_api_dict(job: JobRecord) -> dict[str, object | None]:
         out["progress_pages_total"] = None
 
     out["pdf_vl_failed_pages"] = None
+    out["failed_files_preview"] = None
     if job.status == "succeeded" and job.result_extra:
         try:
             data = json.loads(job.result_extra)
@@ -175,6 +191,20 @@ def _job_to_api_dict(job: JobRecord) -> dict[str, object | None]:
                             nums.append(int(x.strip()))
                     if nums:
                         out["pdf_vl_failed_pages"] = nums
+
+                failed_files = data.get("failed_files")
+                if isinstance(failed_files, list) and failed_files:
+                    preview: list[dict[str, str]] = []
+                    for item in failed_files[:20]:
+                        if isinstance(item, dict):
+                            preview.append(
+                                {
+                                    "file": str(item.get("file", "")),
+                                    "error": str(item.get("error", "")),
+                                }
+                            )
+                    if preview:
+                        out["failed_files_preview"] = preview
         except (json.JSONDecodeError, TypeError, ValueError):
             out["pdf_vl_failed_pages"] = None
 
@@ -190,75 +220,190 @@ def _wait_job_terminal(job_id: str, poll_seconds: float = 0.25) -> JobRecord:
         time.sleep(poll_seconds)
 
 
-async def _ingest_upload_create_job(request: Request, file: UploadFile) -> str:
+def _safe_rel_path(raw: str) -> Path:
+    p = Path((raw or "").replace("\\", "/").strip("/").strip())
+    if not str(p) or str(p) == ".":
+        raise HTTPException(status_code=400, detail="无效的相对路径")
+    if p.is_absolute():
+        raise HTTPException(status_code=400, detail="相对路径非法")
+    if ".." in p.parts:
+        raise HTTPException(status_code=400, detail="相对路径非法")
+    return p
+
+
+async def _ingest_uploads_create_job(
+    request: Request,
+    *,
+    file: UploadFile | None,
+    files: list[UploadFile] | None,
+    relative_paths: list[str] | None,
+    upload_kind: str,
+    root_name: str,
+) -> str:
     user = _require_auth_user(request)
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="文件名不能为空")
+
+    upload_kind = (upload_kind or "file").strip().lower()
+    if upload_kind not in {"file", "folder"}:
+        raise HTTPException(status_code=400, detail="upload_kind 仅支持 file 或 folder")
+
+    merged_files: list[UploadFile] = []
+    if files:
+        merged_files.extend(files)
+    if file is not None:
+        merged_files.append(file)
+
+    merged_files = [f for f in merged_files if f is not None and f.filename]
+    if not merged_files:
+        raise HTTPException(status_code=400, detail="未收到上传文件")
+
+    if not relative_paths:
+        if upload_kind == "folder":
+            raise HTTPException(status_code=400, detail="文件夹上传缺少 relative_paths")
+        relative_paths = [merged_files[0].filename or "upload"]
+
+    if len(relative_paths) != len(merged_files):
+        raise HTTPException(status_code=400, detail="files 与 relative_paths 数量不一致")
 
     paths = None
     try:
         service.cleanup_old_jobs()
-        service.validate_extension(file.filename)
-        paths = service.create_job_paths(file.filename)
+
+        if upload_kind == "file":
+            if len(merged_files) != 1:
+                raise HTTPException(status_code=400, detail="单文件上传只能包含 1 个文件")
+            filename = merged_files[0].filename or "upload"
+            service.validate_extension(filename)
+            paths = service.create_job_paths(filename, is_directory=False)
+            total_size = 0
+            dst = paths.input_entry
+            dst.parent.mkdir(parents=True, exist_ok=True)
+
+            with dst.open("wb") as buffer:
+                while True:
+                    if await request.is_disconnected():
+                        raise HTTPException(status_code=499, detail="客户端已取消上传")
+                    chunk = await merged_files[0].read(1024 * 1024)
+                    if not chunk:
+                        break
+                    total_size += len(chunk)
+                    if total_size > config.max_file_size_bytes:
+                        raise HTTPException(
+                            status_code=413,
+                            detail=f"文件过大，最大允许 {config.max_file_size_bytes} 字节",
+                        )
+                    buffer.write(chunk)
+
+            await merged_files[0].close()
+
+            auth_store.insert_job(
+                job_id=paths.job_id,
+                owner_username=user.username,
+                role_snapshot=user.role,
+                original_filename=filename,
+                input_file=str(paths.input_entry.resolve()),
+                output_file=str(paths.output_entry.resolve()),
+                is_directory=0,
+                input_root=str(paths.input_root.resolve()),
+                output_root=str(paths.output_root.resolve()),
+                total_files=1,
+                processed_files=0,
+                succeeded_files=0,
+                failed_files=0,
+            )
+            job_worker.enqueue(paths.job_id)
+            log.info(
+                "单文件任务已创建并入队 job_id=%s user=%s role=%s file=%s size_bytes=%s",
+                paths.job_id,
+                user.username,
+                user.role,
+                filename,
+                total_size,
+            )
+            return paths.job_id
+
+        # folder mode
+        normalized_root = Path(root_name).name.strip() or "uploaded_folder"
+        paths = service.create_job_paths(normalized_root, is_directory=True)
+        input_root = paths.input_entry
+        input_root.mkdir(parents=True, exist_ok=True)
 
         total_size = 0
-        with paths.input_file.open("wb") as buffer:
-            while True:
-                # 客户端主动取消/断开上传连接时，避免写入半成品并创建 job。
-                if await request.is_disconnected():
-                    raise HTTPException(status_code=499, detail="客户端已取消上传")
-                chunk = await file.read(1024 * 1024)
-                if not chunk:
-                    break
-                total_size += len(chunk)
-                if total_size > config.max_file_size_bytes:
-                    raise HTTPException(
-                        status_code=413,
-                        detail=f"文件过大，最大允许 {config.max_file_size_bytes} 字节",
-                    )
-                buffer.write(chunk)
+        saved_count = 0
+        for up, rel_raw in zip(merged_files, relative_paths, strict=False):
+            rel = _safe_rel_path(rel_raw)
+            dst = input_root / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            with dst.open("wb") as buffer:
+                while True:
+                    if await request.is_disconnected():
+                        raise HTTPException(status_code=499, detail="客户端已取消上传")
+                    chunk = await up.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    total_size += len(chunk)
+                    if total_size > config.max_file_size_bytes:
+                        raise HTTPException(
+                            status_code=413,
+                            detail=f"上传总大小过大，最大允许 {config.max_file_size_bytes} 字节",
+                        )
+                    buffer.write(chunk)
+            await up.close()
+            saved_count += 1
 
-            # 上传读取循环退出后再做一次断开检测，避免尾部 race condition。
-            if await request.is_disconnected():
-                raise HTTPException(status_code=499, detail="客户端已取消上传")
-
-        await file.close()
+        supported_files = list(service.iter_supported_files(input_root))
+        if not supported_files:
+            raise HTTPException(status_code=400, detail="文件夹中没有可处理的文件")
 
         auth_store.insert_job(
             job_id=paths.job_id,
             owner_username=user.username,
             role_snapshot=user.role,
-            original_filename=file.filename,
-            input_file=str(paths.input_file.resolve()),
-            output_file=str(paths.output_file.resolve()),
+            original_filename=normalized_root,
+            input_file=str(paths.input_entry.resolve()),
+            output_file=str(paths.output_root.resolve()),
+            is_directory=1,
+            input_root=str(paths.input_entry.resolve()),
+            output_root=str(paths.output_root.resolve()),
+            total_files=len(supported_files),
+            processed_files=0,
+            succeeded_files=0,
+            failed_files=0,
         )
         job_worker.enqueue(paths.job_id)
         log_event(
-            log,
-            logging.INFO,
-            "job.created",
-            job=short_job_id(paths.job_id),
-            user=user.username,
-            role=user.role,
-            file=file.filename,
-            size_bytes=total_size,
-        )
+    log,
+    logging.INFO,
+    "job.created",
+    job=short_job_id(paths.job_id),
+    user=user.username,
+    role=user.role,
+    file=normalized_root,
+    size_bytes=total_size,
+)
+
         return paths.job_id
-    except HTTPException as exc:
+
+    except HTTPException:
         if paths:
-            # 上传中断/超限等场景下，清理本次已创建的临时输入/输出目录。
             _remove_job_workspace(paths.job_id)
         raise
     except ConversionError as exc:
+        if paths:
+            _remove_job_workspace(paths.job_id)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         log.exception("event=job.create.failed")
         raise HTTPException(status_code=500, detail="创建任务失败") from exc
 
 
-@app.get("/")
-def index() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+
+
+INDEX_HTML = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+
+@app.get("/", response_class=HTMLResponse)
+def index() -> str:
+    return INDEX_HTML
+
 
 
 @app.get("/health")
@@ -297,8 +442,22 @@ def list_auth_users(request: Request) -> dict[str, list[str]]:
 
 
 @app.post("/jobs")
-async def create_job(request: Request, file: UploadFile = File(...)) -> dict[str, object]:
-    job_id = await _ingest_upload_create_job(request, file)
+async def create_job(
+    request: Request,
+    file: UploadFile | None = File(None),
+    files: list[UploadFile] | None = File(None),
+    relative_paths: list[str] | None = Form(None),
+    upload_kind: str = Form("file"),
+    root_name: str = Form(""),
+) -> dict[str, object]:
+    job_id = await _ingest_uploads_create_job(
+        request,
+        file=file,
+        files=files,
+        relative_paths=relative_paths,
+        upload_kind=upload_kind,
+        root_name=root_name,
+    )
     rec = auth_store.get_job(job_id)
     if not rec:
         raise HTTPException(status_code=500, detail="任务创建异常")
@@ -359,7 +518,6 @@ def cancel_job(job_id: str, request: Request) -> dict[str, str]:
 
     if job.status in ("queued", "running"):
         if auth_store.try_mark_job_cancelled(jid):
-            # 若该任务正在运行，尝试立即终止转换子进程，释放 worker 以拉起下一个排队任务。
             if job.status == "running":
                 try:
                     job_worker.cancel(jid)
@@ -402,10 +560,6 @@ def delete_job_record(job_id: str, request: Request) -> dict[str, str]:
 
 
 def _zip_job_output_folder(job_dir: Path) -> Path:
-    """
-    将任务输出目录打成 zip（含 .md 及同目录下的切图、Docling 配图等），
-    解压后与 Web 服务端路径一致，相对图片引用可正常显示。
-    """
     fd, tmp_zip = tempfile.mkstemp(suffix=".zip")
     os.close(fd)
     Path(tmp_zip).unlink(missing_ok=True)
@@ -426,12 +580,18 @@ def download_job_result(
         raise HTTPException(status_code=403, detail="无权下载该任务")
     if job.status != "succeeded":
         raise HTTPException(status_code=400, detail="任务未完成或不可下载")
-    if not job.output_file:
+
+    if job.output_root:
+        job_dir = Path(job.output_root)
+    elif job.output_file:
+        out_path = Path(job.output_file)
+        job_dir = out_path if out_path.is_dir() else out_path.parent
+    else:
         raise HTTPException(status_code=404, detail="未找到转换结果")
-    md_file = Path(job.output_file)
-    if not md_file.is_file():
-        raise HTTPException(status_code=404, detail="未找到转换结果文件")
-    job_dir = md_file.parent
+
+    if not job_dir.is_dir():
+        raise HTTPException(status_code=404, detail="未找到转换结果目录")
+
     try:
         zip_path = _zip_job_output_folder(job_dir)
     except Exception as exc:
@@ -441,14 +601,21 @@ def download_job_result(
     return FileResponse(
         path=zip_path,
         media_type="application/zip",
-        filename=f"{md_file.stem}.zip",
+        filename=f"{Path(job.original_filename).stem or 'result'}.zip",
     )
 
 
 @app.post("/convert")
 async def convert(request: Request, file: UploadFile = File(...)) -> dict[str, str]:
     """兼容旧客户端：创建异步任务并阻塞直到结束，返回原 download_url 形态。"""
-    job_id = await _ingest_upload_create_job(request, file)
+    job_id = await _ingest_uploads_create_job(
+        request,
+        file=file,
+        files=None,
+        relative_paths=None,
+        upload_kind="file",
+        root_name="",
+    )
     final = _wait_job_terminal(job_id)
     rec = auth_store.get_job(job_id)
     filename = rec.original_filename if rec else ""
@@ -468,5 +635,4 @@ async def convert(request: Request, file: UploadFile = File(...)) -> dict[str, s
 def download_legacy(
     job_id: str, request: Request, background_tasks: BackgroundTasks
 ) -> FileResponse:
-    """兼容旧 download_url：与 /jobs/{id}/download 相同校验。"""
     return download_job_result(job_id, request, background_tasks)

@@ -64,12 +64,21 @@ class JobRecord:
     created_at: str
     started_at: str | None
     finished_at: str | None
+
     progress_percent: int | None = None
     progress_note: str | None = None
     progress_pages_done: int | None = None
     progress_pages_total: int | None = None
-    # JSON，如 {"pdf_vl_failed_pages": [1, 5]}；仅 succeeded 时可能非空
     result_extra: str | None = None
+
+    # 新增：目录 / 批量任务支持
+    is_directory: int = 0
+    input_root: str | None = None
+    output_root: str | None = None
+    total_files: int | None = None
+    processed_files: int | None = None
+    succeeded_files: int | None = None
+    failed_files: int | None = None
 
 
 class AuthStore:
@@ -124,7 +133,7 @@ class AuthStore:
                 "CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status)"
             )
             self._migrate_jobs_progress_columns(conn)
-            # 多连接并发读写时降低锁冲突；失败时忽略（如部分网络盘不支持 WAL）
+            self._migrate_jobs_folder_columns(conn)
             try:
                 conn.execute("PRAGMA journal_mode=WAL")
             except sqlite3.OperationalError:
@@ -193,6 +202,27 @@ class AuthStore:
         for sql in stmts:
             conn.execute(sql)
 
+    def _migrate_jobs_folder_columns(self, conn: sqlite3.Connection) -> None:
+        info = conn.execute("PRAGMA table_info(jobs)").fetchall()
+        colnames = {str(r[1]) for r in info}
+        stmts: list[str] = []
+        if "is_directory" not in colnames:
+            stmts.append("ALTER TABLE jobs ADD COLUMN is_directory INTEGER NOT NULL DEFAULT 0")
+        if "input_root" not in colnames:
+            stmts.append("ALTER TABLE jobs ADD COLUMN input_root TEXT")
+        if "output_root" not in colnames:
+            stmts.append("ALTER TABLE jobs ADD COLUMN output_root TEXT")
+        if "total_files" not in colnames:
+            stmts.append("ALTER TABLE jobs ADD COLUMN total_files INTEGER")
+        if "processed_files" not in colnames:
+            stmts.append("ALTER TABLE jobs ADD COLUMN processed_files INTEGER")
+        if "succeeded_files" not in colnames:
+            stmts.append("ALTER TABLE jobs ADD COLUMN succeeded_files INTEGER")
+        if "failed_files" not in colnames:
+            stmts.append("ALTER TABLE jobs ADD COLUMN failed_files INTEGER")
+        for sql in stmts:
+            conn.execute(sql)
+
     def _row_to_job(self, row: sqlite3.Row) -> JobRecord:
         keys = set(row.keys())
         return JobRecord(
@@ -234,6 +264,41 @@ class AuthStore:
                 if "result_extra" in keys and row["result_extra"] is not None
                 else None
             ),
+            is_directory=(
+                int(row["is_directory"])
+                if "is_directory" in keys and row["is_directory"] is not None
+                else 0
+            ),
+            input_root=(
+                str(row["input_root"])
+                if "input_root" in keys and row["input_root"] is not None
+                else None
+            ),
+            output_root=(
+                str(row["output_root"])
+                if "output_root" in keys and row["output_root"] is not None
+                else None
+            ),
+            total_files=(
+                int(row["total_files"])
+                if "total_files" in keys and row["total_files"] is not None
+                else None
+            ),
+            processed_files=(
+                int(row["processed_files"])
+                if "processed_files" in keys and row["processed_files"] is not None
+                else None
+            ),
+            succeeded_files=(
+                int(row["succeeded_files"])
+                if "succeeded_files" in keys and row["succeeded_files"] is not None
+                else None
+            ),
+            failed_files=(
+                int(row["failed_files"])
+                if "failed_files" in keys and row["failed_files"] is not None
+                else None
+            ),
         )
 
     def insert_job(
@@ -245,6 +310,14 @@ class AuthStore:
         input_file: str,
         output_file: str,
         status: str = "queued",
+        *,
+        is_directory: int = 0,
+        input_root: str | None = None,
+        output_root: str | None = None,
+        total_files: int | None = None,
+        processed_files: int | None = None,
+        succeeded_files: int | None = None,
+        failed_files: int | None = None,
     ) -> None:
         now = _utc_now_iso()
         with self._connect() as conn:
@@ -252,8 +325,10 @@ class AuthStore:
                 """
                 INSERT INTO jobs (
                     job_id, owner_username, role_snapshot, original_filename,
-                    status, input_file, output_file, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    status, input_file, output_file, created_at,
+                    is_directory, input_root, output_root,
+                    total_files, processed_files, succeeded_files, failed_files
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job_id,
@@ -264,6 +339,13 @@ class AuthStore:
                     input_file,
                     output_file,
                     now,
+                    int(is_directory),
+                    input_root,
+                    output_root,
+                    total_files,
+                    processed_files,
+                    succeeded_files,
+                    failed_files,
                 ),
             )
             conn.commit()
@@ -278,7 +360,6 @@ class AuthStore:
         return self._row_to_job(row)
 
     def try_claim_job_running(self, job_id: str) -> bool:
-        """仅当状态为 queued 时置为 running，返回是否成功认领。"""
         now = _utc_now_iso()
         with self._connect() as conn:
             cur = conn.execute(
@@ -291,7 +372,10 @@ class AuthStore:
                     progress_note = '开始处理…',
                     progress_pages_done = NULL,
                     progress_pages_total = NULL,
-                    result_extra = NULL
+                    result_extra = NULL,
+                    processed_files = COALESCE(processed_files, 0),
+                    succeeded_files = COALESCE(succeeded_files, 0),
+                    failed_files = COALESCE(failed_files, 0)
                 WHERE job_id = ? AND status = 'queued'
                 """,
                 (now, job_id),
@@ -306,7 +390,6 @@ class AuthStore:
         *,
         result_extra: str | None = None,
     ) -> bool:
-        """仅当仍为 running 时标记成功，避免覆盖用户已取消等终态。"""
         now = _utc_now_iso()
         with self._connect() as conn:
             cur = conn.execute(
@@ -329,7 +412,6 @@ class AuthStore:
             return cur.rowcount > 0
 
     def mark_job_failed(self, job_id: str, error_message: str) -> bool:
-        """仅当仍为 running 时标记失败。"""
         now = _utc_now_iso()
         with self._connect() as conn:
             cur = conn.execute(
@@ -373,11 +455,9 @@ class AuthStore:
             conn.commit()
 
     def try_mark_job_cancelled_queued(self, job_id: str) -> bool:
-        """兼容旧名：等价于 try_mark_job_cancelled。"""
         return self.try_mark_job_cancelled(job_id)
 
     def try_mark_job_cancelled(self, job_id: str) -> bool:
-        """排队中或执行中任务立即标为已取消（不依赖 worker 轮询）。"""
         now = _utc_now_iso()
         with self._connect() as conn:
             cur = conn.execute(
@@ -401,10 +481,6 @@ class AuthStore:
             return cur.rowcount > 0
 
     def reset_orphan_running_jobs_to_queued(self) -> int:
-        """
-        进程崩溃/重启后，库中可能残留 status=running 但已无 worker 执行。
-        重置为 queued 并清除进度，便于启动后重新入队。
-        """
         with self._connect() as conn:
             cur = conn.execute(
                 """
@@ -424,7 +500,6 @@ class AuthStore:
             return int(cur.rowcount) if cur.rowcount is not None else 0
 
     def set_job_cancel_requested(self, job_id: str) -> bool:
-        """运行中任务请求软取消（遗留；取消接口已改为立即 try_mark_job_cancelled）。"""
         with self._connect() as conn:
             cur = conn.execute(
                 """
@@ -504,7 +579,6 @@ class AuthStore:
         return int(row["c"]) if row else 0
 
     def get_queue_position(self, job_id: str) -> tuple[int | None, int]:
-        """排队任务返回 (从 1 起的位次, 排队总数)；非排队返回 (None, 排队总数)。"""
         total = self.count_queued_jobs()
         job = self.get_job(job_id)
         if not job or job.status != "queued":
@@ -545,6 +619,39 @@ class AuthStore:
         if pages_total is not None:
             sets.append("progress_pages_total = ?")
             params.append(int(pages_total))
+        if not sets:
+            return
+        params.append(job_id)
+        with self._connect() as conn:
+            conn.execute(
+                f"UPDATE jobs SET {', '.join(sets)} WHERE job_id = ?",
+                params,
+            )
+            conn.commit()
+
+    def update_job_file_counts(
+        self,
+        job_id: str,
+        *,
+        total_files: int | None = None,
+        processed_files: int | None = None,
+        succeeded_files: int | None = None,
+        failed_files: int | None = None,
+    ) -> None:
+        sets: list[str] = []
+        params: list[object] = []
+        if total_files is not None:
+            sets.append("total_files = ?")
+            params.append(int(total_files))
+        if processed_files is not None:
+            sets.append("processed_files = ?")
+            params.append(int(processed_files))
+        if succeeded_files is not None:
+            sets.append("succeeded_files = ?")
+            params.append(int(succeeded_files))
+        if failed_files is not None:
+            sets.append("failed_files = ?")
+            params.append(int(failed_files))
         if not sets:
             return
         params.append(job_id)

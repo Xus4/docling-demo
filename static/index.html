@@ -1064,6 +1064,13 @@
         to { transform: rotate(360deg); }
       }
 
+
+      .selected-list-wrap {
+  border-top: 1px solid var(--section-divider);
+  padding-top: 14px;
+}
+
+
       .result,
       .history {
         display: none;
@@ -1081,6 +1088,65 @@
         color: var(--text-sub);
         font-size: 13px;
       }
+
+      .selected-item {
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel-bg);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.selected-item-main {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.selected-item-name {
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-all;
+  color: var(--text-main);
+}
+
+.selected-item-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+.selected-remove-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--error-text) 38%, transparent);
+  background: color-mix(in srgb, var(--error-text) 10%, transparent);
+  color: var(--error-text);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 0.08s ease,
+    filter 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.selected-remove-btn:hover {
+  filter: brightness(1.08);
+  border-color: color-mix(in srgb, var(--error-text) 60%, transparent);
+}
+
+.selected-remove-btn:active {
+  transform: scale(0.96);
+}
+
 
       .result-card,
       .history-item {
@@ -1496,15 +1562,15 @@
         </section>
 
         <section id="workArea" class="workspace hidden">
-          <input id="fileInput" type="file" hidden />
-
+          <input id="fileInput" type="file" multiple hidden />
+          <input id="folderInput" type="file" webkitdirectory multiple hidden />
           <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="文件上传区域">
             <svg class="upload-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M12 16V4M12 4L8 8M12 4L16 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
               <path d="M4 14.5V17C4 18.6569 5.34315 20 7 20H17C18.6569 20 20 18.6569 20 17V14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
             </svg>
-            <p class="dropzone-text">点击或拖拽文件到此区域上传</p>
-            <p class="dropzone-hint">支持格式：PDF、DOCX、PPTX、JPG、PNG</p>
+            <p class="dropzone-text">点击选择文件或文件夹，或拖拽文件到此区域上传</p>
+            <p class="dropzone-hint">支持单文件与文件夹上传；可处理 PDF、DOCX、PPTX、JPG、PNG、XLSX</p>
             <div class="format-badges" aria-hidden="true">
               <span class="format-badge">PDF</span>
               <span class="format-badge">DOCX</span>
@@ -1515,6 +1581,12 @@
           </div>
 
           <div id="selectedFile" class="selected-file hidden"></div>
+          <div id="selectedListWrap" class="selected-list-wrap hidden">
+  <p class="section-title">待上传文件</p>
+  <div id="selectedList" class="history-list" style="height: 260px;"></div>
+</div>
+
+
           <button id="convertBtn" class="primary-btn" type="button" disabled>上传并转换</button>
 
           <div id="progressWrap" class="progress-wrap" aria-live="polite">
@@ -1590,9 +1662,14 @@
     </div>
 
     <script>
+
+      const folderInput = document.getElementById("folderInput");
       const fileInput = document.getElementById("fileInput");
       const dropzone = document.getElementById("dropzone");
       const selectedFile = document.getElementById("selectedFile");
+      const selectedListWrap = document.getElementById("selectedListWrap");
+const selectedList = document.getElementById("selectedList");
+
       const convertBtn = document.getElementById("convertBtn");
       const progressWrap = document.getElementById("progressWrap");
       const progressTrack = document.getElementById("progressTrack");
@@ -1638,7 +1715,9 @@
         history: "docling_history",
         rememberedUser: "docling_remembered_user",
       };
-      let currentFile = null;
+      let currentUploadMode = null; // "file" | "folder"
+      let currentFiles = [];
+      let currentRootName = ""; 
       let currentUser = null;
       let taskPollTimer = null;
       /** 任务列表中排队/进行中项的「已用时」每秒刷新 */
@@ -1652,8 +1731,10 @@
       let windowDragDepth = 0;
 
       function updateConvertButtonState() {
-        convertBtn.disabled = !currentFile;
-      }
+  convertBtn.disabled = !currentFiles || currentFiles.length === 0;
+}
+
+
 
       function formatBytes(n) {
         const x = Number(n);
@@ -1835,14 +1916,136 @@
         });
       }
 
-      function setSelectedFile(file) {
-        currentFile = file;
-        selectedFile.classList.remove("hidden");
-        selectedFile.textContent = "已选择文件: " + file.name;
-        statusBox.className = "status-box";
-        statusBox.textContent = "";
-        updateConvertButtonState();
-      }
+      function getFileRelativePath(file, mode) {
+  if (!file) return "";
+  if (mode === "folder") {
+    return file.webkitRelativePath || file._relativePath || file.name || "";
+  }
+  return file.name || "";
+}
+
+function renderSelectedFiles() {
+  if (!selectedListWrap || !selectedList) return;
+
+  if (!currentFiles || !currentFiles.length) {
+    selectedListWrap.classList.add("hidden");
+    selectedList.innerHTML = "";
+    return;
+  }
+
+  selectedListWrap.classList.remove("hidden");
+
+  selectedList.innerHTML = currentFiles
+    .map(function (file, index) {
+      const rel = getFileRelativePath(file, currentUploadMode);
+      const displayName = rel || file.name || ("文件 " + (index + 1));
+      const sizeText = formatBytes(file && file.size ? file.size : 0);
+
+      return (
+        '<div class="selected-item">' +
+          '<div class="selected-item-main">' +
+            '<div class="selected-item-name">' +
+              String(displayName).replace(/</g, "&lt;") +
+            '</div>' +
+            '<div class="selected-item-meta">' +
+              sizeText +
+            '</div>' +
+          '</div>' +
+          '<button type="button" class="selected-remove-btn" data-remove-index="' + index + '" aria-label="移除该文件" title="移除该文件">×</button>' +
+        '</div>'
+      );
+    })
+    .join("");
+}
+
+function removeSelectedFileAt(index) {
+  const i = Number(index);
+  if (!Number.isInteger(i) || i < 0 || i >= currentFiles.length) {
+    return;
+  }
+
+  currentFiles.splice(i, 1);
+
+  if (!currentFiles.length) {
+    currentUploadMode = null;
+    currentRootName = "";
+    selectedFile.textContent = "";
+    selectedFile.classList.add("hidden");
+    selectedListWrap.classList.add("hidden");
+    selectedList.innerHTML = "";
+    try {
+      fileInput.value = "";
+      folderInput.value = "";
+    } catch (e) {
+      /* ignore */
+    }
+    updateConvertButtonState();
+    return;
+  }
+
+  if (currentUploadMode === "folder") {
+    const first = currentFiles[0];
+    const rel = getFileRelativePath(first, "folder");
+    const root = rel ? rel.split("/")[0] : "folder_upload";
+    currentRootName = root;
+    selectedFile.textContent =
+      "已选择文件夹: " + root + "（共 " + currentFiles.length + " 个文件）";
+  } else {
+    currentRootName = currentFiles[0].name || "";
+    if (currentFiles.length === 1) {
+      selectedFile.textContent = "已选择文件: " + (currentFiles[0].name || "");
+    } else {
+      selectedFile.textContent =
+        "已选择多个文件（共 " + currentFiles.length + " 个）";
+    }
+  }
+
+  renderSelectedFiles();
+  updateConvertButtonState();
+}
+
+
+      function setSelectedUpload(mode, files) {
+  currentUploadMode = mode;
+  currentFiles = Array.from(files || []);
+  currentRootName = "";
+
+  if (!currentFiles.length) {
+    selectedFile.textContent = "";
+    selectedFile.classList.add("hidden");
+    selectedListWrap.classList.add("hidden");
+    selectedList.innerHTML = "";
+    updateConvertButtonState();
+    return;
+  }
+
+  selectedFile.classList.remove("hidden");
+
+  if (mode === "folder") {
+    const first = currentFiles[0];
+    const rel = first.webkitRelativePath || first._relativePath || "";
+    const root = rel ? rel.split("/")[0] : "folder_upload";
+    currentRootName = root;
+    selectedFile.textContent =
+      "已选择文件夹: " + root + "（共 " + currentFiles.length + " 个文件）";
+  } else {
+    currentRootName = currentFiles[0].name;
+    if (currentFiles.length === 1) {
+      selectedFile.textContent = "已选择文件: " + currentFiles[0].name;
+    } else {
+      selectedFile.textContent =
+        "已选择多个文件（共 " + currentFiles.length + " 个）";
+    }
+  }
+
+  statusBox.className = "status-box";
+  statusBox.textContent = "";
+  renderSelectedFiles();
+  updateConvertButtonState();
+}
+
+
+
 
       function resetResult() {
         result.classList.remove("show");
@@ -1900,9 +2103,15 @@
         logoutBtn.classList.add("hidden");
         userBadge.textContent = "未登录";
         taskFilters.classList.add("hidden");
-        currentFile = null;
-        selectedFile.classList.add("hidden");
-        selectedFile.textContent = "";
+        currentUploadMode = null;
+currentFiles = [];
+currentRootName = "";
+selectedFile.classList.add("hidden");
+selectedFile.textContent = "";
+if (selectedListWrap) selectedListWrap.classList.add("hidden");
+if (selectedList) selectedList.innerHTML = "";
+
+
         resetResult();
         progressWrap.classList.remove("show");
         historyWrap.classList.remove("show");
@@ -2103,41 +2312,49 @@
                 : "";
             let progressBlock = "";
             if (job.status === "running") {
-              let pct = Number(job.progress_percent);
-              if (!Number.isFinite(pct)) {
-                pct = 0;
-              }
-              pct = Math.max(0, Math.min(100, pct));
-              const noteRaw = job.progress_note != null ? String(job.progress_note) : "转换中…";
-              const note = noteRaw.replace(/</g, "&lt;");
-              let pageHint = "";
-              const genericProgressNote =
-                noteRaw === "转换中…" ||
-                noteRaw === "开始处理…" ||
-                /正在转换文档/.test(noteRaw);
-              const hasPageInNote = /PDF\s*已完成\s*\d+\s*\/\s*\d+\s*页/.test(noteRaw);
-              if (
-                job.progress_pages_done != null &&
-                job.progress_pages_total != null &&
-                (genericProgressNote || !hasPageInNote)
-              ) {
-                pageHint =
-                  " · 页 " + job.progress_pages_done + "/" + job.progress_pages_total;
-              }
-              progressBlock =
-                '<div class="task-progress-wrap" role="progressbar" aria-valuenow="' +
-                pct +
-                '" aria-valuemin="0" aria-valuemax="100">' +
-                '<div class="task-progress-bar-bg"><div class="task-progress-bar-fill" style="width:' +
-                pct +
-                '%"></div></div>' +
-                '<div class="task-progress-note">' +
-                note +
-                pageHint +
-                " · " +
-                pct +
-                "%</div></div>";
-            }
+  let pct = Number(job.progress_percent);
+  if (!Number.isFinite(pct)) {
+    pct = 0;
+  }
+  pct = Math.max(0, Math.min(100, pct));
+  const noteRaw = job.progress_note != null ? String(job.progress_note) : "转换中…";
+  const note = noteRaw.replace(/</g, "&lt;");
+
+  let fileHint = "";
+  if (
+    job.total_files != null &&
+    job.processed_files != null &&
+    Number(job.total_files) > 0
+  ) {
+    fileHint =
+      " · 文件 " + job.processed_files + "/" + job.total_files;
+  }
+
+  let pageHint = "";
+  if (
+    job.progress_pages_done != null &&
+    job.progress_pages_total != null
+  ) {
+    pageHint =
+      " · 页 " + job.progress_pages_done + "/" + job.progress_pages_total;
+  }
+
+  progressBlock =
+    '<div class="task-progress-wrap" role="progressbar" aria-valuenow="' +
+    pct +
+    '" aria-valuemin="0" aria-valuemax="100">' +
+    '<div class="task-progress-bar-bg"><div class="task-progress-bar-fill" style="width:' +
+    pct +
+    '%"></div></div>' +
+    '<div class="task-progress-note">' +
+    note +
+    fileHint +
+    pageHint +
+    " · " +
+    pct +
+    "%</div></div>";
+}
+
             const canCancel = job.status === "queued" || job.status === "running";
             const cancelBtn = canCancel
               ? '<button type="button" class="task-cancel-btn" data-job-cancel="' +
@@ -2336,6 +2553,17 @@
         refreshTaskList();
       });
 
+      if (selectedList) {
+  selectedList.addEventListener("click", function (event) {
+    const btn = event.target.closest("[data-remove-index]");
+    if (!btn) return;
+
+    const idx = btn.getAttribute("data-remove-index");
+    removeSelectedFileAt(idx);
+  });
+}
+
+
       historyList.addEventListener("click", async (event) => {
         const delBtn = event.target.closest("[data-job-delete]");
         if (delBtn) {
@@ -2476,9 +2704,117 @@
         setStatus("success", "已退出登录");
       });
 
-      function openPicker() {
-        fileInput.click();
+      async function readAllDirectoryEntries(dirReader) {
+    const entries = [];
+    while (true) {
+      const batch = await new Promise((resolve, reject) => {
+        dirReader.readEntries(resolve, reject);
+      });
+      if (!batch || !batch.length) {
+        break;
       }
+      entries.push(...batch);
+    }
+    return entries;
+  }
+
+  async function walkEntry(entry, pathPrefix) {
+    if (!entry) return [];
+
+    if (entry.isFile) {
+      const file = await new Promise((resolve, reject) => {
+        entry.file(resolve, reject);
+      });
+
+      const relPath = pathPrefix ? (pathPrefix + "/" + file.name) : file.name;
+
+      try {
+        Object.defineProperty(file, "webkitRelativePath", {
+          value: relPath,
+          configurable: true,
+        });
+      } catch (e) {
+        file._relativePath = relPath;
+      }
+
+      if (!file._relativePath) {
+        file._relativePath = relPath;
+      }
+
+      return [file];
+    }
+
+    if (entry.isDirectory) {
+      const dirPath = pathPrefix ? (pathPrefix + "/" + entry.name) : entry.name;
+      const reader = entry.createReader();
+      const children = await readAllDirectoryEntries(reader);
+
+      let files = [];
+      for (const child of children) {
+        const subFiles = await walkEntry(child, dirPath);
+        files = files.concat(subFiles);
+      }
+      return files;
+    }
+
+    return [];
+  }
+
+async function extractDroppedFiles(dataTransfer) {
+  if (!dataTransfer) {
+    return { mode: "file", files: [] };
+  }
+
+  const items = Array.from(dataTransfer.items || []);
+  const hasEntryApi = items.some(
+    (item) => item && typeof item.webkitGetAsEntry === "function"
+  );
+
+  if (!hasEntryApi) {
+    return {
+      mode: "file",
+      files: Array.from(dataTransfer.files || []),
+    };
+  }
+
+  let allFiles = [];
+  let hasDirectory = false;
+
+  for (const item of items) {
+    if (!item || item.kind !== "file") continue;
+
+    const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+    if (!entry) continue;
+
+    if (entry.isDirectory) {
+      hasDirectory = true;
+    }
+
+    const files = await walkEntry(entry, "");
+    allFiles = allFiles.concat(files);
+  }
+
+  return {
+    mode: hasDirectory ? "folder" : "file",
+    files: allFiles,
+  };
+}
+
+      async function openPicker() {
+  const pickFolder = await openThemedConfirm({
+    title: "选择上传方式",
+    message: "点击“确定”选择文件夹，点击“取消”后将选择单个文件或多个文件。",
+    confirmText: "选择文件夹",
+    cancelText: "选择文件",
+    danger: false,
+  });
+  if (pickFolder) {
+    folderInput.click();
+  } else {
+    fileInput.click();
+  }
+}
+
 
       dropzone.addEventListener("click", openPicker);
       dropzone.addEventListener("keydown", (event) => {
@@ -2489,11 +2825,19 @@
       });
 
       fileInput.addEventListener("change", () => {
-        if (fileInput.files && fileInput.files[0]) {
-          setSelectedFile(fileInput.files[0]);
-          resetResult();
-        }
-      });
+  if (fileInput.files && fileInput.files.length) {
+    setSelectedUpload("file", fileInput.files);
+    resetResult();
+  }
+});
+
+folderInput.addEventListener("change", () => {
+  if (folderInput.files && folderInput.files.length) {
+    setSelectedUpload("folder", folderInput.files);
+    resetResult();
+  }
+});
+
 
       ["dragenter", "dragover"].forEach((eventName) => {
         dropzone.addEventListener(eventName, (event) => {
@@ -2537,16 +2881,48 @@
         event.preventDefault();
       });
 
-      dropzone.addEventListener("drop", (event) => {
-        const files = event.dataTransfer && event.dataTransfer.files;
-        if (!files || !files.length) {
-          return;
-        }
-        const file = files[0];
-        fileInput.files = files;
-        setSelectedFile(file);
-        resetResult();
-      });
+      dropzone.addEventListener("drop", async (event) => {
+  event.preventDefault();
+  dropzone.classList.remove("dragover");
+  if (dropzoneText) dropzoneText.textContent = defaultDropzoneText;
+  if (dropzoneHint) dropzoneHint.textContent = defaultDropzoneHint;
+
+  try {
+    const { mode, files } = await extractDroppedFiles(event.dataTransfer);
+    if (!files || !files.length) {
+      setStatus("error", "未读取到可上传的文件");
+      return;
+    }
+
+    setSelectedUpload(mode, files);
+    resetResult();
+  } catch (error) {
+    console.error("drop parse failed:", error);
+    setStatus("error", "读取拖拽内容失败");
+  }
+});
+
+  function clearCurrentSelection() {
+  currentUploadMode = null;
+  currentFiles = [];
+  currentRootName = "";
+
+  selectedFile.textContent = "";
+  selectedFile.classList.add("hidden");
+
+  if (selectedListWrap) selectedListWrap.classList.add("hidden");
+  if (selectedList) selectedList.innerHTML = "";
+
+  try {
+    fileInput.value = "";
+    folderInput.value = "";
+  } catch (e) {
+    /* ignore */
+  }
+
+  updateConvertButtonState();
+}
+
 
       function postJobsWithUploadProgress(formData, myGen) {
         const progressText = progressWrap.querySelector(".progress-text");
@@ -2560,7 +2936,10 @@
             if (myGen !== uploadGeneration) {
               return;
             }
-            const fileSize = currentFile && currentFile.size ? currentFile.size : 0;
+            const fileSize = (currentFiles || []).reduce(function (sum, f) {
+  return sum + (f && f.size ? f.size : 0);
+}, 0);
+
             const total =
               e.lengthComputable && e.total > 0 ? e.total : fileSize > 0 ? fileSize : 0;
             const elapsedSec = uploadT0 > 0 ? (performance.now() - uploadT0) / 1000 : 0;
@@ -2626,10 +3005,11 @@
         progressWrap.classList.remove("show");
         statusBox.className = "status-box";
         statusBox.textContent = "";
-        if (!currentFile) {
-          setStatus("error", "请先选择要上传的文件");
-          return;
-        }
+        if (!currentFiles || !currentFiles.length) {
+  setStatus("error", "请先选择要上传的文件或文件夹");
+  return;
+}
+
         const myGen = ++uploadGeneration;
         const oldText = convertBtn.textContent;
         convertBtn.disabled = true;
@@ -2647,7 +3027,20 @@
           }
 
           const formData = new FormData();
-          formData.append("file", currentFile);
+
+for (const f of currentFiles) {
+  formData.append("files", f);
+  const rel =
+    currentUploadMode === "folder"
+      ? (f.webkitRelativePath || f._relativePath || f.name)
+      : f.name;
+  formData.append("relative_paths", rel);
+}
+
+
+formData.append("upload_kind", currentUploadMode || "file");
+formData.append("root_name", currentRootName || "");
+
 
           const { ok, status, payload } = await postJobsWithUploadProgress(formData, myGen);
 
@@ -2671,24 +3064,28 @@
             return;
           }
           if (!ok) {
-            setStatus("error", (payload && payload.detail) || "创建任务失败，请稍后重试");
-            resetProgressBar();
-            progressWrap.classList.remove("show");
-            return;
-          }
+  console.error("create job failed:", status, payload);
+  setStatus("error", (payload && payload.detail) || ("创建任务失败，HTTP " + status));
+  resetProgressBar();
+  progressWrap.classList.remove("show");
+  return;
+}
+
           await refreshTaskList();
-          resetProgressBar();
-          // 上传完成后不再展示顶部任务进度框（任务列表里已有进度）。
-          progressWrap.classList.remove("show");
+resetProgressBar();
+progressWrap.classList.remove("show");
+clearCurrentSelection();
+showToast("success", "任务已提交，请在任务列表查看进度");
           const jobId = payload && payload.job_id;
           if (jobId) {
-            convertBtn.textContent = "处理中...";
-            await pollJobUntilTerminal(jobId, myGen);
-          } else {
-            setStatus("error", "未返回任务 ID");
-            resetProgressBar();
-            progressWrap.classList.remove("show");
-          }
+  setStatus("success", "任务已创建，正在后台处理");
+  pollJobUntilTerminal(jobId, myGen); // 不 await
+} else {
+  setStatus("error", "未返回任务 ID");
+  resetProgressBar();
+  progressWrap.classList.remove("show");
+}
+
         } catch (error) {
           if (myGen === uploadGeneration) {
             const message = String((error && error.message) || "");
@@ -2697,7 +3094,9 @@
               resetProgressBar();
               progressWrap.classList.remove("show");
             } else {
-              setStatus("error", "请求失败，请检查网络或服务状态");
+              console.error("upload failed:", error);
+setStatus("error", "请求失败：" + (error && error.message ? error.message : "未知错误"));
+
               resetProgressBar();
               progressWrap.classList.remove("show");
             }
