@@ -53,4 +53,9 @@ def configure_logging(
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
-    log_event(logging.getLogger(app), logging.INFO, "logger.ready", level=logging.getLevelName(level))
+    log_event(
+        logging.getLogger(app),
+        logging.INFO,
+        "logger.ready",
+        log_level=logging.getLevelName(level),
+    )
