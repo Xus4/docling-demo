@@ -1,6 +1,8 @@
 docling>=2.0,<3
 # MinerU Magic-PDF：pdf-vl 配图裁剪时优先用其布局检测图片 bbox（未装则回退 PyMuPDF）
 magic-pdf>=1.0.0
+# MinerU 运行时依赖（部分版本会动态导入）
+ultralytics>=8.0.0
 easyocr>=1.7.0
 pandas>=2.0.0
 openpyxl>=3.1.0
