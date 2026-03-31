@@ -219,11 +219,11 @@ def _review_suspicious_tables_with_llm(
     temperature: Optional[float],
     max_tokens: Optional[int],
     max_tables: int,
-) -> str:
+) -> tuple[str, int]:
     lines = page_md.splitlines()
     blocks = extract_markdown_table_blocks(page_md)
     if not blocks:
-        return page_md
+        return page_md, 0
 
     reviewed = 0
     for tb in blocks:
@@ -260,8 +260,8 @@ def _review_suspicious_tables_with_llm(
         lines[tb.start_line : tb.end_line + 1] = new_lines
         reviewed += 1
     if reviewed > 0:
-        _log.info("阶段=表格二次校对 reviewed=%s", reviewed)
-    return "\n".join(lines)
+        _log.info("[pdf-vl] 表格复核 · 修正 %s 处", reviewed)
+    return "\n".join(lines), reviewed
 
 
 
@@ -2223,25 +2223,69 @@ def transcribe_pdf_with_vl(
         tmp_root = Path(tempfile.gettempdir()) / "docling_pdf_vl_pages"
         tmp_root.mkdir(parents=True, exist_ok=True)
 
+        _log.info(
+            "[pdf-vl] 准备 · %s · 共 %s 页 · 处理 %s 页 · dpi=%s · workers=%s · table_review=%s · crop_figures=%s",
+            pdf_path.name,
+            n,
+            limit,
+            dpi_f,
+            workers_i,
+            bool(table_second_pass),
+            bool(caption_crop_figures and markdown_out_path is not None),
+        )
+
         page_pngs: list[Path] = []
         for page_index in range(limit):
+            t0 = time.perf_counter()
             page = doc[page_index]
             pix = page.get_pixmap(dpi=int(round(dpi_f)))
             png_path = tmp_root / f"{pdf_path.stem}.page_{page_index + 1:04d}.png"
             pix.save(str(png_path))
             page_pngs.append(png_path)
+            try:
+                w = int(getattr(pix, "width", 0) or 0)
+                h = int(getattr(pix, "height", 0) or 0)
+            except Exception:
+                w, h = 0, 0
+            size_kb = 0
+            try:
+                size_kb = int(round(png_path.stat().st_size / 1024.0))
+            except Exception:
+                size_kb = 0
+            _log.info(
+                "[pdf-vl] 第 %s/%s 页 · 渲染PNG · %.2fs · %sx%s · %sKB",
+                page_index + 1,
+                limit,
+                time.perf_counter() - t0,
+                w,
+                h,
+                size_kb,
+            )
 
         vl_failed_pages_1based: list[int] = []
 
         def _one_page(i: int, image_path: Path) -> tuple[int, str]:
             _log.info(
-                "阶段=页转写开始 page=%s/%s dpi=%s file=%s",
+                "[pdf-vl] 第 %s/%s 页 · 开始 · dpi %s · %s",
                 i + 1,
                 limit,
                 dpi_f,
                 pdf_path.name,
             )
             try:
+                page_t0 = time.perf_counter()
+                img_kb = 0
+                try:
+                    img_kb = int(round(image_path.stat().st_size / 1024.0))
+                except Exception:
+                    img_kb = 0
+                _log.info(
+                    "[pdf-vl] 第 %s/%s 页 · 输入图像 · %sKB · %s",
+                    i + 1,
+                    limit,
+                    img_kb,
+                    image_path.name,
+                )
                 user_text = _VL_USER_TMPL.format(
                     name=pdf_path.name,
                     idx=i + 1,
@@ -2259,13 +2303,13 @@ def transcribe_pdf_with_vl(
                         messages,
                         temperature=temperature,
                         max_tokens=max_tokens,
-                        biz_stage="图转文",
+                        biz_stage="页转写",
                     )
                     page_md = _normalize_markdown_output(raw_last).strip()
                     if page_md:
                         break
                     _log.warning(
-                        "阶段=页转写空输出(重试) page=%s/%s attempt=%s file=%s",
+                        "[pdf-vl] 第 %s/%s 页 · 空输出 · 重试第 %s 次 · %s",
                         i + 1,
                         limit,
                         attempt,
@@ -2276,17 +2320,35 @@ def transcribe_pdf_with_vl(
                 if not page_md:
                     snippet = (raw_last or "")[:400].replace("\n", "\\n")
                     _log.error(
-                        "阶段=页转写空输出(占位) page=%s/%s file=%s raw_snippet=%s",
+                        "[pdf-vl] 第 %s/%s 页 · 空输出已占位 · %s · snippet=%s",
                         i + 1,
                         limit,
                         pdf_path.name,
                         snippet,
                     )
                     page_md = "（本页模型输出为空）"
+                    _log.info(
+                        "[pdf-vl] 第 %s/%s 页 · 产出 · 占位正文",
+                        i + 1,
+                        limit,
+                    )
                 else:
+                    # 产出快速统计（便于扫读）
+                    n_chars_raw = len(page_md)
+                    n_lines_raw = page_md.count("\n") + 1 if page_md else 0
+                    n_tables_raw = len(extract_markdown_table_blocks(page_md))
+                    _log.info(
+                        "[pdf-vl] 第 %s/%s 页 · 产出 · %s 行 · %s 字 · 表 %s",
+                        i + 1,
+                        limit,
+                        n_lines_raw,
+                        n_chars_raw,
+                        n_tables_raw,
+                    )
                     page_md = _normalize_gfm_tables(page_md)
                     if table_second_pass:
-                        page_md = _review_suspicious_tables_with_llm(
+                        t_review0 = time.perf_counter()
+                        page_md, reviewed_n = _review_suspicious_tables_with_llm(
                             client=client,
                             model=model,
                             page_md=page_md,
@@ -2295,8 +2357,16 @@ def transcribe_pdf_with_vl(
                             max_tokens=max_tokens,
                             max_tables=max(1, int(table_second_pass_max_tables)),
                         )
+                        _log.info(
+                            "[pdf-vl] 第 %s/%s 页 · 表格复核 · 修正 %s 处 · %.2fs",
+                            i + 1,
+                            limit,
+                            reviewed_n,
+                            time.perf_counter() - t_review0,
+                        )
 
                     if caption_crop_figures and markdown_out_path is not None:
+                        t_crop0 = time.perf_counter()
                         try:
                             caption_and_refs = crop_figures_by_docling_layout(
                                 page_md=page_md,
@@ -2309,7 +2379,7 @@ def transcribe_pdf_with_vl(
                             )
                             if caption_and_refs:
                                 _log.info(
-                                    "阶段=配图裁剪 page=%s/%s cropped=%s file=%s",
+                                    "[pdf-vl] 第 %s/%s 页 · 配图裁剪 · %s 张 · %s",
                                     i + 1,
                                     limit,
                                     len(caption_and_refs),
@@ -2319,26 +2389,40 @@ def transcribe_pdf_with_vl(
                                     page_md=page_md,
                                     caption_and_refs=caption_and_refs,
                                 )
+                            _log.info(
+                                "[pdf-vl] 第 %s/%s 页 · 配图裁剪 · 完成 · %.2fs · %s 张",
+                                i + 1,
+                                limit,
+                                time.perf_counter() - t_crop0,
+                                len(caption_and_refs) if caption_and_refs else 0,
+                            )
                         except Exception as e:
                             _log.warning(
-                                "阶段=配图裁剪失败(忽略) page=%s/%s file=%s err=%s",
+                                "[pdf-vl] 第 %s/%s 页 · 配图裁剪失败(已忽略) · %s · %s",
                                 i + 1,
                                 limit,
                                 pdf_path.name,
                                 repr(e),
                             )
+                            _log.info(
+                                "[pdf-vl] 第 %s/%s 页 · 配图裁剪 · 失败已忽略 · %.2fs",
+                                i + 1,
+                                limit,
+                                time.perf_counter() - t_crop0,
+                            )
 
                 _log.info(
-                    "阶段=页转写完成 page=%s/%s file=%s",
+                    "[pdf-vl] 第 %s/%s 页 · 完成 · %.2fs · %s",
                     i + 1,
                     limit,
+                    time.perf_counter() - page_t0,
                     pdf_path.name,
                 )
                 return i, page_md
             except Exception as e:
                 vl_failed_pages_1based.append(i + 1)
                 _log.error(
-                    "阶段=页转写失败(已跳过) page=%s/%s file=%s err=%s",
+                    "[pdf-vl] 第 %s/%s 页 · 失败已跳过 · %s · %s",
                     i + 1,
                     limit,
                     pdf_path.name,
@@ -2356,7 +2440,7 @@ def transcribe_pdf_with_vl(
                     progress_callback(i + 1, limit)
         else:
             _log.info(
-                "阶段=并发页转写 workers=%s pages=%s file=%s",
+                "[pdf-vl] 并发转写 · workers=%s · 共 %s 页 · %s",
                 workers_i,
                 limit,
                 pdf_path.name,

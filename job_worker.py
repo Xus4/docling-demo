@@ -13,6 +13,13 @@ from service import ConversionError, ConversionService
 log = logging.getLogger("job_worker")
 
 
+def _job_short(job_id: str) -> str:
+    """日志展示用短 id，便于扫读；完整 id 仍可从库中查。"""
+    if len(job_id) <= 10:
+        return job_id
+    return f"{job_id[:8]}…"
+
+
 def _job_log_fields(job_id: str, rec: JobRecord | None) -> tuple[str, str, str]:
     """用于日志：job_id、用户名、展示用文件名。"""
     if not rec:
@@ -54,7 +61,7 @@ class JobQueueWorker:
             try:
                 self._process_one(job_id)
             except Exception:  # noqa: BLE001
-                log.exception("任务 worker 异常 job_id=%s", job_id)
+                log.exception("[job] worker 异常 · job %s", _job_short(job_id))
             finally:
                 self._q.task_done()
 
@@ -66,10 +73,10 @@ class JobQueueWorker:
         if not rec or not rec.output_file:
             jid, u, fn = _job_log_fields(job_id, rec)
             log.warning(
-                "任务记录不完整 job_id=%s user=%s file=%s",
-                jid,
+                "[job] 记录不完整 · %s · %s · job %s",
                 u,
                 fn,
+                _job_short(jid),
             )
             self.auth.mark_job_failed(job_id, "内部错误：任务记录不完整")
             return
@@ -78,23 +85,23 @@ class JobQueueWorker:
         out = Path(rec.output_file)
         jid, user, fname = _job_log_fields(job_id, rec)
         log.info(
-            "阶段=任务执行启动 job_id=%s user=%s file=%s input=%s output=%s",
-            jid,
+            "[job] 开始 · %s · %s → %s · %s · job %s",
             user,
             fname,
             inp.name,
             out.name,
+            _job_short(jid),
         )
         # 严格真实进度模式：启动后先展示“准备中”，不写入估算百分比。
         self.auth.update_job_progress(job_id, note="图转文准备中（正在初始化）")
 
         if not inp.is_file():
             log.error(
-                "任务输入文件不存在 job_id=%s user=%s file=%s path=%s",
-                jid,
+                "[job] 输入不存在 · %s · %s · %s · job %s",
                 user,
                 fname,
                 inp,
+                _job_short(jid),
             )
             self.auth.mark_job_failed(job_id, "输入文件不存在")
             return
@@ -122,13 +129,13 @@ class JobQueueWorker:
                 pages_total=t,
             )
             log.info(
-                "阶段=图转文进度 job_id=%s user=%s file=%s pdf_pages=%s/%s progress_percent=%s",
-                jid,
-                user,
-                fname,
+                "[job] 进度 · PDF %s/%s · %s%% · %s · %s · job %s",
                 d,
                 t,
                 pct,
+                user,
+                fname,
+                _job_short(jid),
             )
 
         # 始终保留 pulse 线程：当存在页级进度回调时（progress_pages_total != None）
@@ -158,11 +165,10 @@ class JobQueueWorker:
                             note="PDF 页码已完成，正在后处理…",
                         )
                         log.debug(
-                            "阶段=文档后处理进度补偿 job_id=%s user=%s file=%s pulse_percent=%s",
-                            jid,
+                            "[job] 后处理补偿 · 99%% · %s · %s · job %s",
                             user,
                             fname,
-                            99,
+                            _job_short(jid),
                         )
                     continue
 
@@ -188,20 +194,20 @@ class JobQueueWorker:
             )
         except ConversionError as exc:
             log.error(
-                "阶段=任务失败(业务) job_id=%s user=%s file=%s err=%s",
-                jid,
+                "[job] 失败 · 业务 · %s · %s · %s · job %s",
                 user,
                 fname,
                 exc,
+                _job_short(jid),
             )
             self.auth.mark_job_failed(job_id, str(exc))
             return
         except Exception as exc:  # noqa: BLE001
             log.exception(
-                "阶段=任务失败(异常) job_id=%s user=%s file=%s",
-                jid,
+                "[job] 失败 · 异常 · %s · %s · job %s",
                 user,
                 fname,
+                _job_short(jid),
             )
             self.auth.mark_job_failed(job_id, f"转换失败: {exc!s}"[:4000])
             return
@@ -237,24 +243,24 @@ class JobQueueWorker:
         )
         if ok:
             log.info(
-                "阶段=任务完成 job_id=%s user=%s file=%s output=%s",
-                jid,
+                "[job] 完成 · %s · %s → %s · job %s",
                 user,
                 fname,
                 out.name,
+                _job_short(jid),
             )
             if conv_result.pdf_vl_failed_pages:
                 log.warning(
-                    "阶段=任务完成(部分页图转文失败) job_id=%s pages=%s",
-                    jid,
+                    "[job] 完成 · 部分页失败 · 页 %s · job %s",
                     list(conv_result.pdf_vl_failed_pages),
+                    _job_short(jid),
                 )
         else:
             log.info(
-                "阶段=任务完成未落库(可能已取消) job_id=%s user=%s file=%s",
-                jid,
+                "[job] 完成 · 未落库(可能已取消) · %s · %s · job %s",
                 user,
                 fname,
+                _job_short(jid),
             )
             if out.exists():
                 try:

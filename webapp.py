@@ -37,8 +37,10 @@ job_worker = JobQueueWorker(auth_store, service)
 
 logging.basicConfig(
     level=logging.DEBUG if config.debug else logging.INFO,
-    format="%(asctime)s | %(levelname)-7s | %(name)s | tid=%(thread)d | %(message)s",
+    format="%(asctime)s · %(levelname)-7s · %(name)s · %(message)s",
 )
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 log = logging.getLogger("webapp")
 
 

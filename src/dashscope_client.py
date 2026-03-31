@@ -244,6 +244,23 @@ class DashScopeClient:
         return "; ".join(parts) if parts else "(empty)"
 
     @staticmethod
+    def _usage_compact(usage: Any) -> str:
+        """日志用：token 用量一行可读，避免整段 dict。"""
+        if not isinstance(usage, dict):
+            return str(usage)
+        pt = usage.get("prompt_tokens")
+        ct = usage.get("completion_tokens")
+        tt = usage.get("total_tokens")
+        bits: list[str] = []
+        if isinstance(pt, int):
+            bits.append(f"入{pt}")
+        if isinstance(ct, int):
+            bits.append(f"出{ct}")
+        if isinstance(tt, int):
+            bits.append(f"计{tt}")
+        return " · ".join(bits) if bits else str(usage)
+
+    @staticmethod
     def _image_ref_to_openai_url(ref: str) -> str:
         ref = ref.strip()
         if ref.startswith(("http://", "https://", "data:")):
@@ -315,12 +332,16 @@ class DashScopeClient:
             try:
                 if attempt == 1:
                     _log.info(
-                        "阶段=%s(LLM调用开始) kind=%s model=%s temperature=%s max_tokens=%s result_format=%s messages=%s",
+                        "[llm] %s · 请求 · %s · max_tokens=%s",
+                        biz_stage,
+                        model,
+                        max_tok,
+                    )
+                    _log.debug(
+                        "[llm] %s · 请求详情 · kind=%s · temp=%s · rf=%s · %s",
                         biz_stage,
                         kind,
-                        model,
                         temp,
-                        max_tok,
                         rf,
                         msg_summary,
                     )
@@ -332,18 +353,17 @@ class DashScopeClient:
                 elapsed = time.perf_counter() - t0
                 usage = data.get("usage")
                 request_id = data.get("request_id") or data.get("id")
+                rid = str(request_id) if request_id else "—"
+                retry = f" · 第{attempt}次重试" if attempt > 1 else ""
                 _log.info(
-                    "阶段=%s(LLM调用结束) kind=%s model=%s elapsed=%.3fs attempt=%s/%s usage=%s request_id=%s",
+                    "[llm] %s · 完成 · %.1fs · %s · %s · req %s%s",
                     biz_stage,
-                    kind,
-                    model,
                     elapsed,
-                    attempt,
-                    self.cfg.max_retries,
-                    usage,
-                    request_id,
+                    self._usage_compact(usage),
+                    model,
+                    rid,
+                    retry,
                 )
-                _log.info("阶段=%s(交互耗时统计) elapsed=%.3fs", biz_stage, elapsed)
                 return data
             except Exception as e:  # noqa: BLE001 - keep broad for network/runtime
                 last_exc = e
@@ -427,13 +447,16 @@ class DashScopeClient:
             try:
                 if attempt == 1:
                     _log.info(
-                        "阶段=%s(LLM调用开始-流式) kind=%s model=%s temperature=%s max_tokens=%s result_format=%s messages=%s",
+                        "[llm] %s · 请求(流式) · %s · max_tokens=%s",
+                        biz_stage,
+                        model,
+                        max_tok,
+                    )
+                    _log.debug(
+                        "[llm] %s · 请求详情 · kind=%s · temp=%s · %s",
                         biz_stage,
                         kind,
-                        model,
                         temp,
-                        max_tok,
-                        rf,
                         msg_summary,
                     )
                 t0 = time.perf_counter()
@@ -517,19 +540,18 @@ class DashScopeClient:
                 if request_id:
                     out["id"] = request_id
                     out["request_id"] = request_id
+                rid = str(request_id) if request_id else "—"
+                retry = f" · 第{attempt}次重试" if attempt > 1 else ""
                 _log.info(
-                    "阶段=%s(LLM调用结束-流式) kind=%s model=%s elapsed=%.3fs attempt=%s/%s usage=%s request_id=%s out_chars=%s",
+                    "[llm] %s · 完成(流式) · %.1fs · 输出 %s 字 · %s · %s · req %s%s",
                     biz_stage,
-                    kind,
-                    model,
                     elapsed,
-                    attempt,
-                    self.cfg.max_retries,
-                    usage,
-                    request_id,
                     len(full_content),
+                    self._usage_compact(usage),
+                    model,
+                    rid,
+                    retry,
                 )
-                _log.info("阶段=%s(交互耗时统计) elapsed=%.3fs", biz_stage, elapsed)
                 return out
             except Exception as e:  # noqa: BLE001
                 last_exc = e
