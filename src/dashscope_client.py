@@ -117,6 +117,12 @@ class DashScopeClient:
         "禁止把正文放在推理字段。"
     )
 
+    _RETRY_THINKING_CONCISE = (
+        "\n\n【重试补充】你可以继续思考，但请将思考内容严格收敛："
+        "只保留关键检查点/结论，不要展开长篇推理；"
+        "最终可交付结果必须写入 content（非空）。"
+    )
+
     """
     Minimal DashScope HTTP client for Qwen 系列（文本/多模态生成）。
 
@@ -694,8 +700,11 @@ class DashScopeClient:
         """
         OpenAI 兼容 /chat/completions：带输出约束与「空 content」重试。
 
-        Qwen3.5 等模型可能把全文写进 reasoning_content；此处禁止接受该结果，
-        在 empty_content_max_attempts 次内强制关闭思考并重试，仍失败则抛错。
+        Qwen3.5 等模型可能把全文写进 reasoning_content；此处禁止接受该结果。
+        若出现 content 为空，会在 empty_content_max_attempts 次内重试：
+        - 保持思考模式开启（优先质量）
+        - 追加“让思考收敛、正文必须进 content”的提示
+        - 在重试时适度收紧 max_reasoning_tokens，避免思考撑爆上下文
         """
         url = self.cfg.base_url.rstrip("/") + "/chat/completions"
         n = max(1, min(10, int(self.cfg.empty_content_max_attempts)))
@@ -704,8 +713,12 @@ class DashScopeClient:
         for attempt in range(n):
             retry_hint = attempt > 0
             guarded = self._append_guard_to_messages(messages, retry_hint=retry_hint)
+            if retry_hint:
+                # 追加“思考收敛”约束：优先放在 system，否则追加到最后一个 user 文本
+                guarded = self._append_guard_to_messages_with_extra_guard(
+                    guarded, extra_guard=self._RETRY_THINKING_CONCISE
+                )
             om = self._messages_to_openai_format(guarded)
-            force_off = attempt > 0
             temp = temperature
             if attempt > 0:
                 if temp is None:
@@ -718,8 +731,17 @@ class DashScopeClient:
                 messages=om,
                 temperature=temp,
                 max_tokens=max_tokens,
-                force_disable_thinking=force_off,
+                force_disable_thinking=False,
             )
+            # 重试时保持思考开启，但收紧 reasoning token，避免“思考”挤占输出窗口
+            if attempt > 0 and bool(payload.get("enable_thinking")):
+                # 若未设置则给一个保守上限；若已设置则取更小者
+                cur = payload.get("max_reasoning_tokens")
+                try:
+                    cur_i = int(cur) if cur is not None else 512
+                except Exception:
+                    cur_i = 512
+                payload["max_reasoning_tokens"] = max(0, min(cur_i, 512))
             if self.cfg.log_stream_response:
                 response_json = self._post_openai_chat_completions_stream(
                     url, payload, biz_stage=biz_stage
@@ -747,6 +769,50 @@ class DashScopeClient:
             f"{n} 次尝试后 assistant.content 仍为空（reasoning_content 不计入正文）。"
             f" last_request_id={last_id!r}"
         )
+
+    @classmethod
+    def _append_guard_to_messages_with_extra_guard(
+        cls, messages: list[dict[str, Any]], *, extra_guard: str
+    ) -> list[dict[str, Any]]:
+        """
+        追加额外 guard（与 _append_guard_to_messages 相同策略）：
+        - 优先追加到 system；
+        - 若不存在 system，则追加到最后一个 user 文本。
+        """
+        guard = (extra_guard or "").strip()
+        if not guard:
+            return messages
+        out: list[dict[str, Any]] = [dict(m) for m in messages]
+
+        for i, m in enumerate(out):
+            if str(m.get("role") or "") != "system":
+                continue
+            c = m.get("content")
+            if isinstance(c, str):
+                if guard not in c:
+                    out[i]["content"] = c + guard
+                return out
+
+        for i in range(len(out) - 1, -1, -1):
+            if str(out[i].get("role") or "") != "user":
+                continue
+            c = out[i].get("content")
+            if isinstance(c, str):
+                if guard not in c:
+                    out[i]["content"] = c + guard
+                return out
+            if isinstance(c, list):
+                # 追加到最后一个 text item；若不存在则新增 text item
+                for j in range(len(c) - 1, -1, -1):
+                    item = c[j]
+                    if isinstance(item, dict) and isinstance(item.get("text"), str):
+                        if guard not in item["text"]:
+                            item["text"] = item["text"] + guard
+                        return out
+                c.append({"type": "text", "text": guard})
+                out[i]["content"] = c
+                return out
+        return out
 
     @staticmethod
     def _is_reasoning_only_openai_response(response_json: dict[str, Any]) -> bool:

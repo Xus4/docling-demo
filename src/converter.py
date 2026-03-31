@@ -1119,18 +1119,35 @@ class IndustrialDocConverter:
         try:
             from src.llm_prompts import build_image_caption_messages
 
+            # 兼容：CLI 未传参时 llm_image_caption_max_chars 往往为 0；
+            # 此处回退读取环境变量（与 Web config.py 一致）。
+            max_chars_cfg = int(self.config.llm_image_caption_max_chars or 0)
+            if max_chars_cfg <= 0:
+                try:
+                    max_chars_cfg = int((os.getenv("LLM_IMAGE_CAPTION_MAX_CHARS") or "").strip() or 0)
+                except Exception:
+                    max_chars_cfg = 0
+
             messages = build_image_caption_messages(
                 image_path=image_path,
                 context_text=context_text,
-                max_chars=self.config.llm_image_caption_max_chars,
+                max_chars=max_chars_cfg,
                 image_mode=self.config.llm_vl_image_mode,
             )
+
+            # 图片语义补偿不应被过低的 max_tokens 截断（“半句话”通常是 token 上限导致）。
+            # 对齐表格语义补偿的思路：尽量让 token 上限与 max_chars 配置匹配，并受全局 llm_max_tokens 约束。
+            if max_chars_cfg > 0:
+                cap_tok = max(128, min(2048, max_chars_cfg))
+            else:
+                cap_tok = 0
+            cap_tok = min(int(self.config.llm_max_tokens or 8192), int(cap_tok))
 
             text = client.generate_multimodal(
                 model=self.config.llm_model,
                 messages=messages,
                 temperature=0.0,
-                max_tokens=min(256, int(self.config.llm_max_tokens or 256)),
+                max_tokens=(cap_tok if cap_tok > 0 else None),
                 biz_stage="图片语义增强",
             )
             text = (text or "").strip()
@@ -1146,9 +1163,8 @@ class IndustrialDocConverter:
             if not text:
                 return None
 
-            max_chars = int(self.config.llm_image_caption_max_chars or 0)
-            if max_chars > 0 and len(text) > max_chars:
-                text = text[:max_chars].rstrip("，,;；。 ") + "。"
+            if max_chars_cfg > 0 and len(text) > max_chars_cfg:
+                text = text[:max_chars_cfg].rstrip("，,;；。 ") + "。"
 
 
             return text

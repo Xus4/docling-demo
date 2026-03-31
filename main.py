@@ -444,7 +444,7 @@ def main() -> int:
     parser.add_argument(
         "--llm-image-caption-max-chars",
         type=int,
-        default=0,
+        default=env_int("LLM_IMAGE_CAPTION_MAX_CHARS", 0),
         help="每张图片语义补充最大字符数；0 表示不主动截断。",
     )
     parser.add_argument(
