@@ -2154,6 +2154,9 @@ def inject_cropped_figures_into_page_markdown(
     return _clean_position_markers("\n".join(lines))
 
 
+def _markdown_for_failed_vl_page() -> str:
+    """单页异常时的正文占位（具体失败页码由任务 result_extra 在前端展示）。"""
+    return "（本页转写未成功）\n"
 
 
 def transcribe_pdf_with_vl(
@@ -2173,9 +2176,11 @@ def transcribe_pdf_with_vl(
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     progress_callback: Optional[Callable[[int, int], None]] = None,
-) -> str:
+) -> tuple[str, list[int]]:
     """
     逐页渲染 PDF → PNG（临时文件），每页一次 multimodal 调用，拼接为单个 Markdown。
+
+    返回 (markdown, failed_pages_1based)：后者为转写异常页的 1-based 页码列表（供任务记录与前端提示）。
     """
     try:
         import fitz  # pymupdf
@@ -2197,7 +2202,7 @@ def transcribe_pdf_with_vl(
     try:
         n = doc.page_count
         if n <= 0:
-            return f"# {pdf_path.name}\n\n（空 PDF）\n"
+            return f"# {pdf_path.name}\n\n（空 PDF）\n", []
         limit = n if max_pages is None else min(n, max(1, int(max_pages)))
         parts: list[str] = [f"# {pdf_path.name}\n\n"]
 
@@ -2229,91 +2234,103 @@ def transcribe_pdf_with_vl(
             elif assets_dir is not None:
                 image_ref_paths.append(png_path.as_posix())
 
+        vl_failed_pages_1based: list[int] = []
+
         def _one_page(i: int, image_path: Path) -> tuple[int, str]:
-            user_text = _VL_USER_TMPL.format(
-                name=pdf_path.name,
-                idx=i + 1,
-                total=limit,
-            )
-            messages = [
-                build_system_message(_VL_SYSTEM),
-                build_vl_user_message(text=user_text, image_paths=[str(image_path)]),
-            ]
             _log.info("pdf-vl: page start %s/%s dpi=%s", i + 1, limit, dpi_f)
-            page_md = ""
-            raw_last = ""
-            for attempt in range(1, 4):
-                raw_last = client.generate_multimodal(
-                    model,
-                    messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
+            try:
+                user_text = _VL_USER_TMPL.format(
+                    name=pdf_path.name,
+                    idx=i + 1,
+                    total=limit,
                 )
-                page_md = _normalize_markdown_output(raw_last).strip()
-                if page_md:
-                    break
-                _log.warning(
-                    "pdf-vl: page %s/%s 模型输出为空，重试 %s/2",
-                    i + 1,
-                    limit,
-                    attempt,
-                )
-                if attempt < 3:
-                    time.sleep(1.5 * attempt)
-            if not page_md:
-                snippet = (raw_last or "")[:400].replace("\n", "\\n")
-                _log.error(
-                    "pdf-vl: page %s/%s 仍为空；原始片段(前400字符): %s",
-                    i + 1,
-                    limit,
-                    snippet,
-                )
-                page_md = "（本页模型输出为空）"
-            else:
-                page_md = _normalize_gfm_tables(page_md)
-                if table_second_pass:
-                    page_md = _review_suspicious_tables_with_llm(
-                        client=client,
-                        model=model,
-                        page_md=page_md,
-                        page_image_path=image_path,
+                messages = [
+                    build_system_message(_VL_SYSTEM),
+                    build_vl_user_message(text=user_text, image_paths=[str(image_path)]),
+                ]
+                page_md = ""
+                raw_last = ""
+                for attempt in range(1, 4):
+                    raw_last = client.generate_multimodal(
+                        model,
+                        messages,
                         temperature=temperature,
                         max_tokens=max_tokens,
-                        max_tables=max(1, int(table_second_pass_max_tables)),
                     )
-
-                if caption_crop_figures and markdown_out_path is not None:
-                    try:
-                        caption_and_refs = crop_figures_by_docling_layout(
+                    page_md = _normalize_markdown_output(raw_last).strip()
+                    if page_md:
+                        break
+                    _log.warning(
+                        "pdf-vl: page %s/%s 模型输出为空，重试 %s/2",
+                        i + 1,
+                        limit,
+                        attempt,
+                    )
+                    if attempt < 3:
+                        time.sleep(1.5 * attempt)
+                if not page_md:
+                    snippet = (raw_last or "")[:400].replace("\n", "\\n")
+                    _log.error(
+                        "pdf-vl: page %s/%s 仍为空；原始片段(前400字符): %s",
+                        i + 1,
+                        limit,
+                        snippet,
+                    )
+                    page_md = "（本页模型输出为空）"
+                else:
+                    page_md = _normalize_gfm_tables(page_md)
+                    if table_second_pass:
+                        page_md = _review_suspicious_tables_with_llm(
+                            client=client,
+                            model=model,
                             page_md=page_md,
                             page_image_path=image_path,
-                            markdown_out_path=markdown_out_path,
-                            page_index=i,
-                            max_per_page=max(1, int(caption_crop_max_per_page)),
-                            pdf_path=pdf_path,
-                            dpi=dpi_f,
-                        )
-                        if caption_and_refs:
-                            _log.info(
-                                "pdf-vl: page %s/%s cropped figures=%s",
-                                i + 1,
-                                limit,
-                                len(caption_and_refs),
-                            )
-                            page_md = inject_cropped_figures_into_page_markdown(
-                                page_md=page_md,
-                                caption_and_refs=caption_and_refs,
-                            )
-                    except Exception as e:
-                        _log.warning(
-                            "pdf-vl: page %s/%s caption crop failed: %s",
-                            i + 1,
-                            limit,
-                            repr(e),
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            max_tables=max(1, int(table_second_pass_max_tables)),
                         )
 
-            _log.info("pdf-vl: page done %s/%s", i + 1, limit)
-            return i, page_md
+                    if caption_crop_figures and markdown_out_path is not None:
+                        try:
+                            caption_and_refs = crop_figures_by_docling_layout(
+                                page_md=page_md,
+                                page_image_path=image_path,
+                                markdown_out_path=markdown_out_path,
+                                page_index=i,
+                                max_per_page=max(1, int(caption_crop_max_per_page)),
+                                pdf_path=pdf_path,
+                                dpi=dpi_f,
+                            )
+                            if caption_and_refs:
+                                _log.info(
+                                    "pdf-vl: page %s/%s cropped figures=%s",
+                                    i + 1,
+                                    limit,
+                                    len(caption_and_refs),
+                                )
+                                page_md = inject_cropped_figures_into_page_markdown(
+                                    page_md=page_md,
+                                    caption_and_refs=caption_and_refs,
+                                )
+                        except Exception as e:
+                            _log.warning(
+                                "pdf-vl: page %s/%s caption crop failed: %s",
+                                i + 1,
+                                limit,
+                                repr(e),
+                            )
+
+                _log.info("pdf-vl: page done %s/%s", i + 1, limit)
+                return i, page_md
+            except Exception as e:
+                vl_failed_pages_1based.append(i + 1)
+                _log.error(
+                    "pdf-vl: page %s/%s 处理失败，已写入占位内容；其余页继续。err=%s",
+                    i + 1,
+                    limit,
+                    repr(e),
+                )
+                return i, _markdown_for_failed_vl_page()
 
 
         if workers_i == 1:
@@ -2346,4 +2363,4 @@ def transcribe_pdf_with_vl(
     finally:
         doc.close()
 
-    return "".join(parts).rstrip() + "\n"
+    return "".join(parts).rstrip() + "\n", sorted(set(vl_failed_pages_1based))

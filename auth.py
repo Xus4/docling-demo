@@ -68,6 +68,8 @@ class JobRecord:
     progress_note: str | None = None
     progress_pages_done: int | None = None
     progress_pages_total: int | None = None
+    # JSON，如 {"pdf_vl_failed_pages": [1, 5]}；仅 succeeded 时可能非空
+    result_extra: str | None = None
 
 
 class AuthStore:
@@ -186,6 +188,8 @@ class AuthStore:
             stmts.append("ALTER TABLE jobs ADD COLUMN progress_pages_done INTEGER")
         if "progress_pages_total" not in colnames:
             stmts.append("ALTER TABLE jobs ADD COLUMN progress_pages_total INTEGER")
+        if "result_extra" not in colnames:
+            stmts.append("ALTER TABLE jobs ADD COLUMN result_extra TEXT")
         for sql in stmts:
             conn.execute(sql)
 
@@ -223,6 +227,11 @@ class AuthStore:
             progress_pages_total=(
                 int(row["progress_pages_total"])
                 if "progress_pages_total" in keys and row["progress_pages_total"] is not None
+                else None
+            ),
+            result_extra=(
+                str(row["result_extra"])
+                if "result_extra" in keys and row["result_extra"] is not None
                 else None
             ),
         )
@@ -281,7 +290,8 @@ class AuthStore:
                     progress_percent = 0,
                     progress_note = '开始处理…',
                     progress_pages_done = NULL,
-                    progress_pages_total = NULL
+                    progress_pages_total = NULL,
+                    result_extra = NULL
                 WHERE job_id = ? AND status = 'queued'
                 """,
                 (now, job_id),
@@ -289,7 +299,13 @@ class AuthStore:
             conn.commit()
             return cur.rowcount > 0
 
-    def mark_job_succeeded(self, job_id: str, output_file: str) -> bool:
+    def mark_job_succeeded(
+        self,
+        job_id: str,
+        output_file: str,
+        *,
+        result_extra: str | None = None,
+    ) -> bool:
         """仅当仍为 running 时标记成功，避免覆盖用户已取消等终态。"""
         now = _utc_now_iso()
         with self._connect() as conn:
@@ -303,10 +319,11 @@ class AuthStore:
                     progress_percent = NULL,
                     progress_note = NULL,
                     progress_pages_done = NULL,
-                    progress_pages_total = NULL
+                    progress_pages_total = NULL,
+                    result_extra = ?
                 WHERE job_id = ? AND status = 'running'
                 """,
-                (output_file, now, job_id),
+                (output_file, now, result_extra, job_id),
             )
             conn.commit()
             return cur.rowcount > 0
@@ -324,7 +341,8 @@ class AuthStore:
                     progress_percent = NULL,
                     progress_note = NULL,
                     progress_pages_done = NULL,
-                    progress_pages_total = NULL
+                    progress_pages_total = NULL,
+                    result_extra = NULL
                 WHERE job_id = ? AND status = 'running'
                 """,
                 (now, error_message[:4000], job_id),
@@ -346,7 +364,8 @@ class AuthStore:
                     progress_percent = NULL,
                     progress_note = NULL,
                     progress_pages_done = NULL,
-                    progress_pages_total = NULL
+                    progress_pages_total = NULL,
+                    result_extra = NULL
                 WHERE job_id = ?
                 """,
                 (now, msg, job_id),
@@ -372,7 +391,8 @@ class AuthStore:
                     progress_percent = NULL,
                     progress_note = NULL,
                     progress_pages_done = NULL,
-                    progress_pages_total = NULL
+                    progress_pages_total = NULL,
+                    result_extra = NULL
                 WHERE job_id = ? AND status IN ('queued', 'running')
                 """,
                 (now, job_id),
@@ -395,7 +415,8 @@ class AuthStore:
                     progress_percent = NULL,
                     progress_note = NULL,
                     progress_pages_done = NULL,
-                    progress_pages_total = NULL
+                    progress_pages_total = NULL,
+                    result_extra = NULL
                 WHERE status = 'running'
                 """
             )

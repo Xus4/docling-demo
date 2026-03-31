@@ -222,6 +222,13 @@ class IndustrialDocConverter:
     def __init__(self, config: Optional[ConverterConfig] = None) -> None:
         self.config = config or ConverterConfig()
         self._converter: Optional[DocumentConverter] = None
+        # 仅 pdf-vl-primary 路径在 convert_path_to_markdown 末尾写入
+        self._last_pdf_vl_failed_pages: list[int] | None = None
+
+    @property
+    def last_pdf_vl_failed_pages(self) -> list[int] | None:
+        """最近一次 pdf-vl 转换中异常页的 1-based 页码；非该路径为 None。"""
+        return self._last_pdf_vl_failed_pages
 
     def invalidate_converter_cache(self) -> None:
         """单文件失败后丢弃已缓存的 DocumentConverter，减轻 pypdfium2 异常清理告警。"""
@@ -691,6 +698,7 @@ class IndustrialDocConverter:
         """
         suffix = source.suffix.lower()
         markdown_out.parent.mkdir(parents=True, exist_ok=True)
+        self._last_pdf_vl_failed_pages = None
 
         if suffix in _XLSX_SUFFIXES:
             text = self.xlsx_to_markdown(source)
@@ -713,7 +721,7 @@ class IndustrialDocConverter:
                 self.config.pdf_vl_workers,
                 self.config.max_num_pages,
             )
-            md = transcribe_pdf_with_vl(
+            md, pdf_vl_failed = transcribe_pdf_with_vl(
                 client=client,
                 model=self.config.llm_model,
                 pdf_path=source,
@@ -730,6 +738,7 @@ class IndustrialDocConverter:
                 max_tokens=self.config.llm_max_tokens,
                 progress_callback=progress_callback,
             )
+            self._last_pdf_vl_failed_pages = pdf_vl_failed
             if self.config.markdown_escape_dimension_asterisks:
                 md = _escape_dimension_like_asterisks(md)
             markdown_out.write_text(md, encoding="utf-8")

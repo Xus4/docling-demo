@@ -22,6 +22,14 @@ class ConversionJobPaths:
     output_file: Path
 
 
+@dataclass(frozen=True)
+class ConvertToMarkdownResult:
+    """convert_to_markdown 返回值：输出路径 + pdf-vl 单页失败页码（1-based，无则为空元组）。"""
+
+    output_path: Path
+    pdf_vl_failed_pages: tuple[int, ...]
+
+
 class ConversionService:
     def __init__(self, app_config: AppConfig) -> None:
         self.app_config = app_config
@@ -55,13 +63,15 @@ class ConversionService:
         output_path: str,
         *,
         progress_callback: Callable[[int, int], None] | None = None,
-    ) -> Path:
+    ) -> ConvertToMarkdownResult:
         src = Path(input_path).resolve()
         dst = Path(output_path).resolve()
         self.converter.convert_path_to_markdown(
             src, dst, progress_callback=progress_callback
         )
-        return dst
+        failed = self.converter.last_pdf_vl_failed_pages
+        pages = tuple(failed) if failed else ()
+        return ConvertToMarkdownResult(dst, pages)
 
     def cleanup_old_jobs(self) -> None:
         if not self.app_config.auto_cleanup:

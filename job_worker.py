@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import queue
 import threading
@@ -192,7 +193,7 @@ class JobQueueWorker:
         )
         pulse_thread.start()
         try:
-            self.service.convert_to_markdown(
+            conv_result = self.service.convert_to_markdown(
                 str(inp), str(out), progress_callback=on_pdf_pages
             )
         except ConversionError as exc:
@@ -217,6 +218,13 @@ class JobQueueWorker:
         finally:
             stop_pulse.set()
 
+        result_extra: str | None = None
+        if conv_result.pdf_vl_failed_pages:
+            result_extra = json.dumps(
+                {"pdf_vl_failed_pages": list(conv_result.pdf_vl_failed_pages)},
+                ensure_ascii=False,
+            )
+
         latest = self.auth.get_job(job_id)
         if not latest or latest.status != "running":
             if out.exists():
@@ -234,7 +242,9 @@ class JobQueueWorker:
                     pass
             return
 
-        ok = self.auth.mark_job_succeeded(job_id, str(out.resolve()))
+        ok = self.auth.mark_job_succeeded(
+            job_id, str(out.resolve()), result_extra=result_extra
+        )
         if ok:
             log.info(
                 "任务完成 job_id=%s user=%s file=%s output=%s",
@@ -243,6 +253,12 @@ class JobQueueWorker:
                 fname,
                 out.name,
             )
+            if conv_result.pdf_vl_failed_pages:
+                log.warning(
+                    "任务成功但部分页转写失败 job_id=%s pages=%s",
+                    jid,
+                    list(conv_result.pdf_vl_failed_pages),
+                )
         else:
             log.info(
                 "任务未标成功(可能已取消) job_id=%s user=%s file=%s",

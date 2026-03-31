@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 import shutil
@@ -161,6 +162,24 @@ def _job_to_api_dict(job: JobRecord) -> dict[str, object | None]:
         out["progress_note"] = None
         out["progress_pages_done"] = None
         out["progress_pages_total"] = None
+
+    out["pdf_vl_failed_pages"] = None
+    if job.status == "succeeded" and job.result_extra:
+        try:
+            data = json.loads(job.result_extra)
+            if isinstance(data, dict):
+                pages = data.get("pdf_vl_failed_pages")
+                if isinstance(pages, list) and pages:
+                    nums: list[int] = []
+                    for x in pages:
+                        if isinstance(x, int):
+                            nums.append(x)
+                        elif isinstance(x, str) and x.strip().isdigit():
+                            nums.append(int(x.strip()))
+                    if nums:
+                        out["pdf_vl_failed_pages"] = nums
+        except (json.JSONDecodeError, TypeError, ValueError):
+            out["pdf_vl_failed_pages"] = None
 
     return out
 

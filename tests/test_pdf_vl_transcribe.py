@@ -41,7 +41,7 @@ class TestPdfVlTranscribe(unittest.TestCase):
         try:
             doc.save(str(path))
             doc.close()
-            out = transcribe_pdf_with_vl(
+            out, failed_pages = transcribe_pdf_with_vl(
                 client=client,
                 model="qwen-vl-test",
                 pdf_path=path,
@@ -54,6 +54,7 @@ class TestPdfVlTranscribe(unittest.TestCase):
             path.unlink(missing_ok=True)
 
         self.assertEqual(client.generate_multimodal.call_count, 2)
+        self.assertEqual(failed_pages, [])
         self.assertIn("# ", out)
         self.assertIn("第 1 / 2 页", out)
 

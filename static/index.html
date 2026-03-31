@@ -2150,6 +2150,14 @@
                   job.queue_total +
                   " 位</div>"
                 : "";
+            const partialPagesLine =
+              job.status === "succeeded" &&
+              Array.isArray(job.pdf_vl_failed_pages) &&
+              job.pdf_vl_failed_pages.length
+                ? '<div class="task-queue-meta">部分页转写未完成（页码：' +
+                  job.pdf_vl_failed_pages.join("、") +
+                  "）</div>"
+                : "";
             let progressBlock = "";
             if (job.status === "running") {
               let pct = Number(job.progress_percent);
@@ -2234,6 +2242,7 @@
                 );
               })() +
               queueLine +
+              partialPagesLine +
               '<span class="task-status-badge task-status-' +
               job.status +
               '">' +
@@ -2361,6 +2370,13 @@
                 const f = parseIsoMs(job.finished_at);
                 if (c != null && f != null && f >= c) {
                   msg += "，总耗时 " + formatDurationZh(f - c);
+                }
+                if (Array.isArray(job.pdf_vl_failed_pages) && job.pdf_vl_failed_pages.length) {
+                  msg += "（部分页未成功：第 " + job.pdf_vl_failed_pages.join("、") + " 页）";
+                  showToast(
+                    "warning",
+                    "部分页转写未完成，页码：" + job.pdf_vl_failed_pages.join("、")
+                  );
                 }
                 setStatus("success", msg);
                 resultFilename.textContent = job.original_filename || "";
