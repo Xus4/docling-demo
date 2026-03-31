@@ -364,6 +364,12 @@ def cancel_job(job_id: str, request: Request) -> dict[str, str]:
 
     if job.status in ("queued", "running"):
         if auth_store.try_mark_job_cancelled(jid):
+            # 若该任务正在运行，尝试立即终止转换子进程，释放 worker 以拉起下一个排队任务。
+            if job.status == "running":
+                try:
+                    job_worker.cancel(jid)
+                except Exception:  # noqa: BLE001
+                    pass
             log.info(
                 "任务已取消 job_id=%s owner=%s operator=%s file=%s prior_status=%s",
                 jid,
