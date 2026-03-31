@@ -1535,7 +1535,7 @@
             <p class="section-title">转换结果</p>
             <div class="result-card">
               <span id="resultFilename" class="filename"></span>
-              <a id="downloadBtn" class="download-btn" href="#" target="_blank" rel="noopener">下载 Markdown</a>
+              <a id="downloadBtn" class="download-btn" href="#" target="_blank" rel="noopener">下载结果（ZIP）</a>
             </div>
           </div>
 
@@ -2215,7 +2215,7 @@
               job.download_url && job.status === "succeeded"
                 ? '<a class="download-btn" href="' +
                   job.download_url +
-                  '" target="_blank" rel="noopener">下载</a>'
+                  '" target="_blank" rel="noopener">下载 ZIP</a>'
                 : "";
             return (
               '<div class="history-item">' +

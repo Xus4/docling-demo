@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import shutil
+import tempfile
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -394,8 +396,22 @@ def delete_job_record(job_id: str, request: Request) -> dict[str, str]:
     return {"message": "已删除"}
 
 
+def _zip_job_output_folder(job_dir: Path) -> Path:
+    """
+    将任务输出目录打成 zip（含 .md 及同目录下的切图、Docling 配图等），
+    解压后与 Web 服务端路径一致，相对图片引用可正常显示。
+    """
+    fd, tmp_zip = tempfile.mkstemp(suffix=".zip")
+    os.close(fd)
+    Path(tmp_zip).unlink(missing_ok=True)
+    archive_base = Path(tmp_zip).with_suffix("")
+    return Path(shutil.make_archive(str(archive_base), "zip", root_dir=str(job_dir)))
+
+
 @app.get("/jobs/{job_id}/download")
-def download_job_result(job_id: str, request: Request) -> FileResponse:
+def download_job_result(
+    job_id: str, request: Request, background_tasks: BackgroundTasks
+) -> FileResponse:
     jid = _normalize_job_id(job_id)
     user = _require_auth_user(request)
     job = auth_store.get_job(jid)
@@ -410,10 +426,17 @@ def download_job_result(job_id: str, request: Request) -> FileResponse:
     md_file = Path(job.output_file)
     if not md_file.is_file():
         raise HTTPException(status_code=404, detail="未找到转换结果文件")
+    job_dir = md_file.parent
+    try:
+        zip_path = _zip_job_output_folder(job_dir)
+    except Exception as exc:
+        log.exception("打包下载失败 job_id=%s dir=%s", jid, job_dir)
+        raise HTTPException(status_code=500, detail="打包下载失败") from exc
+    background_tasks.add_task(lambda p=zip_path: p.unlink(missing_ok=True))
     return FileResponse(
-        path=md_file,
-        media_type="text/markdown",
-        filename=md_file.name,
+        path=zip_path,
+        media_type="application/zip",
+        filename=f"{md_file.stem}.zip",
     )
 
 
@@ -437,6 +460,8 @@ async def convert(request: Request, file: UploadFile = File(...)) -> dict[str, s
 
 
 @app.get("/download/{job_id}")
-def download_legacy(job_id: str, request: Request) -> FileResponse:
+def download_legacy(
+    job_id: str, request: Request, background_tasks: BackgroundTasks
+) -> FileResponse:
     """兼容旧 download_url：与 /jobs/{id}/download 相同校验。"""
-    return download_job_result(job_id, request)
+    return download_job_result(job_id, request, background_tasks)
