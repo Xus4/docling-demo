@@ -234,8 +234,7 @@ python main.py --pdf-vl-primary --output-by-model --pdf-caption-crop-figures --m
 
 你也可以随时显式指定这些参数覆盖默认（例如 `--pdf-vl-dpi 220`、`--llm-max-tokens 24576`、`--llm-temperature 0.1`）。
 
-默认**不嵌入整页截图**到 Markdown（避免把“整页图”误当文档插图）；如需调试可加 `--pdf-vl-embed-page-images`。
-默认启用“可疑表格二次 LLM 校对（带验收回退）”，可用 `--no-pdf-vl-table-second-pass` 关闭。
+默认启用“可疑表格二次 LLM 校对（带验收回退）”，可用 `--no-pdf-vl-table-second-pass` 关闭。PDF-VL 每页渲染图仅用于模型输入，不写入输出 Markdown。
 
 **常用示例**（按模型名分子目录输出、按图题裁局部插图；其余见上表默认值）：
 

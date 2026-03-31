@@ -177,8 +177,6 @@ class ConverterConfig:
     pdf_vl_workers: int = 10
     pdf_vl_table_second_pass: bool = True
     pdf_vl_table_second_pass_max_tables: int = 5
-    # 是否在 markdown 中嵌入每页渲染图（默认关闭，避免把整页截图当“插图”）
-    pdf_vl_embed_page_images: bool = False
     pdf_caption_crop_figures: bool = False
     pdf_caption_crop_max_per_page: int = 4
 
@@ -622,6 +620,7 @@ class IndustrialDocConverter:
             qc = refiner.quality_check(
                 original_markdown=docling_md_text,
                 refined_markdown=refined_md,
+                pipeline_mode="pdf_vl",
             )
             _log.info(
                 "pdf-vl LLM quality_check score=%s need_rerun=%s（pdf-vl 模式不执行 Docling rerun）",
@@ -728,7 +727,6 @@ class IndustrialDocConverter:
                 markdown_out_path=markdown_out,
                 dpi=self.config.pdf_vl_dpi,
                 workers=self.config.pdf_vl_workers,
-                embed_page_images=self.config.pdf_vl_embed_page_images,
                 caption_crop_figures=self.config.pdf_caption_crop_figures,
                 caption_crop_max_per_page=self.config.pdf_caption_crop_max_per_page,
                 table_second_pass=self.config.pdf_vl_table_second_pass,

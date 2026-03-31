@@ -369,11 +369,6 @@ def main() -> int:
         help="pdf-vl-primary 页级并发（默认 10；可按配额下调）。",
     )
     parser.add_argument(
-        "--pdf-vl-embed-page-images",
-        action="store_true",
-        help="将每页渲染图嵌入输出 Markdown（默认关闭；通常不是文档插图）。",
-    )
-    parser.add_argument(
         "--no-pdf-vl-table-second-pass",
         action="store_true",
         help="关闭 pdf-vl 的可疑表格二次 LLM 校对（默认开启）。",
@@ -644,7 +639,6 @@ def main() -> int:
         pdf_vl_primary=bool(args.pdf_vl_primary),
         pdf_vl_dpi=float(args.pdf_vl_dpi),
         pdf_vl_workers=int(args.pdf_vl_workers),
-        pdf_vl_embed_page_images=bool(args.pdf_vl_embed_page_images),
         pdf_vl_table_second_pass=not bool(args.no_pdf_vl_table_second_pass),
         pdf_vl_table_second_pass_max_tables=int(args.pdf_vl_table_second_pass_max_tables),
         pdf_caption_crop_figures=bool(args.pdf_caption_crop_figures),

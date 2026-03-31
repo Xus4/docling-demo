@@ -108,17 +108,13 @@ def _flush_logging_handlers() -> None:
 
 class DashScopeClient:
     _FINAL_OUTPUT_GUARD = (
-        "\n\n输出要求（必须遵守）："
-        "\n- 最终可用的 Markdown/正文必须写在 assistant 的 content 中，且为非空字符串。"
-        "\n- 禁止把可交付正文只写在推理/思考字段（reasoning）；推理字段不能替代 content。"
-        "\n- 不要输出「步骤 1」「分析表格结构」等过程说明，直接输出结果。"
-        "\n- 不要只输出思考过程；不要解释你如何思考。"
+        "\n\n【输出协议】可交付正文必须完整写入 assistant 的 content（非空）；"
+        "禁止仅用推理/思考字段代替正文；不要输出解题步骤或自我分析，直接给出结果。"
     )
 
     _RETRY_FORCE_FINAL = (
-        "\n\n【重试指令】上一次违反协议：content 为空但推理字段有内容，或正文未写入 content。"
-        "\n本次回复必须使 content 为非空最终 Markdown；禁止再用推理字段承载正文；"
-        "禁止输出思考过程。"
+        "\n\n【重试】上次 content 为空或正文未写入 content。本次必须让 content 含完整可交付结果；"
+        "禁止把正文放在推理字段。"
     )
 
     """

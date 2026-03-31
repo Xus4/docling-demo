@@ -29,10 +29,9 @@ class DummyClient:
             pass
         # heuristic: if user content includes "QC_SCORE" request, treat as qc
         joined = "\n".join(str(m.get("content")) for m in messages)
-        if "QC_SCORE=" in self._qc_return or "NEED_RERUN=" in self._qc_return:
-            # decide by presence of a known tag in expected qc output template
-            if "输出格式（严格按键名输出" in joined:
-                return self._qc_return
+        # 质检请求含统计块；清洗请求不含
+        if "【原始统计】" in joined:
+            return self._qc_return
         return self._cleanup_return
 
 

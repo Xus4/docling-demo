@@ -12,6 +12,7 @@ from PIL import Image
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import re
+import tempfile
 import time
 from dataclasses import dataclass
 from PIL import Image
@@ -30,27 +31,20 @@ from .vl_markdown_utils import (
 _log = logging.getLogger(__name__)
 
 _VL_SYSTEM = (
-    "你是文档 OCR 与排版助手。用户将提供 PDF 某一页的渲染图。"
-    "请将该页内容转写为 GitHub Flavored Markdown。\n"
+    "你是文档 OCR 与排版助手。用户将提供 PDF 某一页的渲染图；请转写为 **GitHub Flavored Markdown**。"
+    "优先级（冲突时以前者为准）：①忠实还原可见文字与真实表格 ②工程图/照片等不得伪造为表格 ③表格勾选与列对齐 ④图题与位置标注。\n"
     "要求：\n"
-    "1) 保留合理的标题层级（#、##、###）。\n"
-    "2) 表格使用 Markdown 管道表格（| 列 |）。\n"
-    "3) 只输出本页可见内容，不要编造页码或页眉页脚以外的说明。\n"
-    "4) 无法辨认的字用 [?] 占位。\n"
-    "5) 不要在整个文档外套一层 ```markdown 代码块；可直接输出 Markdown 正文。\n"
-    "6) 表格严格要求：每个数据行列数必须与表头一致；不确定的单元格留空，不要串列或跨列。\n"
-    "7) 单元格内若包含竖线字符，请写成 \\|，不要新增列。\n"
-    "8) 不要重复自我校验或思考过程，只输出最终 Markdown。\n"
-    "9) 模型应答时：可交付正文必须出现在 content；禁止把整页转写只放在推理/思考字段。\n"
-    "10) 表格含勾选/对钩（✓、√、手写勾）时：请逐格核对每一列，尤其最右侧若干列与靠近表格右边缘、"
-    "下边缘的单元格；凡可见勾选须写入对应格，避免只读左侧而漏读右上/右侧勾选格。\n"
-    "11) **重要-图片位置**：当页面中存在插图/照片/图表时，请在图题后标注该图片的大致位置，"
-    "格式为 [[position:左上|右上|左下|右下|页面顶部|页面底部|页面中部|页面左侧|页面右侧]]，"
-    "例如：图 1.1 这是标题 [[position:页面顶部]] 或 "
-    "图 2.3 示例图 [[position:右下]]。根据图片实际在页面中的位置选择最合适的标注。\n"
-    "12) **严禁将工程示意图、安装图、剖面图、构造图等图形内容转写为 Markdown 表格**；"
-    "如果页面上有图形（线条图、照片、手绘图），必须用图题行 + [[position:...]] 标注，"
-    "不要尝试用表格或文字列举来'描述'图形内容。\n"
+    "1) 保留合理的标题层级（#、##、###）；列表层级与编号与页面一致。\n"
+    "2) 表格使用管道表格（| 列 |）；表头、分隔行、数据行列数一致；不确定的单元格可留空，禁止串列、禁止无依据合并单元格。\n"
+    "3) 只输出本页可见内容；不编造页眉页脚说明；无法辨认的字用 [?] 占位。\n"
+    "4) 不要用 ```markdown 包裹整页输出；单元格内的竖线写成 \\|，避免多出列。\n"
+    "5) 只输出最终 Markdown，不要自我校验过程或长篇分析；可交付正文必须写在 content，勿仅放在推理字段。\n"
+    "6) 含勾选/对钩（✓、√、手写勾）的表格：逐格核对，尤其最右列与靠边格，避免漏读。\n"
+    "7) 插图/照片/曲线图等：在图题行后标注位置，**仅**使用下列枚举之一（勿自造英文短语）："
+    "[[position:左上|右上|左下|右下|页面顶部|页面底部|页面中部|页面左侧|页面右侧]]；"
+    "示例：图 1.1 标题文字 [[position:页面顶部]]。\n"
+    "8) **严禁**把工程示意图、安装图、剖面图、构造图、实物照片等用 Markdown 表格去「概括」；"
+    "此类内容用图题 + [[position:...]] 表示存在即可，勿用表格模拟图形结构。\n"
 )
 
 _VL_USER_TMPL = (
@@ -2188,7 +2182,6 @@ def transcribe_pdf_with_vl(
     markdown_out_path: Optional[Path] = None,
     dpi: float = 150.0,
     workers: int = 1,
-    embed_page_images: bool = False,
     caption_crop_figures: bool = False,
     caption_crop_max_per_page: int = 6,
     table_second_pass: bool = True,
@@ -2227,33 +2220,16 @@ def transcribe_pdf_with_vl(
         limit = n if max_pages is None else min(n, max(1, int(max_pages)))
         parts: list[str] = [f"# {pdf_path.name}\n\n"]
 
-        page_pngs: list[Path] = []
-        image_ref_paths: list[str] = []
-        assets_dir: Optional[Path] = None
-        if markdown_out_path is not None and embed_page_images:
-            mdp = markdown_out_path.resolve()
-            assets_dir = mdp.parent / f"{mdp.stem}_pages"
-            assets_dir.mkdir(parents=True, exist_ok=True)
+        tmp_root = Path(tempfile.gettempdir()) / "docling_pdf_vl_pages"
+        tmp_root.mkdir(parents=True, exist_ok=True)
 
+        page_pngs: list[Path] = []
         for page_index in range(limit):
             page = doc[page_index]
             pix = page.get_pixmap(dpi=int(round(dpi_f)))
-            if assets_dir is not None:
-                png_path = assets_dir / f"page_{page_index + 1:04d}.png"
-            else:
-                # 不嵌入输出时仅用于当前进程调用，放系统临时目录
-                import tempfile
-
-                tmp_dir = Path(tempfile.gettempdir()) / "docling_pdf_vl_pages"
-                tmp_dir.mkdir(parents=True, exist_ok=True)
-                png_path = tmp_dir / f"{pdf_path.stem}.page_{page_index + 1:04d}.png"
+            png_path = tmp_root / f"{pdf_path.stem}.page_{page_index + 1:04d}.png"
             pix.save(str(png_path))
             page_pngs.append(png_path)
-            if markdown_out_path is not None and assets_dir is not None:
-                rel = png_path.relative_to(markdown_out_path.parent.resolve())
-                image_ref_paths.append(rel.as_posix())
-            elif assets_dir is not None:
-                image_ref_paths.append(png_path.as_posix())
 
         vl_failed_pages_1based: list[int] = []
 
@@ -2398,9 +2374,6 @@ def transcribe_pdf_with_vl(
 
         for i in range(limit):
             parts.append(f"## 第 {i + 1} / {limit} 页\n\n")
-            img_ref = image_ref_paths[i] if (embed_page_images and i < len(image_ref_paths)) else ""
-            if embed_page_images and img_ref:
-                parts.append(f"![第{i + 1}页渲染图]({img_ref})\n\n")
             parts.append(page_md_map.get(i, "（本页模型输出缺失）"))
             parts.append("\n\n---\n\n")
     finally:

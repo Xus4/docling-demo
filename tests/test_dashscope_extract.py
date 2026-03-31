@@ -207,7 +207,8 @@ class TestDashScopeExtract(unittest.TestCase):
         out = DashScopeClient._append_guard_to_messages(msgs)
         self.assertNotEqual(out[0]["content"], "sys")
         self.assertIn("content", out[0]["content"])
-        self.assertIn("禁止把可交付正文只写在推理", out[0]["content"])
+        self.assertIn("推理", out[0]["content"])
+        self.assertIn("【输出协议】", out[0]["content"])
 
     def test_openai_compat_url_detection_ollama(self) -> None:
         self.assertTrue(

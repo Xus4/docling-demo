@@ -161,6 +161,7 @@ class DoclingMarkdownRefiner:
         *,
         original_markdown: str,
         refined_markdown: str,
+        pipeline_mode: Literal["docling", "pdf_vl"] = "docling",
     ) -> QualityCheckResult:
         original_stats = summarize_markdown_quality(original_markdown)
         refined_stats = summarize_markdown_quality(refined_markdown)
@@ -171,6 +172,7 @@ class DoclingMarkdownRefiner:
             refined_markdown=refined_markdown,
             original_stats=original_stats,
             refined_stats=refined_stats,
+            pipeline_mode=pipeline_mode,
         )
         # quality_check 只需要文本；不再额外提供图片（降低 cost）。
         # 但仍使用 multimodal endpoint（model='qwen-*-vl'），传纯文本即可。

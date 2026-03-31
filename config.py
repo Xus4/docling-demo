@@ -145,7 +145,6 @@ class AppConfig:
     llm_allow_rerun: bool
     llm_rerun_max_attempts: int
     pdf_vl_table_second_pass: bool
-    pdf_vl_embed_page_images: bool
     auth_db_path: Path
     session_secret: str
     initial_password: str
@@ -224,7 +223,6 @@ class AppConfig:
             llm_allow_rerun=env_bool("LLM_ALLOW_RERUN", False),
             llm_rerun_max_attempts=max(0, env_int("LLM_RERUN_MAX_ATTEMPTS", 1)),
             pdf_vl_table_second_pass=env_bool("PDF_VL_TABLE_SECOND_PASS", True),
-            pdf_vl_embed_page_images=env_bool("PDF_VL_EMBED_PAGE_IMAGES", False),
             auth_db_path=Path(
                 os.getenv("AUTH_DB_PATH", str(data_dir / "auth.db"))
             ).resolve(),
@@ -287,5 +285,4 @@ class AppConfig:
             llm_allow_rerun=self.llm_allow_rerun,
             llm_rerun_max_attempts=self.llm_rerun_max_attempts,
             pdf_vl_table_second_pass=self.pdf_vl_table_second_pass,
-            pdf_vl_embed_page_images=self.pdf_vl_embed_page_images,
         )
