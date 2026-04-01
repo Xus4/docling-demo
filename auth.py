@@ -69,6 +69,7 @@ class JobRecord:
     progress_note: str | None = None
     progress_pages_done: int | None = None
     progress_pages_total: int | None = None
+    current_file_name: str | None = None
     result_extra: str | None = None
 
     # 新增：目录 / 批量任务支持
@@ -199,6 +200,8 @@ class AuthStore:
             stmts.append("ALTER TABLE jobs ADD COLUMN progress_pages_total INTEGER")
         if "result_extra" not in colnames:
             stmts.append("ALTER TABLE jobs ADD COLUMN result_extra TEXT")
+        if "current_file_name" not in colnames:
+            stmts.append("ALTER TABLE jobs ADD COLUMN current_file_name TEXT")
         for sql in stmts:
             conn.execute(sql)
 
@@ -257,6 +260,11 @@ class AuthStore:
             progress_pages_total=(
                 int(row["progress_pages_total"])
                 if "progress_pages_total" in keys and row["progress_pages_total"] is not None
+                else None
+            ),
+            current_file_name=(
+                str(row["current_file_name"])
+                if "current_file_name" in keys and row["current_file_name"] is not None
                 else None
             ),
             result_extra=(
@@ -604,6 +612,7 @@ class AuthStore:
         note: str | None = None,
         pages_done: int | None = None,
         pages_total: int | None = None,
+        current_file_name: str | None = None,
     ) -> None:
         sets: list[str] = []
         params: list[object] = []
@@ -619,6 +628,9 @@ class AuthStore:
         if pages_total is not None:
             sets.append("progress_pages_total = ?")
             params.append(int(pages_total))
+        if current_file_name is not None:
+            sets.append("current_file_name = ?")
+            params.append(str(current_file_name)[:500])
         if not sets:
             return
         params.append(job_id)

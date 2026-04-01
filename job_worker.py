@@ -156,6 +156,33 @@ def _run_directory_conversion(
         dst = (output_root / rel).with_suffix(".md")
         dst.parent.mkdir(parents=True, exist_ok=True)
 
+        def make_pdf_callback(file_idx: int, file_total: int, file_name: str):
+            def on_pdf_pages(done: int, total: int) -> None:
+                j = auth.get_job(job_id)
+                if not j or j.status != "running":
+                    raise RuntimeError("任务已取消")
+                t = max(int(total), 1)
+                d = max(0, min(int(done), t))
+                file_pct = int(round(100.0 * (file_idx - 1) / file_total))
+                page_pct = int(round(100.0 * d / t))
+                combined_pct = min(98, file_pct + int(round(page_pct / file_total)))
+                note = f"PDF 已完成 {d}/{t} 页"
+                if d >= t:
+                    note = "PDF 页码已完成，正在后处理…"
+                auth.update_job_progress(
+                    job_id,
+                    percent=max(0, min(99, combined_pct)),
+                    note=note,
+                    pages_done=d,
+                    pages_total=t,
+                    current_file_name=file_name,
+                )
+            return on_pdf_pages
+
+        def cancel_check() -> bool:
+            j = auth.get_job(job_id)
+            return (not j) or j.status != "running"
+
         pct = int(round(((idx - 1) / total) * 100))
         auth.update_job_progress(
             job_id,
@@ -163,10 +190,16 @@ def _run_directory_conversion(
             note=f"正在处理 {idx}/{total}：{rel.as_posix()}",
             pages_done=None,
             pages_total=None,
+            current_file_name=src.name,
         )
 
         try:
-            service.convert_to_markdown(str(src), str(dst))
+            service.convert_to_markdown(
+                str(src),
+                str(dst),
+                progress_callback=make_pdf_callback(idx, total, src.name),
+                cancel_check=cancel_check,
+            )
             succeeded += 1
         except Exception as exc:  # noqa: BLE001
             failed += 1

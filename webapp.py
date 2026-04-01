@@ -169,11 +169,13 @@ def _job_to_api_dict(job: JobRecord) -> dict[str, object | None]:
         out["progress_note"] = job.progress_note
         out["progress_pages_done"] = job.progress_pages_done
         out["progress_pages_total"] = job.progress_pages_total
+        out["current_file_name"] = job.current_file_name
     else:
         out["progress_percent"] = None
         out["progress_note"] = None
         out["progress_pages_done"] = None
         out["progress_pages_total"] = None
+        out["current_file_name"] = None
 
     out["pdf_vl_failed_pages"] = None
     out["failed_files_preview"] = None

@@ -1846,6 +1846,10 @@ const selectedList = document.getElementById("selectedList");
   } else if (job.original_filename) {
     currentName = String(job.original_filename);
   }
+  if (currentName) {
+    currentName = currentName.split('/').pop().split('\\').pop();
+  }
+
 
   let text = "";
 
@@ -2502,50 +2506,81 @@ if (selectedList) selectedList.innerHTML = "";
                   job.pdf_vl_failed_pages.join("、") +
                   "）</div>"
                 : "";
-            let progressBlock = "";
-            if (job.status === "running") {
-  let pct = Number(job.progress_percent);
-  if (!Number.isFinite(pct)) {
-    pct = 0;
-  }
-  pct = Math.max(0, Math.min(100, pct));
-  const noteRaw = job.progress_note != null ? String(job.progress_note) : "转换中…";
-  const note = noteRaw.replace(/</g, "&lt;");
+                    let progressBlock = "";
+        if (job.status === "running") {
+          let pct = Number(job.progress_percent);
+          if (!Number.isFinite(pct)) {
+            pct = 0;
+          }
+          pct = Math.max(0, Math.min(100, pct));
+          
+          // 👇 核心修改：如果后端在 progress_note 里塞了类似 "pdf/xxx.pdf" 的路径，强行抹除
+          let noteRaw = job.progress_note != null ? String(job.progress_note) : "转换中…";
+          if (job.original_filename) {
+            const prefix = job.original_filename + "/";
+            noteRaw = noteRaw.split(prefix).join(""); // 将 "pdf/" 替换为空
+          }
+          const note = noteRaw.replace(/</g, "&lt;");
 
-  let fileHint = "";
-  if (
-    job.total_files != null &&
-    job.processed_files != null &&
-    Number(job.total_files) > 0
-  ) {
-    fileHint =
-      " · 文件 " + job.processed_files + "/" + job.total_files;
-  }
+          let fileHint = "";
+          if (
+            job.total_files != null &&
+            job.processed_files != null &&
+            Number(job.total_files) > 1
+          ) {
+            const currentIdx = Math.min(
+              Number(job.total_files),
+              Math.max(1, (Number(job.processed_files) || 0) + 1)
+            );
+            fileHint = " · 文件 " + currentIdx + "/" + job.total_files;
+          }
 
-  let pageHint = "";
-  if (
-    job.progress_pages_done != null &&
-    job.progress_pages_total != null
-  ) {
-    pageHint =
-      " · 页 " + job.progress_pages_done + "/" + job.progress_pages_total;
-  }
+          let pageHint = "";
+          if (
+            job.progress_pages_done != null &&
+            job.progress_pages_total != null &&
+            Number(job.progress_pages_total) > 0
+          ) {
+            pageHint =
+              " · 第 " + job.progress_pages_done + "/" + job.progress_pages_total + " 页";
+          }
 
-  progressBlock =
-    '<div class="task-progress-wrap" role="progressbar" aria-valuenow="' +
-    pct +
-    '" aria-valuemin="0" aria-valuemax="100">' +
-    '<div class="task-progress-bar-bg"><div class="task-progress-bar-fill" style="width:' +
-    pct +
-    '%"></div></div>' +
-    '<div class="task-progress-note">' +
-    note +
-    fileHint +
-    pageHint +
-    " · " +
-    pct +
-    "%</div></div>";
-}
+          let progressNote = note;
+          const pdfPageMatch = noteRaw.match(/PDF 已完成\s+(\d+)\/(\d+)\s*页/);
+          if (pdfPageMatch) {
+            if (job.current_file_name) {
+              const currentName = String(job.current_file_name).split('/').pop().split('\\').pop();
+              progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
+            }
+          } else {
+            const noteMatch = noteRaw.match(/正在处理\s+\d+\/\d+\s*[:：]\s*(.+)$/);
+            if (noteMatch && noteMatch[1]) {
+              let currentName = noteMatch[1].trim();
+              currentName = String(currentName).split('/').pop().split('\\').pop();
+              progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
+            } else if (job.current_file_name || job.current_filename) {
+              let currentName = job.current_file_name || job.current_filename;
+              currentName = String(currentName).split('/').pop().split('\\').pop();
+              progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
+            }
+          }
+
+          progressBlock =
+            '<div class="task-progress-wrap" role="progressbar" aria-valuenow="' +
+            pct +
+            '" aria-valuemin="0" aria-valuemax="100">' +
+            '<div class="task-progress-bar-bg"><div class="task-progress-bar-fill" style="width:' +
+            pct +
+            '%"></div></div>' +
+            '<div class="task-progress-note">' +
+            progressNote +
+            fileHint +
+            pageHint +
+            " · " +
+            pct +
+            "%</div></div>";
+        }
+
 
             const canCancel = job.status === "queued" || job.status === "running";
             const cancelBtn = canCancel
@@ -2569,8 +2604,19 @@ if (selectedList) selectedList.innerHTML = "";
               '<div class="history-item">' +
               '<div class="task-item-main">' +
               '<div class="filename">' +
-              (job.original_filename || "").replace(/</g, "&lt;") +
-              "</div>" +
+(function() {
+  // 1. 优先获取当前正在处理的文件名，如果没有则兜底使用原始文件名
+  let displayName = job.current_file_name || job.current_filename || job.original_filename || "";
+  
+  // 2. 截取纯文件名（去掉类似 pdf/ 的前缀）
+  let baseName = String(displayName).split('/').pop().split('\\').pop();
+  
+  // 3. 直接返回纯文件名，彻底去掉“显示文件夹名称”的相关逻辑
+  return baseName.replace(/</g, "&lt;");
+})() +
+"</div>" +
+
+
               ownerLine +
               (function () {
                 const liveElapsedHtml =
@@ -3026,22 +3072,20 @@ async function extractDroppedFiles(dataTransfer) {
 }
 
       async function openPicker() {
-  const pickFolder = await openThemedConfirm({
-    title: "选择上传方式",
-    message: "点击“确定”选择文件夹；点击“取消”则不进行上传。",
-    confirmText: "选择文件夹",
-    cancelText: "取消",
-    danger: false,
-  });
+        const choice = await openUploadPickerChoice();
 
-  if (pickFolder === true) {
-    folderInput.click();
-    return;
-  }
+        if (choice === "file") {
+          fileInput.click();
+          return;
+        }
 
-  // 用户取消 / 关闭弹窗 / 按 Esc，直接结束
-  return;
-}
+        if (choice === "folder") {
+          folderInput.click();
+          return;
+        }
+
+        // cancel
+      }
 
 
 
