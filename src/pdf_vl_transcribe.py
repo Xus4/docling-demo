@@ -21,7 +21,7 @@ from typing import Callable, Optional
 
 from .dashscope_client import DashScopeClient, build_system_message, build_vl_user_message
 from .llm_markdown_refiner import _normalize_markdown_output
-from .llm_prompts import build_table_cleanup_messages
+from .llm_prompts import INTERNAL_VL_PAGE_REASONING, build_table_cleanup_messages
 from .logging_utils import kv, log_event
 from .vl_markdown_utils import (
     extract_markdown_table_blocks,
@@ -52,6 +52,8 @@ _VL_SYSTEM = (
     "示例：图 1.1 标题文字 [[position:页面顶部]]。\n"
     "8) **严禁**把工程示意图、安装图、剖面图、构造图、实物照片等用 Markdown 表格去「概括」；"
     "此类内容用图题 + [[position:...]] 表示存在即可，勿用表格模拟图形结构。\n"
+    "9) 多表同页：每张表独立核对列数 N 与分隔行，禁止把两张表的行混在一起。\n"
+    f"{INTERNAL_VL_PAGE_REASONING}"
 )
 
 _VL_USER_TMPL = (
