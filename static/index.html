@@ -1654,10 +1654,10 @@
       <div class="modal-dialog">
         <h2 id="confirmModalTitle" class="modal-title"></h2>
         <p id="confirmModalDesc" class="modal-desc"></p>
-        <div class="modal-actions">
-          <button type="button" class="modal-btn modal-btn-cancel" id="confirmModalCancel">取消</button>
-          <button type="button" class="modal-btn modal-btn-confirm" id="confirmModalOk">确定</button>
-        </div>
+        <div class="modal-actions" id="confirmModalActions">
+  <button type="button" class="modal-btn modal-btn-cancel" id="confirmModalCancel">取消</button>
+  <button type="button" class="modal-btn modal-btn-confirm" id="confirmModalOk">确定</button>
+</div>
       </div>
     </div>
 
@@ -1686,6 +1686,7 @@ const selectedList = document.getElementById("selectedList");
       const confirmModalDesc = document.getElementById("confirmModalDesc");
       const confirmModalOk = document.getElementById("confirmModalOk");
       const confirmModalCancel = document.getElementById("confirmModalCancel");
+      const confirmModalActions = document.getElementById("confirmModalActions");
       const dropzoneText = dropzone.querySelector(".dropzone-text");
       const dropzoneHint = dropzone.querySelector(".dropzone-hint");
       const defaultDropzoneText = dropzoneText ? dropzoneText.textContent : "";
@@ -1803,6 +1804,103 @@ const selectedList = document.getElementById("selectedList");
         }
       }
 
+      function updateTaskProgressBar(job) {
+  if (!job || !progressWrap) return;
+
+  const progressText = progressWrap.querySelector(".progress-text");
+
+  let pct = Number(job.progress_percent);
+  if (!Number.isFinite(pct)) pct = 0;
+  pct = Math.max(0, Math.min(100, pct));
+
+  progressWrap.classList.add("show");
+  progressWrap.classList.remove("progress-upload");
+  progressWrap.classList.add("progress-has-pct");
+
+  if (progressFill) {
+    progressFill.style.width = pct + "%";
+  }
+
+  if (progressTrack) {
+    progressTrack.setAttribute("aria-valuenow", String(pct));
+  }
+
+  const totalFiles = Number(job.total_files);
+  const processedFiles = Number(job.processed_files);
+  const totalPages = Number(job.progress_pages_total);
+  const donePages = Number(job.progress_pages_done);
+
+  let currentFileIndex = 1;
+  if (Number.isFinite(totalFiles) && totalFiles > 1) {
+    currentFileIndex = Math.min(
+      totalFiles,
+      Math.max(1, (Number.isFinite(processedFiles) ? processedFiles : 0) + 1)
+    );
+  }
+
+  let currentName = "";
+  if (job.current_file_name) {
+    currentName = String(job.current_file_name);
+  } else if (job.current_filename) {
+    currentName = String(job.current_filename);
+  } else if (job.original_filename) {
+    currentName = String(job.original_filename);
+  }
+
+  let text = "";
+
+  if (job.status === "queued") {
+    text = "排队中 · 0%";
+  } else {
+    if (Number.isFinite(totalFiles) && totalFiles > 1) {
+      text = "正在处理 " + currentFileIndex + "/" + totalFiles;
+      if (currentName) {
+        text += "：" + currentName;
+      }
+    } else {
+      text = "正在解析";
+      if (currentName) {
+        text += "：" + currentName;
+      }
+    }
+
+    if (Number.isFinite(totalPages) && totalPages > 0) {
+      text += " · 第 " + donePages + "/" + totalPages + " 页";
+    } else {
+      text += " · 准备中";
+    }
+
+    text += " · " + pct + "%";
+  }
+
+  if (progressText) {
+    progressText.textContent = text;
+  }
+
+  if (progressElapsedLine) {
+    let elapsedText = "";
+    const createdAt = parseIsoMs(job.created_at);
+    const startedAt = parseIsoMs(job.started_at);
+
+    if (createdAt != null) {
+      elapsedText = "已用时 " + formatDurationZh(Date.now() - createdAt);
+    }
+
+    if (startedAt != null && job.status === "running") {
+      elapsedText +=
+        (elapsedText ? " · " : "") +
+        "处理耗时 " +
+        formatDurationZh(Date.now() - startedAt);
+    }
+
+    progressElapsedLine.textContent = elapsedText;
+    progressElapsedLine.hidden = !elapsedText;
+  }
+}
+
+
+
+
       function setStatus(type, text) {
         if (type === "loading") {
           statusBox.className = "status-box";
@@ -1915,6 +2013,100 @@ const selectedList = document.getElementById("selectedList");
           (danger ? confirmModalCancel : confirmModalOk).focus();
         });
       }
+
+      function openUploadPickerChoice() {
+  return new Promise(function (resolve) {
+    if (!confirmModal || !confirmModalTitle || !confirmModalDesc || !confirmModalActions) {
+      resolve("cancel");
+      return;
+    }
+
+    const prevActive = document.activeElement;
+    let settled = false;
+
+    confirmModalTitle.textContent = "选择上传方式";
+    confirmModalDesc.textContent = "请选择上传文件、上传文件夹，或取消本次操作。";
+
+    confirmModalActions.innerHTML =
+      '<button type="button" class="modal-btn modal-btn-cancel" id="pickerCancelBtn">取消</button>' +
+      '<button type="button" class="modal-btn modal-btn-confirm" id="pickerFileBtn">选择文件</button>' +
+      '<button type="button" class="modal-btn modal-btn-confirm" id="pickerFolderBtn">选择文件夹</button>';
+
+    const pickerCancelBtn = document.getElementById("pickerCancelBtn");
+    const pickerFileBtn = document.getElementById("pickerFileBtn");
+    const pickerFolderBtn = document.getElementById("pickerFolderBtn");
+
+    function cleanup() {
+      document.removeEventListener("keydown", onDocKey);
+      if (pickerCancelBtn) pickerCancelBtn.onclick = null;
+      if (pickerFileBtn) pickerFileBtn.onclick = null;
+      if (pickerFolderBtn) pickerFolderBtn.onclick = null;
+      confirmModal.onclick = null;
+
+      confirmModal.classList.add("hidden");
+      confirmModal.setAttribute("hidden", "");
+
+      confirmModalActions.innerHTML =
+        '<button type="button" class="modal-btn modal-btn-cancel" id="confirmModalCancel">取消</button>' +
+        '<button type="button" class="modal-btn modal-btn-confirm" id="confirmModalOk">确定</button>';
+
+      if (prevActive && typeof prevActive.focus === "function") {
+        try {
+          prevActive.focus();
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    }
+
+    function finish(result) {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(result);
+    }
+
+    function onDocKey(e) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        finish("cancel");
+      }
+    }
+
+    if (pickerCancelBtn) {
+      pickerCancelBtn.onclick = function () {
+        finish("cancel");
+      };
+    }
+
+    if (pickerFileBtn) {
+      pickerFileBtn.onclick = function () {
+        finish("file");
+      };
+    }
+
+    if (pickerFolderBtn) {
+      pickerFolderBtn.onclick = function () {
+        finish("folder");
+      };
+    }
+
+    confirmModal.onclick = function (e) {
+      if (e.target === confirmModal) {
+        finish("cancel");
+      }
+    };
+
+    document.addEventListener("keydown", onDocKey);
+    confirmModal.classList.remove("hidden");
+    confirmModal.removeAttribute("hidden");
+
+    if (pickerFileBtn) {
+      pickerFileBtn.focus();
+    }
+  });
+}
+
 
       function getFileRelativePath(file, mode) {
   if (!file) return "";
@@ -2495,31 +2687,64 @@ if (selectedList) selectedList.innerHTML = "";
               break;
             }
             lastPolledJob = job;
+            if (job.status === "queued" || job.status === "running") {
+              updateTaskProgressBar(job);
+            }
             if (terminal[job.status]) {
               if (generation !== uploadGeneration) {
                 return;
               }
               if (job.status === "succeeded") {
-                let msg = "转换完成";
-                const c = parseIsoMs(job.created_at);
-                const f = parseIsoMs(job.finished_at);
-                if (c != null && f != null && f >= c) {
-                  msg += "，总耗时 " + formatDurationZh(f - c);
-                }
-                if (Array.isArray(job.pdf_vl_failed_pages) && job.pdf_vl_failed_pages.length) {
-                  msg += "（部分页未成功：第 " + job.pdf_vl_failed_pages.join("、") + " 页）";
-                  showToast(
-                    "warning",
-                    "部分页转写未完成，页码：" + job.pdf_vl_failed_pages.join("、")
-                  );
-                }
-                setStatus("success", msg);
-                resultFilename.textContent = job.original_filename || "";
-                downloadBtn.href = job.download_url || "#";
-                result.classList.add("show");
-              } else {
-                setStatus("error", job.error_message || statusLabel(job.status));
+  updateTaskProgressBar({
+    ...job,
+    status: "running",
+    progress_percent: 100,
+    progress_note: "转换完成",
+  });
+
+  const progressText = progressWrap.querySelector(".progress-text");
+    if (progressText) {
+      let doneText = "转换完成 · 100%";
+      if (
+        job.progress_pages_total != null &&
+        job.progress_pages_done != null
+      ) {
+        doneText =
+          "转换完成：第 " +
+          job.progress_pages_done +
+          " / " +
+          job.progress_pages_total +
+          " 页 · 100%";
+      }
+      progressText.textContent = doneText;
+    }
+
+    let msg = "转换完成";
+    const c = parseIsoMs(job.created_at);
+    const f = parseIsoMs(job.finished_at);
+    if (c != null && f != null && f >= c) {
+      msg += "，总耗时 " + formatDurationZh(f - c);
+    }
+
+    if (Array.isArray(job.pdf_vl_failed_pages) && job.pdf_vl_failed_pages.length) {
+      msg += "（部分页未成功：第 " + job.pdf_vl_failed_pages.join("、") + " 页）";
+    }
+
+    setStatus("success", msg);
+    resultFilename.textContent = job.original_filename || "";
+    downloadBtn.href = job.download_url || "#";
+    result.classList.add("show");
+  }
+ else if (job.status === "failed") {
+                setStatus("error", job.error_message || "转换失败");
+                progressWrap.classList.remove("show");
+                resetProgressBar();
+              } else if (job.status === "cancelled") {
+                setStatus("success", "任务已取消");
+                progressWrap.classList.remove("show");
+                resetProgressBar();
               }
+
               await refreshTaskList();
               try {
                 fileInput.value = "";
@@ -2803,17 +3028,21 @@ async function extractDroppedFiles(dataTransfer) {
       async function openPicker() {
   const pickFolder = await openThemedConfirm({
     title: "选择上传方式",
-    message: "点击“确定”选择文件夹，点击“取消”后将选择单个文件或多个文件。",
+    message: "点击“确定”选择文件夹；点击“取消”则不进行上传。",
     confirmText: "选择文件夹",
-    cancelText: "选择文件",
+    cancelText: "取消",
     danger: false,
   });
-  if (pickFolder) {
+
+  if (pickFolder === true) {
     folderInput.click();
-  } else {
-    fileInput.click();
+    return;
   }
+
+  // 用户取消 / 关闭弹窗 / 按 Esc，直接结束
+  return;
 }
+
 
 
       dropzone.addEventListener("click", openPicker);
@@ -3071,20 +3300,38 @@ formData.append("root_name", currentRootName || "");
   return;
 }
 
-          await refreshTaskList();
-resetProgressBar();
-progressWrap.classList.remove("show");
-clearCurrentSelection();
-showToast("success", "任务已提交，请在任务列表查看进度");
+        await refreshTaskList();
+        clearCurrentSelection();
+        showToast("success", "任务已提交，正在处理中");
+
+        progressWrap.classList.add("show");
+        progressWrap.classList.remove("progress-upload");
+        progressWrap.classList.add("progress-has-pct");
+
+        if (progressFill) {
+          progressFill.style.width = "0%";
+        }
+        if (progressTrack) {
+          progressTrack.setAttribute("aria-valuenow", "0");
+        } 
+        if (progressText) {
+          progressText.textContent = "上传完成，正在准备解析… 0%";
+        }
+
+        if (progressElapsedLine) {
+          progressElapsedLine.hidden = true;
+          progressElapsedLine.textContent = "";
+        }
+
           const jobId = payload && payload.job_id;
           if (jobId) {
-  setStatus("success", "任务已创建，正在后台处理");
-  pollJobUntilTerminal(jobId, myGen); // 不 await
-} else {
-  setStatus("error", "未返回任务 ID");
-  resetProgressBar();
-  progressWrap.classList.remove("show");
-}
+            setStatus("success", "任务已创建，正在后台处理");
+            pollJobUntilTerminal(jobId, myGen); // 不 await
+          } else {
+            setStatus("error", "未返回任务 ID");
+            resetProgressBar();
+            progressWrap.classList.remove("show");
+          }
 
         } catch (error) {
           if (myGen === uploadGeneration) {
