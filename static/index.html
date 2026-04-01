@@ -2375,6 +2375,7 @@ if (selectedList) selectedList.innerHTML = "";
           const c = el.getAttribute("data-created-at");
           const s = el.getAttribute("data-started-at");
           const st = el.getAttribute("data-st");
+          const pctStr = el.getAttribute("data-progress-percent");
           const t0 = parseIsoMs(c);
           if (t0 == null) {
             el.textContent = "";
@@ -2384,7 +2385,17 @@ if (selectedList) selectedList.innerHTML = "";
           let txt = "已用时 " + formatDurationZh(now - t0);
           const t1 = parseIsoMs(s);
           if (t1 != null && st === "running") {
-            txt += " · 处理 " + formatDurationZh(now - t1);
+            const processingMs = now - t1;
+            txt += " · 处理 " + formatDurationZh(processingMs);
+
+            const pct = parseFloat(pctStr);
+            if (Number.isFinite(pct) && pct > 1 && pct < 100) {
+              const estimatedTotal = processingMs / (pct / 100);
+              const remaining = estimatedTotal - processingMs;
+              if (remaining > 1000) {
+                txt += " · 预计剩余 " + formatDurationZh(remaining);
+              }
+            }
           }
           el.textContent = txt;
         });
@@ -2598,6 +2609,8 @@ if (selectedList) selectedList.innerHTML = "";
                       escapeAttr(job.created_at) +
                       '" data-started-at="' +
                       escapeAttr(job.started_at || "") +
+                      '" data-progress-percent="' +
+                      escapeAttr(job.progress_percent || "0") +
                       '" data-st="' +
                       escapeAttr(job.status) +
                       '"></span>'
