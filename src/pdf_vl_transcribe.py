@@ -234,7 +234,7 @@ def _review_suspicious_tables_with_llm(
 
     reviewed = 0
     for tb in blocks:
-        if reviewed >= max_tables:
+        if max_tables > 0 and reviewed >= max_tables:
             break
         if not _is_suspicious_table(tb.markdown):
             continue
@@ -250,7 +250,7 @@ def _review_suspicious_tables_with_llm(
             messages,
             temperature=temperature,
             max_tokens=max_tokens,
-            biz_stage="表格语义增强",
+            biz_stage="表格纠错",
         )
         fixed = _normalize_markdown_output(raw)
         fixed_table = _extract_first_table_block(fixed)
@@ -2192,15 +2192,19 @@ def transcribe_pdf_with_vl(
     caption_crop_figures: bool = False,
     caption_crop_max_per_page: int = 6,
     table_second_pass: bool = True,
-    table_second_pass_max_tables: int = 3,
+    table_second_pass_max_tables: int = 0,
     max_pages: Optional[int] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     progress_callback: Optional[Callable[[int, int], None]] = None,
     cancel_check: Optional[Callable[[], bool]] = None,
+    page_markdown_postprocess: Optional[Callable[[str], str]] = None,
 ) -> tuple[str, list[int]]:
     """
     逐页渲染 PDF → PNG（临时文件），每页一次 multimodal 调用，拼接为单个 Markdown。
+
+    page_markdown_postprocess：单页正文定稿后（含表格纠错、可选插图裁剪）再调用，用于例如逐页插入表格语义说明。
+    table_second_pass_max_tables：每页可疑表纠错上限；0 表示不限制。
 
     返回 (markdown, failed_pages_1based)：后者为转写异常页的 1-based 页码列表（供任务记录与前端提示）。
     """
@@ -2242,6 +2246,7 @@ def transcribe_pdf_with_vl(
             workers=workers_i,
             table_review=bool(table_second_pass),
             crop_figures=bool(caption_crop_figures and markdown_out_path is not None),
+            page_md_postprocess=bool(page_markdown_postprocess),
         )
 
         page_pngs: list[Path] = []
@@ -2339,7 +2344,7 @@ def transcribe_pdf_with_vl(
                             page_image_path=image_path,
                             temperature=temperature,
                             max_tokens=max_tokens,
-                            max_tables=max(1, int(table_second_pass_max_tables)),
+                            max_tables=int(table_second_pass_max_tables),
                         )
                         _log.info(kv(event="pdf_vl.page.table_review.done", page=f"{i + 1}/{limit}", patched=reviewed_n, elapsed=f"{time.perf_counter() - t_review0:.2f}s"))
 
@@ -2367,6 +2372,19 @@ def transcribe_pdf_with_vl(
                         except Exception as e:
                             _log.warning(kv(event="pdf_vl.page.figure_crop.failed_ignored", page=f"{i + 1}/{limit}", file=pdf_path.name, err=repr(e)))
                             _log.info(kv(event="pdf_vl.page.figure_crop.ignored", page=f"{i + 1}/{limit}", elapsed=f"{time.perf_counter() - t_crop0:.2f}s"))
+
+                    if page_markdown_postprocess is not None:
+                        if cancel_check is not None and cancel_check():
+                            return i, "（已取消）\n"
+                        t_cap0 = time.perf_counter()
+                        page_md = page_markdown_postprocess(page_md)
+                        _log.info(
+                            kv(
+                                event="pdf_vl.page.markdown_postprocess.done",
+                                page=f"{i + 1}/{limit}",
+                                elapsed=f"{time.perf_counter() - t_cap0:.2f}s",
+                            )
+                        )
 
                 _log.info(kv(event="pdf_vl.page.done", page=f"{i + 1}/{limit}", elapsed=f"{time.perf_counter() - page_t0:.2f}s", file=pdf_path.name))
                 return i, page_md

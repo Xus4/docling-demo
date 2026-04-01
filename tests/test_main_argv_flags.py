@@ -50,7 +50,7 @@ class TestApplyPdfVlDefaults(unittest.TestCase):
         apply_pdf_vl_cli_defaults(args, ["main.py", "--pdf-vl-primary"])
         self.assertEqual(args.pdf_vl_dpi, 180.0)
         self.assertEqual(args.pdf_vl_workers, 10)
-        self.assertEqual(args.pdf_vl_table_second_pass_max_tables, 5)
+        self.assertEqual(args.pdf_vl_table_second_pass_max_tables, 0)
         self.assertEqual(args.llm_temperature, 0.0)
         self.assertEqual(args.llm_max_tokens, 16384)
 

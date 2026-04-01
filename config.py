@@ -167,8 +167,20 @@ class AppConfig:
         cleanup_hours = int(os.getenv("CLEANUP_MAX_AGE_HOURS", "24"))
         max_num_pages_raw = os.getenv("MAX_NUM_PAGES", "").strip()
         llm_max_tokens_raw = os.getenv("LLM_MAX_TOKENS", "").strip()
+        llm_max_tokens = int(llm_max_tokens_raw) if llm_max_tokens_raw else 16384
         llm_base_url_raw = os.getenv("LLM_BASE_URL", "").strip()
         _default_llm_base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        # 表格/图片转述长度：未配置时与 LLM_MAX_TOKENS 对齐，便于单一旋钮调参
+        _table_cap_chars = os.getenv("LLM_TABLE_CAPTION_MAX_CHARS", "").strip()
+        llm_table_caption_max_chars = (
+            max(20, int(_table_cap_chars))
+            if _table_cap_chars
+            else max(20, llm_max_tokens)
+        )
+        _img_cap_chars = os.getenv("LLM_IMAGE_CAPTION_MAX_CHARS", "").strip()
+        llm_image_caption_max_chars = (
+            max(0, int(_img_cap_chars)) if _img_cap_chars else max(0, llm_max_tokens)
+        )
         return cls(
             max_file_size_bytes=max_file_size_bytes,
             allowed_types=_parse_allowed_types(os.getenv("ALLOWED_TYPES")),
@@ -185,18 +197,16 @@ class AppConfig:
             llm_base_url=llm_base_url_raw or _default_llm_base_url,
             llm_api_key_env=env_str("LLM_API_KEY_ENV", "DASHSCOPE_API_KEY"),
             pdf_vl_table_second_pass_max_tables=max(
-                1, env_int("PDF_VL_TABLE_SECOND_PASS_MAX_TABLES", 5)
+                0, env_int("PDF_VL_TABLE_SECOND_PASS_MAX_TABLES", 0)
             ),
             max_num_pages=(int(max_num_pages_raw) if max_num_pages_raw else None),
-            llm_max_tokens=(int(llm_max_tokens_raw) if llm_max_tokens_raw else 16384),
+            llm_max_tokens=llm_max_tokens,
             llm_temperature=env_float("LLM_TEMPERATURE", 0.0),
             llm_max_retries=max(1, env_int("LLM_MAX_RETRIES", 3)),
             llm_retry_backoff_sec=max(0.1, env_float("LLM_RETRY_BACKOFF_SEC", 1.5)),
             llm_max_reasoning_tokens=env_int("LLM_MAX_REASONING_TOKENS", 256),
             llm_table_caption=env_bool("LLM_TABLE_CAPTION", True),
-            llm_table_caption_max_chars=max(
-                20, env_int("LLM_TABLE_CAPTION_MAX_CHARS", 500)
-            ),
+            llm_table_caption_max_chars=llm_table_caption_max_chars,
             llm_table_caption_max_tables=max(
                 0, env_int("LLM_TABLE_CAPTION_MAX_TABLES", 20)
             ),
@@ -207,9 +217,7 @@ class AppConfig:
             llm_image_caption_max_images=max(
                 0, env_int("LLM_IMAGE_CAPTION_MAX_IMAGES", 0)
             ),
-            llm_image_caption_max_chars=max(
-                0, env_int("LLM_IMAGE_CAPTION_MAX_CHARS", 0)
-            ),
+            llm_image_caption_max_chars=llm_image_caption_max_chars,
             llm_image_caption_context_lines=max(
                 0, env_int("LLM_IMAGE_CAPTION_CONTEXT_LINES", 3)
             ),

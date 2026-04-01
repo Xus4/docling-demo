@@ -277,7 +277,7 @@ class DoclingMarkdownRefiner:
 
             refined_table_out = self._generate_multimodal_with_stage(
                 messages=messages,
-                biz_stage="表格语义增强",
+                biz_stage="表格纠错",
             )
             refined_table_out = _normalize_markdown_output(refined_table_out)
             refined_table_only = self._extract_first_table_block(refined_table_out)

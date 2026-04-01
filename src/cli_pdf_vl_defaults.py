@@ -35,7 +35,7 @@ def apply_pdf_vl_cli_defaults(args: argparse.Namespace, argv: list[str]) -> None
         args.pdf_vl_workers = _i("PDF_VL_WORKERS", 10)
     if not argv_contains_long_option(av, "--pdf-vl-table-second-pass-max-tables"):
         args.pdf_vl_table_second_pass_max_tables = _i(
-            "PDF_VL_TABLE_SECOND_PASS_MAX_TABLES", 5
+            "PDF_VL_TABLE_SECOND_PASS_MAX_TABLES", 0
         )
     if not argv_contains_long_option(av, "--llm-temperature"):
         v = os.getenv("LLM_TEMPERATURE", "").strip()

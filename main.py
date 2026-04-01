@@ -362,9 +362,9 @@ def main() -> int:
     parser.add_argument(
         "--pdf-vl-table-second-pass-max-tables",
         type=int,
-        default=env_int("PDF_VL_TABLE_SECOND_PASS_MAX_TABLES", 5),
+        default=env_int("PDF_VL_TABLE_SECOND_PASS_MAX_TABLES", 0),
         metavar="N",
-        help="每页最多二次校对多少个可疑表格（默认 5）。",
+        help="每页可疑表格二次校对数量上限；0 表示不限制（默认 0）。",
     )
 
     parser.add_argument(
@@ -540,8 +540,8 @@ def main() -> int:
         return 2
     if args.pdf_vl_workers > 32:
         log.warning("--pdf-vl-workers 过高，建议 <= 10（特殊情况下不超过 32）")
-    if args.pdf_vl_table_second_pass_max_tables < 1:
-        log.error("--pdf-vl-table-second-pass-max-tables 必须 >= 1")
+    if args.pdf_vl_table_second_pass_max_tables < 0:
+        log.error("--pdf-vl-table-second-pass-max-tables 必须 >= 0（0 表示不限制）")
         return 2
     if not (1 <= int(args.llm_empty_content_retries) <= 10):
         log.error("--llm-empty-content-retries 须在 1~10 之间")

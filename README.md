@@ -116,13 +116,14 @@ $env:CLEANUP_MAX_AGE_HOURS="24"
 - `PDF_VL_DPI`（默认 `180`）
 - `PDF_VL_WORKERS`（默认 `10`）
 - `LLM_MODEL`（默认 `qwen3.5-35b-a3b`）
-- `PDF_VL_TABLE_SECOND_PASS_MAX_TABLES`（默认 `5`）
+- `PDF_VL_TABLE_SECOND_PASS_MAX_TABLES`：每页可疑表格二次校对上限；`0` 或不设表示**不限制**（默认 `0`）
 - `MAX_NUM_PAGES`（默认不限制）
 - `LLM_MAX_TOKENS`（默认 `16384`）
 - `LLM_TEMPERATURE`（默认 `0`）
 - `LLM_ENABLE_THINKING`（默认 `true`）
 - `LLM_TABLE_CAPTION`（默认 `true`）
-- `LLM_TABLE_CAPTION_MAX_CHARS`（默认 `500`）
+- `LLM_TABLE_CAPTION_MAX_CHARS`（未设置时与 `LLM_MAX_TOKENS` 相同）
+- `LLM_IMAGE_CAPTION_MAX_CHARS`（未设置时与 `LLM_MAX_TOKENS` 相同）
 - `PDF_CAPTION_CROP_FIGURES`（默认 `true`）
 - `DASHSCOPE_API_KEY`（启用 Qwen/DashScope 时必填）
 - `AUTH_DB_PATH`（默认 `./data/auth.db`）
@@ -144,13 +145,12 @@ $env:PDF_VL_PRIMARY="true"
 $env:PDF_VL_DPI="180"
 $env:PDF_VL_WORKERS="10"
 $env:LLM_MODEL="qwen3.5-35b-a3b"
-$env:PDF_VL_TABLE_SECOND_PASS_MAX_TABLES="5"
+# $env:PDF_VL_TABLE_SECOND_PASS_MAX_TABLES="3"  # 可选：限制每页最多校对几张可疑表；不设则为不限制
 $env:MAX_NUM_PAGES="5"
 $env:LLM_MAX_TOKENS="16384"
 $env:LLM_TEMPERATURE="0"
 $env:LLM_ENABLE_THINKING="true"
 $env:LLM_TABLE_CAPTION="true"
-$env:LLM_TABLE_CAPTION_MAX_CHARS="500"
 $env:PDF_CAPTION_CROP_FIGURES="true"
 ```
 

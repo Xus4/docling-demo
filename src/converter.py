@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import os
+import threading
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable, Iterable, Literal, Optional, Union
@@ -176,7 +177,7 @@ class ConverterConfig:
     pdf_vl_dpi: float = 180.0
     pdf_vl_workers: int = 10
     pdf_vl_table_second_pass: bool = True
-    pdf_vl_table_second_pass_max_tables: int = 5
+    pdf_vl_table_second_pass_max_tables: int = 0
     pdf_caption_crop_figures: bool = False
     pdf_caption_crop_max_per_page: int = 4
 
@@ -724,6 +725,32 @@ class IndustrialDocConverter:
                 self.config.pdf_vl_workers,
                 self.config.max_num_pages,
             )
+            page_markdown_postprocess: Optional[Callable[[str], str]] = None
+            if self.config.llm_table_caption:
+                cap_total = max(0, int(self.config.llm_table_caption_max_tables))
+                if cap_total > 0:
+                    _log.info(
+                        "[pdf-vl] 表格语义说明：逐页插入（全局上限=%s 张表）",
+                        cap_total,
+                    )
+                    cap_lock = threading.Lock()
+                    cap_remaining = [cap_total]
+
+                    def _page_table_caption(md: str) -> str:
+                        with cap_lock:
+                            budget = cap_remaining[0]
+                        if budget <= 0:
+                            return md
+                        new_md, used = self._append_table_captions_to_markdown(
+                            md,
+                            max_tables=budget,
+                        )
+                        with cap_lock:
+                            cap_remaining[0] -= used
+                        return new_md
+
+                    page_markdown_postprocess = _page_table_caption
+
             md, pdf_vl_failed = transcribe_pdf_with_vl(
                 client=client,
                 model=self.config.llm_model,
@@ -740,6 +767,7 @@ class IndustrialDocConverter:
                 max_tokens=self.config.llm_max_tokens,
                 progress_callback=progress_callback,
                 cancel_check=cancel_check,
+                page_markdown_postprocess=page_markdown_postprocess,
             )
             self._last_pdf_vl_failed_pages = pdf_vl_failed
             if self.config.markdown_escape_dimension_asterisks:
@@ -755,11 +783,7 @@ class IndustrialDocConverter:
 
             final_md = markdown_out.read_text(encoding="utf-8")
 
-            if self.config.llm_table_caption:
-                if cancel_check is not None and cancel_check():
-                    _log.info("[pdf-vl] 已取消：跳过表格语义补偿 %s", source.name)
-                    raise RuntimeError("任务已取消")
-                final_md = self._append_table_captions_to_markdown(final_md)
+            # 表格语义说明已在 transcribe_pdf_with_vl 逐页阶段插入（与 workers 并行时由锁保证全局上限）
 
             if self.config.llm_image_caption:
                 if cancel_check is not None and cancel_check():
@@ -923,7 +947,7 @@ class IndustrialDocConverter:
                 final_md = markdown_out.read_text(encoding="utf-8")
 
                 if self.config.llm_table_caption:
-                    final_md = self._append_table_captions_to_markdown(final_md)
+                    final_md, _ = self._append_table_captions_to_markdown(final_md)
 
                 if self.config.llm_image_caption:
                     final_md = self._append_image_captions_to_markdown(final_md, markdown_out)
@@ -997,31 +1021,46 @@ class IndustrialDocConverter:
             parts.append("【后文】\n" + after)
         return "\n\n".join(parts).strip()
     
-    def _append_table_captions_to_markdown(self, markdown_text: str) -> str:
+    def _append_table_captions_to_markdown(
+        self,
+        markdown_text: str,
+        *,
+        max_tables: Optional[int] = None,
+    ) -> tuple[str, int]:
+        """
+        在表格块后插入「表格信息」引用段。返回 (新正文, 本趟实际插入条数)。
+
+        max_tables 为 None 时使用配置中的全局上限；传入正整数时为本趟最多处理几张表
+        （用于 pdf-vl 逐页拆分时的剩余预算）。
+        """
         if not self.config.llm_table_caption:
-            return markdown_text
+            return markdown_text, 0
 
         from src.vl_markdown_utils import extract_markdown_table_blocks
 
         client = self._create_dashscope_client()
         if client is None:
             _log.warning("llm_table_caption enabled but DashScope client unavailable; skip.")
-            return markdown_text
+            return markdown_text, 0
 
         blocks = extract_markdown_table_blocks(markdown_text)
         if not blocks:
-            return markdown_text
+            return markdown_text, 0
 
-        max_tables = max(0, int(self.config.llm_table_caption_max_tables))
-        if max_tables <= 0:
-            return markdown_text
+        max_tables_eff = (
+            max(0, int(max_tables))
+            if max_tables is not None
+            else max(0, int(self.config.llm_table_caption_max_tables))
+        )
+        if max_tables_eff <= 0:
+            return markdown_text, 0
 
         lines = markdown_text.splitlines()
         inserts: list[tuple[int, list[str]]] = []
 
         handled = 0
         for block in blocks:
-            if handled >= max_tables:
+            if handled >= max_tables_eff:
                 break
             if not self._should_caption_table(block.markdown):
                 continue
@@ -1051,13 +1090,13 @@ class IndustrialDocConverter:
             handled += 1
 
         if not inserts:
-            return markdown_text
+            return markdown_text, 0
 
         # 倒序插入，避免行号漂移
         for insert_after, insert_block in reversed(inserts):
             lines[insert_after:insert_after] = insert_block
 
-        return "\n".join(lines)
+        return "\n".join(lines), handled
     
     def _extract_markdown_image_blocks(self, markdown_text: str) -> list[dict]:
         items: list[dict] = []
@@ -1288,7 +1327,7 @@ class IndustrialDocConverter:
                 messages=messages,
                 temperature=0.0,
                 max_tokens=cap_tok,
-                biz_stage="表格语义增强",
+                biz_stage="表格语义说明",
             )
 
             text = (text or "").strip()
