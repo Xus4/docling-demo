@@ -427,10 +427,45 @@ def logout(request: Request) -> dict[str, str]:
     return {"message": "ok"}
 
 
+def _list_jobs_payload(
+    user: AuthUser,
+    owner: str | None,
+    status: str | None,
+    page: int,
+    page_size: int,
+) -> dict[str, object]:
+    offset = (page - 1) * page_size
+    items, total = auth_store.list_jobs(
+        viewer_username=user.username,
+        viewer_role=user.role,
+        owner_filter=owner if _is_admin(user) else None,
+        status_filter=status,
+        limit=page_size,
+        offset=offset,
+    )
+    return {
+        "items": [_job_to_api_dict(j) for j in items],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
 @app.get("/auth/me")
 def me(request: Request) -> dict[str, str]:
     user = _require_auth_user(request)
     return {"username": user.username, "role": user.role}
+
+
+@app.get("/auth/bootstrap")
+def auth_bootstrap(request: Request) -> dict[str, object]:
+    """单次请求返回当前用户与首页任务列表（与首次进入工作台时的默认筛选一致）。"""
+    user = _require_auth_user(request)
+    return {
+        "username": user.username,
+        "role": user.role,
+        "jobs": _list_jobs_payload(user, None, None, 1, 50),
+    }
 
 
 @app.get("/auth/users")
@@ -477,21 +512,7 @@ def list_jobs(
     page_size: int = Query(20, ge=1, le=100),
 ) -> dict[str, object]:
     user = _require_auth_user(request)
-    offset = (page - 1) * page_size
-    items, total = auth_store.list_jobs(
-        viewer_username=user.username,
-        viewer_role=user.role,
-        owner_filter=owner if _is_admin(user) else None,
-        status_filter=status,
-        limit=page_size,
-        offset=offset,
-    )
-    return {
-        "items": [_job_to_api_dict(j) for j in items],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    }
+    return _list_jobs_payload(user, owner, status, page, page_size)
 
 
 @app.get("/jobs/{job_id}")

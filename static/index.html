@@ -269,6 +269,39 @@
         margin: 0 auto;
       }
 
+      .session-boot {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        min-height: 200px;
+        padding: 28px 16px 20px;
+        text-align: center;
+      }
+
+      .session-boot-spinner {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 3px solid color-mix(in srgb, var(--brand) 22%, transparent);
+        border-top-color: var(--brand);
+        animation: sessionBootSpin 0.75s linear infinite;
+      }
+
+      @keyframes sessionBootSpin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .session-boot-text {
+        margin: 0;
+        font-size: 14px;
+        color: var(--text-sub);
+        letter-spacing: 0.02em;
+      }
+
       .top-actions {
         position: fixed;
         top: 14px;
@@ -1524,7 +1557,11 @@
       </div>
 
       <section id="mainShell" class="shell login-shell">
-        <section id="authBox" class="auth-view">
+        <div id="sessionBoot" class="session-boot" role="status" aria-live="polite">
+          <div class="session-boot-spinner" aria-hidden="true"></div>
+          <p class="session-boot-text">正在验证登录状态…</p>
+        </div>
+        <section id="authBox" class="auth-view hidden">
           <h2 class="auth-title">账号登录</h2>
           <p class="auth-sub">输入账号后进入转换工作台</p>
 
@@ -1699,6 +1736,7 @@ const selectedList = document.getElementById("selectedList");
       const taskOwnerFilter = document.getElementById("taskOwnerFilter");
       const taskStatusFilter = document.getElementById("taskStatusFilter");
       const applyTaskFiltersBtn = document.getElementById("applyTaskFiltersBtn");
+      const sessionBoot = document.getElementById("sessionBoot");
       const authBox = document.getElementById("authBox");
       const workArea = document.getElementById("workArea");
       const mainShell = document.getElementById("mainShell");
@@ -2252,7 +2290,8 @@ function removeSelectedFileAt(index) {
         }
       }
 
-      function setAuthState(user) {
+      function setAuthState(user, opts) {
+        opts = opts || {};
         if (user) {
           currentUser = user;
           mainShell.classList.remove("login-shell");
@@ -2283,11 +2322,17 @@ function removeSelectedFileAt(index) {
             taskFilters.classList.add("hidden");
           }
           updateConvertButtonState();
-          refreshTaskList();
+          if (opts.initialJobs && Array.isArray(opts.initialJobs.items)) {
+            renderTaskItems(opts.initialJobs.items);
+            updateTaskPollingFromItems(opts.initialJobs.items);
+          } else {
+            refreshTaskList();
+          }
           return;
         }
         stopTaskPolling();
         currentUser = null;
+        if (sessionBoot) sessionBoot.classList.add("hidden");
         mainShell.classList.add("login-shell");
         authBox.classList.remove("hidden");
         workArea.classList.add("hidden");
@@ -2622,6 +2667,11 @@ if (selectedList) selectedList.innerHTML = "";
           historyList.innerHTML = "";
           return;
         }
+        if (!opts.silent) {
+          historyWrap.classList.add("show");
+          historyList.innerHTML =
+            '<p class="history-meta" style="margin:0;color:var(--text-sub)">加载任务列表…</p>';
+        }
         try {
           const params = new URLSearchParams();
           params.set("page", "1");
@@ -2641,12 +2691,22 @@ if (selectedList) selectedList.innerHTML = "";
           const data = await resp.json();
           if (!resp.ok) {
             if (!opts.silent) showToast("error", data.detail || "加载任务失败");
+            if (!opts.silent) {
+              historyWrap.classList.add("show");
+              historyList.innerHTML =
+                '<p class="history-meta" style="margin:0">加载失败，请稍后点击「刷新」重试。</p>';
+            }
             return;
           }
           renderTaskItems(data.items || []);
           updateTaskPollingFromItems(data.items || []);
         } catch (e) {
           if (!opts.silent) showToast("error", "加载任务列表失败");
+          if (!opts.silent) {
+            historyWrap.classList.add("show");
+            historyList.innerHTML =
+              '<p class="history-meta" style="margin:0">加载失败，请稍后点击「刷新」重试。</p>';
+          }
         }
       }
 
@@ -3388,14 +3448,25 @@ setStatus("error", "请求失败：" + (error && error.message ? error.message :
 
       (async function initAuth() {
         try {
-          const resp = await fetch("/auth/me");
+          const resp = await fetch("/auth/bootstrap", {
+            credentials: "same-origin",
+            cache: "no-store",
+          });
+          let payload = null;
+          if (resp.ok) {
+            payload = await resp.json();
+          }
+          if (sessionBoot) sessionBoot.classList.add("hidden");
           if (!resp.ok) {
             setAuthState(null);
             return;
           }
-          const payload = await resp.json();
-          setAuthState(payload);
+          setAuthState(
+            { username: payload.username, role: payload.role },
+            { initialJobs: payload.jobs }
+          );
         } catch (error) {
+          if (sessionBoot) sessionBoot.classList.add("hidden");
           setAuthState(null);
         }
       })();
