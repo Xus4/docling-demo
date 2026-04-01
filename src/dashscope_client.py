@@ -74,6 +74,7 @@ class DashScopeClientConfig:
     # 默认开启以保障质量；关闭时可省 completion token。
     enable_thinking: bool = True
     # 仅 enable_thinking=True 时生效；关闭思考时请求里会强制 max_reasoning_tokens=0。
+    # 与工程环境变量 LLM_MAX_REASONING_TOKENS（见 main.py / config）对应。
     max_reasoning_tokens: Optional[int] = 256
     # OpenAI 兼容：assistant.content 为空（含仅 reasoning_content 有字）时额外重试次数（含首次共 N 次请求）
     empty_content_max_attempts: int = 3
@@ -107,20 +108,14 @@ def _flush_logging_handlers() -> None:
 
 
 class DashScopeClient:
-    _FINAL_OUTPUT_GUARD = (
-        "\n\n【输出协议】可交付正文必须完整写入 assistant 的 content（非空）；"
-        "禁止仅用推理/思考字段代替正文；不要输出解题步骤或自我分析，直接给出结果。"
-    )
-
     _RETRY_FORCE_FINAL = (
         "\n\n【重试】上次 content 为空或正文未写入 content。本次必须让 content 含完整可交付结果；"
         "禁止把正文放在推理字段。"
     )
 
     _RETRY_THINKING_CONCISE = (
-        "\n\n【重试补充】你可以继续思考，但请将思考内容严格收敛："
-        "只保留关键检查点/结论，不要展开长篇推理；"
-        "最终可交付结果必须写入 content（非空）。"
+        "\n\n【重试】请再试一次：思考与推理仍须简明扼要；"
+        "可交付正文必须完整出现在 assistant 的 content 中（非空），不要只写在推理字段里。"
     )
 
     """
@@ -133,6 +128,29 @@ class DashScopeClient:
 
     def __init__(self, cfg: DashScopeClientConfig) -> None:
         self.cfg = cfg
+
+    @classmethod
+    def _final_output_guard(
+        cls,
+        *,
+        max_reasoning_tokens: Optional[int],
+        enable_thinking: bool,
+    ) -> str:
+        """
+        enable_thinking 为 False 时不追加「思考长度」句（与关闭思考时的请求体一致）。
+        开启思考时，句中 token 上限与 _openai_chat_completions_payload 的 max_reasoning_tokens 一致。
+        """
+        base = (
+            "\n\n【输出协议】可交付正文必须完整写入 assistant 的 content（非空）；"
+            "禁止仅用推理/思考字段代替正文；不要输出解题步骤或自我分析，直接给出结果。"
+        )
+        if enable_thinking and max_reasoning_tokens is not None:
+            n = int(max_reasoning_tokens)
+            base += (
+                f"\n若你需要思考或推理，请简明扼要，只保留必要步骤与关键结论，不要展开长篇分析；"
+                f"思考/推理部分总长度不要超过 {n} token。"
+            )
+        return base
 
     def _openai_chat_completions_payload(
         self,
@@ -170,14 +188,23 @@ class DashScopeClient:
 
     @classmethod
     def _append_guard_to_messages(
-        cls, messages: list[dict[str, Any]], *, retry_hint: bool = False
+        cls,
+        messages: list[dict[str, Any]],
+        *,
+        retry_hint: bool = False,
+        max_reasoning_tokens: Optional[int] = None,
+        enable_thinking: bool = True,
     ) -> list[dict[str, Any]]:
         """
         在消息中加入“必须输出最终正文”的约束：
         - 优先追加到 system；
         - 若不存在 system，则追加到最后一个 user 文本。
+        其中思考长度上限与配置 max_reasoning_tokens（如环境变量 LLM_MAX_REASONING_TOKENS）一致。
         """
-        guard = cls._FINAL_OUTPUT_GUARD + (cls._RETRY_FORCE_FINAL if retry_hint else "")
+        guard = cls._final_output_guard(
+            max_reasoning_tokens=max_reasoning_tokens,
+            enable_thinking=enable_thinking,
+        ) + (cls._RETRY_FORCE_FINAL if retry_hint else "")
         out: list[dict[str, Any]] = [dict(m) for m in messages]
 
         for i, m in enumerate(out):
@@ -714,7 +741,13 @@ class DashScopeClient:
 
         for attempt in range(n):
             retry_hint = attempt > 0
-            guarded = self._append_guard_to_messages(messages, retry_hint=retry_hint)
+            force_disable_thinking = retry_hint and last_reasoning_only
+            guarded = self._append_guard_to_messages(
+                messages,
+                retry_hint=retry_hint,
+                max_reasoning_tokens=self.cfg.max_reasoning_tokens,
+                enable_thinking=bool(self.cfg.enable_thinking) and not force_disable_thinking,
+            )
             if retry_hint:
                 # 追加“思考收敛”约束：优先放在 system，否则追加到最后一个 user 文本
                 guarded = self._append_guard_to_messages_with_extra_guard(
@@ -727,8 +760,6 @@ class DashScopeClient:
                     temp = 0.0
                 else:
                     temp = min(float(temp), 0.2)
-            # 若上轮已出现“仅思考无正文”，当前轮关闭 thinking 兜底，避免持续空 content。
-            force_disable_thinking = retry_hint and last_reasoning_only
 
             payload = self._openai_chat_completions_payload(
                 model=model,
