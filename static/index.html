@@ -807,19 +807,116 @@
         gap: 10px;
       }
 
-      .upload-toolbar {
+      .dropzone-picks {
+        flex: 8 1 0%;
+        min-height: 0;
         display: flex;
+        flex-direction: row;
+        align-items: stretch;
         gap: 10px;
-        flex-wrap: wrap;
+        width: 100%;
       }
 
-      .upload-toolbar .upload-pick-btn {
+      button.dropzone-pick {
         flex: 1;
-        min-width: 132px;
-        height: 42px;
+        min-width: 0;
+        min-height: 112px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 18px 14px;
+        margin: 0;
         border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        font: inherit;
+        color: inherit;
+        text-align: center;
+        -webkit-appearance: none;
+        appearance: none;
+        background: color-mix(in srgb, var(--brand) 18%, var(--panel-bg));
+        transition:
+          background 0.18s ease,
+          transform 0.12s ease,
+          filter 0.18s ease;
+      }
+
+      .dropzone-pick:hover {
+        background: color-mix(in srgb, var(--brand) 28%, var(--panel-bg));
+        filter: brightness(1.02);
+      }
+
+      .dropzone-pick:active {
+        transform: scale(0.988);
+        filter: brightness(0.98);
+      }
+
+      .dropzone-pick:focus {
+        outline: none;
+      }
+
+      .dropzone-pick:focus-visible {
+        outline: 2px solid color-mix(in srgb, var(--brand) 50%, transparent);
+        outline-offset: 3px;
+      }
+
+      .dropzone-pick-sub {
+        display: block;
+        margin: 0;
+        max-width: 15em;
         font-size: 14px;
         font-weight: 600;
+        line-height: 1.45;
+        color: var(--text-sub);
+        text-align: center;
+        pointer-events: none;
+      }
+
+      .dropzone-pick .pick-icon {
+        width: 34px;
+        height: 34px;
+        color: var(--brand);
+        opacity: 0.88;
+        flex-shrink: 0;
+        pointer-events: none;
+      }
+
+      .dropzone-lead {
+        flex: 2 1 0%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        width: 100%;
+        padding: 4px 4px 12px;
+        text-align: center;
+      }
+
+      .dropzone-lead .dropzone-text {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.5;
+        letter-spacing: 0.01em;
+      }
+
+      /* 避免使用偏黑的 --text-main，统一用品牌色与次级灰蓝混合 */
+      .dropzone-text-primary {
+        color: color-mix(in srgb, var(--brand) 52%, var(--text-sub) 48%);
+        font-weight: 700;
+      }
+
+      .dropzone-text-secondary {
+        color: color-mix(in srgb, var(--text-sub) 88%, var(--brand) 12%);
+        font-weight: 600;
+      }
+
+      @media (max-width: 420px) {
+        .dropzone-picks {
+          flex-direction: column;
+        }
       }
 
       .upload-flow {
@@ -829,78 +926,51 @@
       }
 
       .dropzone {
-        border: 1px dashed var(--dropzone-border);
-        border-radius: 14px;
-        background:
-          radial-gradient(100% 70% at 50% 0%, var(--dropzone-glow), transparent 70%),
-          var(--dropzone-bg);
-        padding: 22px 16px;
+        border: 1px dashed color-mix(in srgb, var(--dropzone-border) 65%, transparent);
+        border-radius: 12px;
+        background: var(--dropzone-bg);
+        padding: 14px 14px 12px;
+        gap: 0;
         text-align: center;
         cursor: default;
-        transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+        transition:
+          border-color 0.2s ease,
+          background 0.2s ease;
         position: relative;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        min-height: 200px;
       }
 
-      .dropzone::after {
-        content: "";
-        position: absolute;
-        inset: -40% auto auto -70%;
-        width: 60%;
-        height: 220%;
-        transform: rotate(14deg);
-        background: linear-gradient(90deg, transparent, var(--dropzone-shine), transparent);
-        opacity: 0;
-        transition: opacity 0.25s ease;
-      }
-
-      .dropzone:hover::after {
-        opacity: 1;
+      .dropzone > * {
+        position: relative;
+        z-index: 1;
       }
 
       .dropzone:hover {
-        border-color: var(--stroke-strong);
-        box-shadow: 0 0 0 1px var(--dropzone-hover-inner) inset, 0 0 24px var(--dropzone-hover-glow);
+        border-color: color-mix(in srgb, var(--stroke-strong) 55%, var(--dropzone-border));
       }
 
       .dropzone.dragover {
         border-color: var(--brand);
-        transform: translateY(-1px);
-        border-style: solid;
-        border-width: 2px;
-        background:
-          radial-gradient(100% 70% at 50% 0%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 70%),
-          var(--dropzone-bg);
-        box-shadow: 0 0 0 1px var(--dropzone-drag-inner) inset, 0 0 28px var(--dropzone-drag-glow);
+        border-style: dashed;
+        border-width: 1px;
+        background: color-mix(in srgb, var(--brand) 7%, var(--dropzone-bg));
       }
 
       body.window-dragging .dropzone {
-        border-style: solid;
-        border-width: 2px;
-        background:
-          radial-gradient(100% 70% at 50% 0%, color-mix(in srgb, var(--brand) 16%, transparent), transparent 70%),
-          var(--dropzone-bg);
-      }
-
-      .upload-icon {
-        width: 36px;
-        height: 36px;
-        margin: 0 auto 8px;
-        color: var(--brand);
-        opacity: 0.9;
-      }
-
-      .dropzone-text {
-        margin: 0;
-        font-size: 14px;
-        font-weight: 600;
+        border-color: color-mix(in srgb, var(--brand) 55%, var(--dropzone-border));
+        background: color-mix(in srgb, var(--brand) 5%, var(--dropzone-bg));
       }
 
       .dropzone-hint {
-        margin: 6px 0 0;
+        margin: 0;
         color: var(--text-sub);
-        font-size: 12px;
+        font-size: 13px;
         line-height: 1.45;
+        max-width: 36em;
       }
 
       .selected-file {
@@ -1618,24 +1688,56 @@
         </section>
 
         <section id="workArea" class="workspace hidden">
-          <input id="fileInput" type="file" hidden />
+          <input id="fileInput" type="file" multiple hidden />
           <input id="folderInput" type="file" webkitdirectory multiple hidden />
-          <div class="upload-toolbar">
-            <button id="pickFileBtn" type="button" class="ghost-btn upload-pick-btn">选择文件</button>
-            <button id="pickFolderBtn" type="button" class="ghost-btn upload-pick-btn">选择文件夹</button>
-          </div>
           <div
             id="dropzone"
             class="dropzone"
             role="region"
             aria-label="拖拽上传：将文件或文件夹拖入此区域"
           >
-            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 16V4M12 4L8 8M12 4L16 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-              <path d="M4 14.5V17C4 18.6569 5.34315 20 7 20H17C18.6569 20 20 18.6569 20 17V14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
-            </svg>
-            <p class="dropzone-text">或将文件 / 文件夹拖放到此处</p>
-            <p class="dropzone-hint">办公文档、PDF、图片、表格等常见格式</p>
+            <div class="dropzone-lead">
+              <p class="dropzone-text">
+                <span class="dropzone-text-primary">拖拽文件或文件夹到此处</span><span class="dropzone-text-secondary">，松开即可添加</span>
+              </p>
+            </div>
+            <div class="dropzone-picks">
+              <button
+                type="button"
+                class="dropzone-pick dropzone-pick-file"
+                id="pickFileBtn"
+                aria-label="选择文件，本地文件可多选"
+              >
+                <svg class="pick-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M14 3H8C6.34315 3 5 4.34315 5 6V18C5 19.6569 6.34315 21 8 21H16C17.6569 21 19 19.6569 19 18V9L14 3Z"
+                    stroke="currentColor"
+                    stroke-width="1.65"
+                    stroke-linejoin="round"
+                  ></path>
+                  <path d="M14 3V9H19" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round"></path>
+                  <path d="M8 13H16M8 17H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+                </svg>
+                <span class="dropzone-pick-sub">上传本地文件，可多选</span>
+              </button>
+              <button
+                type="button"
+                class="dropzone-pick dropzone-pick-folder"
+                id="pickFolderBtn"
+                aria-label="上传文件夹，批量添加其中文件"
+              >
+                <svg class="pick-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M4 8.5C4 7.11929 5.11929 6 6.5 6H9.17157C9.70201 6 10.2107 6.21071 10.5858 6.58579L12 8H19C20.1046 8 21 8.89543 21 10V17.5C21 18.8807 19.8807 20 18.5 20H6.5C5.11929 20 4 18.8807 4 17.5V8.5Z"
+                    stroke="currentColor"
+                    stroke-width="1.65"
+                    stroke-linejoin="round"
+                  ></path>
+                  <path d="M4 10H21" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"></path>
+                </svg>
+                <span class="dropzone-pick-sub">选中文件夹批量添加</span>
+              </button>
+            </div>
           </div>
 
           <div class="upload-flow">
@@ -1749,7 +1851,7 @@ const selectedList = document.getElementById("selectedList");
       const confirmModalActions = document.getElementById("confirmModalActions");
       const dropzoneText = dropzone.querySelector(".dropzone-text");
       const dropzoneHint = dropzone.querySelector(".dropzone-hint");
-      const defaultDropzoneText = dropzoneText ? dropzoneText.textContent : "";
+      const defaultDropzoneHtml = dropzoneText ? dropzoneText.innerHTML : "";
       const defaultDropzoneHint = dropzoneHint ? dropzoneHint.textContent : "";
       const themeToggle = document.getElementById("themeToggle");
       const historyWrap = document.getElementById("history");
@@ -2969,7 +3071,7 @@ folderInput.addEventListener("change", () => {
         dropzone.addEventListener(eventName, (event) => {
           event.preventDefault();
           dropzone.classList.remove("dragover");
-          if (dropzoneText) dropzoneText.textContent = defaultDropzoneText;
+          if (dropzoneText) dropzoneText.innerHTML = defaultDropzoneHtml;
           if (dropzoneHint) dropzoneHint.textContent = defaultDropzoneHint;
         });
       });
@@ -3001,7 +3103,7 @@ folderInput.addEventListener("change", () => {
       dropzone.addEventListener("drop", async (event) => {
   event.preventDefault();
   dropzone.classList.remove("dragover");
-  if (dropzoneText) dropzoneText.textContent = defaultDropzoneText;
+  if (dropzoneText) dropzoneText.innerHTML = defaultDropzoneHtml;
   if (dropzoneHint) dropzoneHint.textContent = defaultDropzoneHint;
 
   try {
