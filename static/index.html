@@ -804,7 +804,28 @@
 
       .workspace {
         display: grid;
-        gap: 14px;
+        gap: 10px;
+      }
+
+      .upload-toolbar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .upload-toolbar .upload-pick-btn {
+        flex: 1;
+        min-width: 132px;
+        height: 42px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .upload-flow {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
       }
 
       .dropzone {
@@ -813,9 +834,9 @@
         background:
           radial-gradient(100% 70% at 50% 0%, var(--dropzone-glow), transparent 70%),
           var(--dropzone-bg);
-        padding: 40px 20px;
+        padding: 22px 16px;
         text-align: center;
-        cursor: pointer;
+        cursor: default;
         transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
         position: relative;
         overflow: hidden;
@@ -862,45 +883,24 @@
       }
 
       .upload-icon {
-        width: 48px;
-        height: 48px;
-        margin: 0 auto 12px;
+        width: 36px;
+        height: 36px;
+        margin: 0 auto 8px;
         color: var(--brand);
+        opacity: 0.9;
       }
 
       .dropzone-text {
         margin: 0;
-        font-size: 16px;
-        font-weight: 650;
+        font-size: 14px;
+        font-weight: 600;
       }
 
       .dropzone-hint {
-        margin: 8px 0 0;
+        margin: 6px 0 0;
         color: var(--text-sub);
-        font-size: 14px;
-      }
-
-      .format-badges {
-        margin: 10px 0 0;
-        display: flex;
-        justify-content: center;
-        gap: 8px;
-        flex-wrap: wrap;
-      }
-
-      .format-badge {
-        padding: 3px 10px;
-        border-radius: 999px;
-        border: 1px solid var(--panel-border);
-        background: var(--panel-bg);
-        color: var(--text-sub);
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.2px;
-      }
-
-      .format-badge::selection {
-        background: transparent;
+        font-size: 12px;
+        line-height: 1.45;
       }
 
       .selected-file {
@@ -1099,9 +1099,28 @@
 
 
       .selected-list-wrap {
-  border-top: 1px solid var(--section-divider);
-  padding-top: 14px;
-}
+        padding-top: 0;
+        margin-top: 0;
+      }
+
+      .selected-list-wrap:not(.hidden) {
+        border-top: 1px solid var(--section-divider);
+        padding-top: 8px;
+      }
+
+      #selectedList.history-list {
+        max-height: 140px;
+        height: auto !important;
+        min-height: 0;
+        overflow-y: auto;
+      }
+
+      .selected-list-title {
+        margin: 0 0 6px;
+        color: var(--text-sub);
+        font-size: 12px;
+        font-weight: 600;
+      }
 
 
       .result,
@@ -1599,32 +1618,34 @@
         </section>
 
         <section id="workArea" class="workspace hidden">
-          <input id="fileInput" type="file" multiple hidden />
+          <input id="fileInput" type="file" hidden />
           <input id="folderInput" type="file" webkitdirectory multiple hidden />
-          <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="文件上传区域">
+          <div class="upload-toolbar">
+            <button id="pickFileBtn" type="button" class="ghost-btn upload-pick-btn">选择文件</button>
+            <button id="pickFolderBtn" type="button" class="ghost-btn upload-pick-btn">选择文件夹</button>
+          </div>
+          <div
+            id="dropzone"
+            class="dropzone"
+            role="region"
+            aria-label="拖拽上传：将文件或文件夹拖入此区域"
+          >
             <svg class="upload-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M12 16V4M12 4L8 8M12 4L16 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
               <path d="M4 14.5V17C4 18.6569 5.34315 20 7 20H17C18.6569 20 20 18.6569 20 17V14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
             </svg>
-            <p class="dropzone-text">点击选择文件或文件夹，或拖拽文件到此区域上传</p>
-            <p class="dropzone-hint">支持单文件与文件夹上传；可处理 PDF、DOCX、PPTX、JPG、PNG、XLSX</p>
-            <div class="format-badges" aria-hidden="true">
-              <span class="format-badge">PDF</span>
-              <span class="format-badge">DOCX</span>
-              <span class="format-badge">PPTX</span>
-              <span class="format-badge">JPG</span>
-              <span class="format-badge">PNG</span>
-            </div>
+            <p class="dropzone-text">或将文件 / 文件夹拖放到此处</p>
+            <p class="dropzone-hint">办公文档、PDF、图片、表格等常见格式</p>
           </div>
 
-          <div id="selectedFile" class="selected-file hidden"></div>
-          <div id="selectedListWrap" class="selected-list-wrap hidden">
-  <p class="section-title">待上传文件</p>
-  <div id="selectedList" class="history-list" style="height: 260px;"></div>
-</div>
-
-
-          <button id="convertBtn" class="primary-btn" type="button" disabled>上传并转换</button>
+          <div class="upload-flow">
+            <div id="selectedFile" class="selected-file hidden"></div>
+            <div id="selectedListWrap" class="selected-list-wrap hidden">
+              <p class="selected-list-title">已选条目</p>
+              <div id="selectedList" class="history-list"></div>
+            </div>
+            <button id="convertBtn" class="primary-btn" type="button" disabled>上传并转换</button>
+          </div>
 
           <div id="progressWrap" class="progress-wrap" aria-live="polite">
             <p class="progress-text">文档解析中，请稍候...</p>
@@ -1702,6 +1723,8 @@
 
       const folderInput = document.getElementById("folderInput");
       const fileInput = document.getElementById("fileInput");
+      const pickFileBtn = document.getElementById("pickFileBtn");
+      const pickFolderBtn = document.getElementById("pickFolderBtn");
       const dropzone = document.getElementById("dropzone");
       const selectedFile = document.getElementById("selectedFile");
       const selectedListWrap = document.getElementById("selectedListWrap");
@@ -1842,107 +1865,6 @@ const selectedList = document.getElementById("selectedList");
         }
       }
 
-      function updateTaskProgressBar(job) {
-  if (!job || !progressWrap) return;
-
-  const progressText = progressWrap.querySelector(".progress-text");
-
-  let pct = Number(job.progress_percent);
-  if (!Number.isFinite(pct)) pct = 0;
-  pct = Math.max(0, Math.min(100, pct));
-
-  progressWrap.classList.add("show");
-  progressWrap.classList.remove("progress-upload");
-  progressWrap.classList.add("progress-has-pct");
-
-  if (progressFill) {
-    progressFill.style.width = pct + "%";
-  }
-
-  if (progressTrack) {
-    progressTrack.setAttribute("aria-valuenow", String(pct));
-  }
-
-  const totalFiles = Number(job.total_files);
-  const processedFiles = Number(job.processed_files);
-  const totalPages = Number(job.progress_pages_total);
-  const donePages = Number(job.progress_pages_done);
-
-  let currentFileIndex = 1;
-  if (Number.isFinite(totalFiles) && totalFiles > 1) {
-    currentFileIndex = Math.min(
-      totalFiles,
-      Math.max(1, (Number.isFinite(processedFiles) ? processedFiles : 0) + 1)
-    );
-  }
-
-  let currentName = "";
-  if (job.current_file_name) {
-    currentName = String(job.current_file_name);
-  } else if (job.current_filename) {
-    currentName = String(job.current_filename);
-  } else if (job.original_filename) {
-    currentName = String(job.original_filename);
-  }
-  if (currentName) {
-    currentName = currentName.split('/').pop().split('\\').pop();
-  }
-
-
-  let text = "";
-
-  if (job.status === "queued") {
-    text = "排队中 · 0%";
-  } else {
-    if (Number.isFinite(totalFiles) && totalFiles > 1) {
-      text = "正在处理 " + currentFileIndex + "/" + totalFiles;
-      if (currentName) {
-        text += "：" + currentName;
-      }
-    } else {
-      text = "正在解析";
-      if (currentName) {
-        text += "：" + currentName;
-      }
-    }
-
-    if (Number.isFinite(totalPages) && totalPages > 0) {
-      text += " · 第 " + donePages + "/" + totalPages + " 页";
-    } else {
-      text += " · 准备中";
-    }
-
-    text += " · " + pct + "%";
-  }
-
-  if (progressText) {
-    progressText.textContent = text;
-  }
-
-  if (progressElapsedLine) {
-    let elapsedText = "";
-    const createdAt = parseIsoMs(job.created_at);
-    const startedAt = parseIsoMs(job.started_at);
-
-    if (createdAt != null) {
-      elapsedText = "已用时 " + formatDurationZh(Date.now() - createdAt);
-    }
-
-    if (startedAt != null && job.status === "running") {
-      elapsedText +=
-        (elapsedText ? " · " : "") +
-        "处理耗时 " +
-        formatDurationZh(Date.now() - startedAt);
-    }
-
-    progressElapsedLine.textContent = elapsedText;
-    progressElapsedLine.hidden = !elapsedText;
-  }
-}
-
-
-
-
       function setStatus(type, text) {
         if (type === "loading") {
           statusBox.className = "status-box";
@@ -2056,100 +1978,6 @@ const selectedList = document.getElementById("selectedList");
         });
       }
 
-      function openUploadPickerChoice() {
-  return new Promise(function (resolve) {
-    if (!confirmModal || !confirmModalTitle || !confirmModalDesc || !confirmModalActions) {
-      resolve("cancel");
-      return;
-    }
-
-    const prevActive = document.activeElement;
-    let settled = false;
-
-    confirmModalTitle.textContent = "选择上传方式";
-    confirmModalDesc.textContent = "请选择上传文件、上传文件夹，或取消本次操作。";
-
-    confirmModalActions.innerHTML =
-      '<button type="button" class="modal-btn modal-btn-cancel" id="pickerCancelBtn">取消</button>' +
-      '<button type="button" class="modal-btn modal-btn-confirm" id="pickerFileBtn">选择文件</button>' +
-      '<button type="button" class="modal-btn modal-btn-confirm" id="pickerFolderBtn">选择文件夹</button>';
-
-    const pickerCancelBtn = document.getElementById("pickerCancelBtn");
-    const pickerFileBtn = document.getElementById("pickerFileBtn");
-    const pickerFolderBtn = document.getElementById("pickerFolderBtn");
-
-    function cleanup() {
-      document.removeEventListener("keydown", onDocKey);
-      if (pickerCancelBtn) pickerCancelBtn.onclick = null;
-      if (pickerFileBtn) pickerFileBtn.onclick = null;
-      if (pickerFolderBtn) pickerFolderBtn.onclick = null;
-      confirmModal.onclick = null;
-
-      confirmModal.classList.add("hidden");
-      confirmModal.setAttribute("hidden", "");
-
-      confirmModalActions.innerHTML =
-        '<button type="button" class="modal-btn modal-btn-cancel" id="confirmModalCancel">取消</button>' +
-        '<button type="button" class="modal-btn modal-btn-confirm" id="confirmModalOk">确定</button>';
-
-      if (prevActive && typeof prevActive.focus === "function") {
-        try {
-          prevActive.focus();
-        } catch (e) {
-          /* ignore */
-        }
-      }
-    }
-
-    function finish(result) {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      resolve(result);
-    }
-
-    function onDocKey(e) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        finish("cancel");
-      }
-    }
-
-    if (pickerCancelBtn) {
-      pickerCancelBtn.onclick = function () {
-        finish("cancel");
-      };
-    }
-
-    if (pickerFileBtn) {
-      pickerFileBtn.onclick = function () {
-        finish("file");
-      };
-    }
-
-    if (pickerFolderBtn) {
-      pickerFolderBtn.onclick = function () {
-        finish("folder");
-      };
-    }
-
-    confirmModal.onclick = function (e) {
-      if (e.target === confirmModal) {
-        finish("cancel");
-      }
-    };
-
-    document.addEventListener("keydown", onDocKey);
-    confirmModal.classList.remove("hidden");
-    confirmModal.removeAttribute("hidden");
-
-    if (pickerFileBtn) {
-      pickerFileBtn.focus();
-    }
-  });
-}
-
-
       function getFileRelativePath(file, mode) {
   if (!file) return "";
   if (mode === "folder") {
@@ -2223,14 +2051,13 @@ function removeSelectedFileAt(index) {
     const root = rel ? rel.split("/")[0] : "folder_upload";
     currentRootName = root;
     selectedFile.textContent =
-      "已选择文件夹: " + root + "（共 " + currentFiles.length + " 个文件）";
+      root + " · " + currentFiles.length + " 个文件";
   } else {
     currentRootName = currentFiles[0].name || "";
     if (currentFiles.length === 1) {
-      selectedFile.textContent = "已选择文件: " + (currentFiles[0].name || "");
+      selectedFile.textContent = currentFiles[0].name || "";
     } else {
-      selectedFile.textContent =
-        "已选择多个文件（共 " + currentFiles.length + " 个）";
+      selectedFile.textContent = currentFiles.length + " 个文件";
     }
   }
 
@@ -2261,14 +2088,13 @@ function removeSelectedFileAt(index) {
     const root = rel ? rel.split("/")[0] : "folder_upload";
     currentRootName = root;
     selectedFile.textContent =
-      "已选择文件夹: " + root + "（共 " + currentFiles.length + " 个文件）";
+      root + " · " + currentFiles.length + " 个文件";
   } else {
     currentRootName = currentFiles[0].name;
     if (currentFiles.length === 1) {
-      selectedFile.textContent = "已选择文件: " + currentFiles[0].name;
+      selectedFile.textContent = currentFiles[0].name;
     } else {
-      selectedFile.textContent =
-        "已选择多个文件（共 " + currentFiles.length + " 个）";
+      selectedFile.textContent = currentFiles.length + " 个文件";
     }
   }
 
@@ -2758,8 +2584,7 @@ if (selectedList) selectedList.innerHTML = "";
 
       async function pollJobUntilTerminal(jobId, generation) {
         const terminal = { succeeded: 1, failed: 1, cancelled: 1 };
-        let lastPolledJob = null;
-        // 任务处理进度仅在「任务列表」中展示；这里仍轮询任务以自动展示结果/Toast。
+        // 任务进度在任务列表中展示；此处仅轮询以在完成后更新结果区与 Toast。
 
         while (true) {
           if (generation !== uploadGeneration) {
@@ -2792,39 +2617,11 @@ if (selectedList) selectedList.innerHTML = "";
               }
               break;
             }
-            lastPolledJob = job;
-            if (job.status === "queued" || job.status === "running") {
-              updateTaskProgressBar(job);
-            }
             if (terminal[job.status]) {
               if (generation !== uploadGeneration) {
                 return;
               }
               if (job.status === "succeeded") {
-  updateTaskProgressBar({
-    ...job,
-    status: "running",
-    progress_percent: 100,
-    progress_note: "转换完成",
-  });
-
-  const progressText = progressWrap.querySelector(".progress-text");
-    if (progressText) {
-      let doneText = "转换完成 · 100%";
-      if (
-        job.progress_pages_total != null &&
-        job.progress_pages_done != null
-      ) {
-        doneText =
-          "转换完成：第 " +
-          job.progress_pages_done +
-          " / " +
-          job.progress_pages_total +
-          " 页 · 100%";
-      }
-      progressText.textContent = doneText;
-    }
-
     let msg = "转换完成";
     const c = parseIsoMs(job.created_at);
     const f = parseIsoMs(job.finished_at);
@@ -2840,6 +2637,8 @@ if (selectedList) selectedList.innerHTML = "";
     resultFilename.textContent = job.original_filename || "";
     downloadBtn.href = job.download_url || "#";
     result.classList.add("show");
+    progressWrap.classList.remove("show");
+    resetProgressBar();
   }
  else if (job.status === "failed") {
                 setStatus("error", job.error_message || "转换失败");
@@ -3131,31 +2930,16 @@ async function extractDroppedFiles(dataTransfer) {
   };
 }
 
-      async function openPicker() {
-        const choice = await openUploadPickerChoice();
-
-        if (choice === "file") {
+      if (pickFileBtn) {
+        pickFileBtn.addEventListener("click", function () {
           fileInput.click();
-          return;
-        }
-
-        if (choice === "folder") {
-          folderInput.click();
-          return;
-        }
-
-        // cancel
+        });
       }
-
-
-
-      dropzone.addEventListener("click", openPicker);
-      dropzone.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          openPicker();
-        }
-      });
+      if (pickFolderBtn) {
+        pickFolderBtn.addEventListener("click", function () {
+          folderInput.click();
+        });
+      }
 
       fileInput.addEventListener("change", () => {
   if (fileInput.files && fileInput.files.length) {
@@ -3176,8 +2960,8 @@ folderInput.addEventListener("change", () => {
         dropzone.addEventListener(eventName, (event) => {
           event.preventDefault();
           dropzone.classList.add("dragover");
-          if (dropzoneText) dropzoneText.textContent = "松手即可上传";
-          if (dropzoneHint) dropzoneHint.textContent = "松开后将自动解析为 Markdown";
+          if (dropzoneText) dropzoneText.textContent = "松开以上传";
+          if (dropzoneHint) dropzoneHint.textContent = "";
         });
       });
 
@@ -3385,9 +3169,8 @@ formData.append("root_name", currentRootName || "");
             uploadCancelBtn.hidden = true;
             uploadCancelBtn.disabled = false;
           }
-          if (progressFill) progressFill.style.width = "100%";
-          if (progressTrack) progressTrack.setAttribute("aria-valuenow", "100");
-          progressText.textContent = "上传完成，正在创建任务…";
+          resetProgressBar();
+          progressWrap.classList.remove("show");
 
           if (status === 401) {
             setAuthState(null);
@@ -3407,25 +3190,6 @@ formData.append("root_name", currentRootName || "");
         await refreshTaskList();
         clearCurrentSelection();
         showToast("success", "任务已提交，正在处理中");
-
-        progressWrap.classList.add("show");
-        progressWrap.classList.remove("progress-upload");
-        progressWrap.classList.add("progress-has-pct");
-
-        if (progressFill) {
-          progressFill.style.width = "0%";
-        }
-        if (progressTrack) {
-          progressTrack.setAttribute("aria-valuenow", "0");
-        } 
-        if (progressText) {
-          progressText.textContent = "上传完成，正在准备解析… 0%";
-        }
-
-        if (progressElapsedLine) {
-          progressElapsedLine.hidden = true;
-          progressElapsedLine.textContent = "";
-        }
 
           const jobId = payload && payload.job_id;
           if (jobId) {
