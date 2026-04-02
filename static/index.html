@@ -3277,38 +3277,54 @@ folderInput.addEventListener("change", () => {
           const failedUploads = [];
 
           if (currentUploadMode === "folder") {
-            const formData = new FormData();
-            for (const f of currentFiles) {
-              formData.append("files", f);
+            for (let i = 0; i < currentFiles.length; i++) {
+              if (myGen !== uploadGeneration) {
+                return;
+              }
+              const f = currentFiles[i];
               const rel = f.webkitRelativePath || f._relativePath || f.name;
-              formData.append("relative_paths", rel);
-            }
-            formData.append("upload_kind", "folder");
-            formData.append("root_name", currentRootName || "");
+              const namedFile = new File([f], rel, {
+                type: f.type,
+                lastModified: f.lastModified,
+              });
 
-            const { ok, status, payload } = await postJobsWithUploadProgress(formData, myGen);
-            if (status === 401) {
-              setAuthState(null);
-              setStatus("error", "登录已失效，请重新登录");
-              resetProgressBar();
-              progressWrap.classList.remove("show");
-              return;
-            }
-            if (!ok) {
-              console.error("create job failed:", status, payload);
-              setStatus("error", (payload && payload.detail) || ("创建任务失败，HTTP " + status));
-              resetProgressBar();
-              progressWrap.classList.remove("show");
-              return;
-            }
-            const jobId = payload && payload.job_id;
-            if (jobId) {
-              jobIds.push(jobId);
-            } else {
-              setStatus("error", "未返回任务 ID");
-              resetProgressBar();
-              progressWrap.classList.remove("show");
-              return;
+              progressText.textContent =
+                "开始上传（" + (i + 1) + "/" + currentFiles.length + "）…";
+              if (progressFill) progressFill.style.width = "0%";
+              if (progressTrack) progressTrack.setAttribute("aria-valuenow", "0");
+
+              const formData = new FormData();
+              formData.append("files", namedFile);
+              formData.append("relative_paths", rel);
+              formData.append("upload_kind", "file");
+              formData.append("root_name", "");
+
+              const { ok, status, payload } = await postJobsWithUploadProgress(
+                formData,
+                myGen,
+                f.size || 0
+              );
+              if (status === 401) {
+                setAuthState(null);
+                setStatus("error", "登录已失效，请重新登录");
+                resetProgressBar();
+                progressWrap.classList.remove("show");
+                return;
+              }
+              if (!ok) {
+                console.error("create job failed:", status, payload);
+                failedUploads.push({
+                  name: rel,
+                  detail: (payload && payload.detail) || ("创建任务失败，HTTP " + status),
+                });
+                continue;
+              }
+              const jobId = payload && payload.job_id;
+              if (jobId) {
+                jobIds.push(jobId);
+              } else {
+                failedUploads.push({ name: rel, detail: "未返回任务 ID" });
+              }
             }
           } else if (currentFiles.length === 1) {
             const f = currentFiles[0];
