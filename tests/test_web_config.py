@@ -15,7 +15,7 @@ class TestAppConfig(unittest.TestCase):
             "AUTO_CLEANUP": "yes",
             "CLEANUP_MAX_AGE_HOURS": "12",
         }
-        with patch.dict(os.environ, env, clear=False):
+        with patch.dict(os.environ, env, clear=True):
             cfg = AppConfig.from_env()
 
         self.assertEqual(cfg.max_file_size_bytes, 20 * 1024 * 1024)

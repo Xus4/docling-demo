@@ -279,7 +279,8 @@ async def _ingest_uploads_create_job(
         if upload_kind == "file":
             if len(merged_files) != 1:
                 raise HTTPException(status_code=400, detail="单文件上传只能包含 1 个文件")
-            filename = merged_files[0].filename or "upload"
+            filename_raw = merged_files[0].filename or "upload"
+            filename = Path(filename_raw).name or "upload"
             service.validate_extension(filename)
             paths = service.create_job_paths(filename, is_directory=False)
             total_size = 0

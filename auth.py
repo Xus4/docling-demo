@@ -85,11 +85,17 @@ class JobRecord:
 class AuthStore:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:
+            raise RuntimeError(f"无法创建 SQLite 目录: {self.db_path.parent}") from exc
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, timeout=10.0)
+        try:
+            conn = sqlite3.connect(str(self.db_path), timeout=10.0)
+        except sqlite3.OperationalError as exc:
+            raise sqlite3.OperationalError(f"{exc} (db_path={self.db_path})") from exc
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA busy_timeout = 5000")
         return conn
