@@ -2700,7 +2700,7 @@ if (selectedList) selectedList.innerHTML = "";
         try {
           const params = new URLSearchParams();
           params.set("page", "1");
-          params.set("page_size", "50");
+          params.set("page_size", "300");
           if (currentUser.role === "admin") {
             if (taskOwnerFilter.value) params.set("owner", taskOwnerFilter.value);
             if (taskStatusFilter.value) params.set("status", taskStatusFilter.value);
