@@ -469,6 +469,7 @@ class AuthStore:
             conn.commit()
 
     def try_reset_job_queued(self, job_id: str) -> bool:
+        now = _utc_now_iso()
         with self._connect() as conn:
             cur = conn.execute(
                 """
@@ -478,6 +479,7 @@ class AuthStore:
                     started_at = NULL,
                     finished_at = NULL,
                     error_message = NULL,
+                    created_at = ?,
                     progress_percent = NULL,
                     progress_note = NULL,
                     progress_pages_done = NULL,
@@ -489,7 +491,7 @@ class AuthStore:
                     failed_files = 0
                 WHERE job_id = ? AND status IN ('failed', 'cancelled', 'succeeded')
                 """,
-                (job_id,),
+                (now, job_id),
             )
             conn.commit()
             return cur.rowcount > 0
