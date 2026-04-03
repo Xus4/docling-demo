@@ -569,6 +569,40 @@ def cancel_job(job_id: str, request: Request) -> dict[str, str]:
     raise HTTPException(status_code=400, detail="当前状态不可取消")
 
 
+@app.post("/jobs/{job_id}/retry")
+def retry_job(job_id: str, request: Request) -> dict[str, str]:
+    jid = _normalize_job_id(job_id)
+    user = _require_auth_user(request)
+    job = auth_store.get_job(jid)
+    if not job:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if not _can_access_job(user, job):
+        raise HTTPException(status_code=403, detail="无权操作该任务")
+    if job.status in ("queued", "running"):
+        raise HTTPException(status_code=400, detail="当前状态不可重试")
+
+    out_dir = config.output_dir / jid
+    if out_dir.is_dir():
+        shutil.rmtree(out_dir, ignore_errors=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    if not auth_store.try_reset_job_queued(jid):
+        raise HTTPException(status_code=409, detail="任务状态已变更，请刷新")
+
+    job_worker.enqueue(jid)
+    log_event(
+        log,
+        logging.INFO,
+        "job.retried",
+        job=short_job_id(jid),
+        owner=job.owner_username,
+        operator=user.username,
+        file=job.original_filename,
+        prior_status=job.status,
+    )
+    return {"message": "已重试", "status": "queued"}
+
+
 @app.delete("/jobs/{job_id}")
 def delete_job_record(job_id: str, request: Request) -> dict[str, str]:
     jid = _normalize_job_id(job_id)

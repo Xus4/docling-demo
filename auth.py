@@ -468,6 +468,32 @@ class AuthStore:
             )
             conn.commit()
 
+    def try_reset_job_queued(self, job_id: str) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute(
+                """
+                UPDATE jobs SET
+                    status = 'queued',
+                    cancel_requested = 0,
+                    started_at = NULL,
+                    finished_at = NULL,
+                    error_message = NULL,
+                    progress_percent = NULL,
+                    progress_note = NULL,
+                    progress_pages_done = NULL,
+                    progress_pages_total = NULL,
+                    current_file_name = NULL,
+                    result_extra = NULL,
+                    processed_files = 0,
+                    succeeded_files = 0,
+                    failed_files = 0
+                WHERE job_id = ? AND status IN ('failed', 'cancelled', 'succeeded')
+                """,
+                (job_id,),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+
     def try_mark_job_cancelled_queued(self, job_id: str) -> bool:
         return self.try_mark_job_cancelled(job_id)
 
