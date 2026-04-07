@@ -473,7 +473,7 @@ def auth_bootstrap(request: Request) -> dict[str, object]:
     return {
         "username": user.username,
         "role": user.role,
-        "jobs": _list_jobs_payload(user, None, None, 1, 50),
+        "jobs": _list_jobs_payload(user, None, None, 1, 100),
     }
 
 
@@ -518,7 +518,7 @@ def list_jobs(
     owner: str | None = Query(None, description="管理员按提交人筛选"),
     status: str | None = Query(None, description="queued|running|succeeded|failed|cancelled"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=500),
 ) -> dict[str, object]:
     user = _require_auth_user(request)
     return _list_jobs_payload(user, owner, status, page, page_size)

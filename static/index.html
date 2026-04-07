@@ -1310,6 +1310,36 @@
         margin-bottom: 10px;
       }
 
+      .history-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .history-pager {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .history-page-label {
+        font-size: 12px;
+        color: var(--text-sub);
+        white-space: nowrap;
+      }
+
+      .history-page-size {
+        border-radius: 9px;
+        padding: 8px 10px;
+        border: 1px solid var(--panel-border);
+        background: var(--panel-bg);
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
       .task-filters {
         display: flex;
         flex-wrap: wrap;
@@ -1805,7 +1835,20 @@
           <div id="history" class="history">
             <div class="history-title-row">
               <p class="section-title" style="margin: 0">任务列表</p>
-              <button id="refreshTasksBtn" class="ghost-btn" type="button">刷新</button>
+              <div class="history-actions">
+                <div class="history-pager" aria-label="任务列表翻页">
+                  <button id="taskPrevBtn" class="ghost-btn" type="button">上一页</button>
+                  <span id="taskPageLabel" class="history-page-label">第 1 页</span>
+                  <button id="taskNextBtn" class="ghost-btn" type="button">下一页</button>
+                  <select id="taskPageSizeSelect" class="history-page-size" aria-label="每页条数">
+                    <option value="50">50/页</option>
+                    <option value="100" selected>100/页</option>
+                    <option value="200">200/页</option>
+                    <option value="300">300/页</option>
+                  </select>
+                </div>
+                <button id="refreshTasksBtn" class="ghost-btn" type="button">刷新</button>
+              </div>
             </div>
             <div id="taskFilters" class="task-filters hidden">
               <label class="filter-field">
@@ -1888,6 +1931,10 @@ const selectedList = document.getElementById("selectedList");
       const historyWrap = document.getElementById("history");
       const historyList = document.getElementById("historyList");
       const refreshTasksBtn = document.getElementById("refreshTasksBtn");
+      const taskPrevBtn = document.getElementById("taskPrevBtn");
+      const taskNextBtn = document.getElementById("taskNextBtn");
+      const taskPageLabel = document.getElementById("taskPageLabel");
+      const taskPageSizeSelect = document.getElementById("taskPageSizeSelect");
       const taskFilters = document.getElementById("taskFilters");
       const taskOwnerFilter = document.getElementById("taskOwnerFilter");
       const taskStatusFilter = document.getElementById("taskStatusFilter");
@@ -1915,6 +1962,9 @@ const selectedList = document.getElementById("selectedList");
       let currentRootName = ""; 
       let currentUser = null;
       let taskPollTimer = null;
+      let taskPage = 1;
+      let taskPageSize = 100;
+      let taskTotal = 0;
       /** 任务列表中排队/进行中项的「已用时」每秒刷新 */
       let liveElapsedInterval = null;
       /** 每次点击上传自增，用于丢弃过期的 pollJobUntilTerminal，避免多次上传互相覆盖 UI */
@@ -2286,8 +2336,12 @@ function removeSelectedFileAt(index) {
           }
           updateConvertButtonState();
           if (opts.initialJobs && Array.isArray(opts.initialJobs.items)) {
+            taskPage = Number(opts.initialJobs.page) || 1;
+            taskPageSize = Number(opts.initialJobs.page_size) || taskPageSize;
+            taskTotal = Number(opts.initialJobs.total) || 0;
             renderTaskItems(opts.initialJobs.items);
             updateTaskPollingFromItems(opts.initialJobs.items);
+            syncTaskPager();
           } else {
             refreshTaskList();
           }
@@ -2685,6 +2739,26 @@ if (selectedList) selectedList.innerHTML = "";
         ensureLiveElapsedTicker(items);
       }
 
+      function syncTaskPager() {
+        if (taskPageSizeSelect) {
+          const raw = Number(taskPageSizeSelect.value);
+          if (Number.isFinite(raw) && raw > 0) {
+            taskPageSize = Math.max(1, Math.min(500, Math.floor(raw)));
+          }
+          taskPageSizeSelect.value = String(taskPageSize);
+        }
+        taskPage = Math.max(1, Math.floor(Number(taskPage) || 1));
+        taskTotal = Math.max(0, Math.floor(Number(taskTotal) || 0));
+        const totalPages = taskPageSize > 0 ? Math.max(1, Math.ceil(taskTotal / taskPageSize)) : 1;
+        if (taskPage > totalPages) taskPage = totalPages;
+        if (taskPrevBtn) taskPrevBtn.disabled = taskPage <= 1;
+        if (taskNextBtn) taskNextBtn.disabled = taskPage >= totalPages;
+        if (taskPageLabel) {
+          taskPageLabel.textContent =
+            "第 " + taskPage + " 页" + (taskTotal ? " · 共 " + taskTotal + " 条" : "");
+        }
+      }
+
       async function refreshTaskList(opts) {
         opts = opts || {};
         if (!currentUser) {
@@ -2692,6 +2766,22 @@ if (selectedList) selectedList.innerHTML = "";
           historyList.innerHTML = "";
           return;
         }
+        if (opts.page_size != null) {
+          const ps = Number(opts.page_size);
+          if (Number.isFinite(ps) && ps > 0) {
+            taskPageSize = Math.max(1, Math.min(500, Math.floor(ps)));
+          }
+        }
+        if (opts.page != null) {
+          const p = Number(opts.page);
+          if (Number.isFinite(p) && p > 0) {
+            taskPage = Math.max(1, Math.floor(p));
+          }
+        }
+        if (opts.resetPage) {
+          taskPage = 1;
+        }
+        syncTaskPager();
         if (!opts.silent) {
           historyWrap.classList.add("show");
           historyList.innerHTML =
@@ -2699,8 +2789,8 @@ if (selectedList) selectedList.innerHTML = "";
         }
         try {
           const params = new URLSearchParams();
-          params.set("page", "1");
-          params.set("page_size", "300");
+          params.set("page", String(taskPage));
+          params.set("page_size", String(taskPageSize));
           if (currentUser.role === "admin") {
             if (taskOwnerFilter.value) params.set("owner", taskOwnerFilter.value);
             if (taskStatusFilter.value) params.set("status", taskStatusFilter.value);
@@ -2725,6 +2815,10 @@ if (selectedList) selectedList.innerHTML = "";
           }
           renderTaskItems(data.items || []);
           updateTaskPollingFromItems(data.items || []);
+          taskPage = Number(data.page) || taskPage;
+          taskPageSize = Number(data.page_size) || taskPageSize;
+          taskTotal = Number(data.total) || 0;
+          syncTaskPager();
         } catch (e) {
           if (!opts.silent) showToast("error", "加载任务列表失败");
           if (!opts.silent) {
@@ -2828,12 +2922,33 @@ if (selectedList) selectedList.innerHTML = "";
         saveTheme(current === "dark" ? "light" : "dark");
       });
 
+      if (taskPrevBtn) {
+        taskPrevBtn.addEventListener("click", () => {
+          if (taskPage <= 1) return;
+          taskPage -= 1;
+          refreshTaskList({ silent: true });
+        });
+      }
+
+      if (taskNextBtn) {
+        taskNextBtn.addEventListener("click", () => {
+          taskPage += 1;
+          refreshTaskList({ silent: true });
+        });
+      }
+
+      if (taskPageSizeSelect) {
+        taskPageSizeSelect.addEventListener("change", () => {
+          refreshTaskList({ resetPage: true });
+        });
+      }
+
       refreshTasksBtn.addEventListener("click", () => {
         refreshTaskList();
       });
 
       applyTaskFiltersBtn.addEventListener("click", () => {
-        refreshTaskList();
+        refreshTaskList({ resetPage: true });
       });
 
       if (selectedList) {
