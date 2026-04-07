@@ -64,8 +64,14 @@ class ConversionService:
             input_entry = input_root / safe_name
             output_entry = output_root / safe_name
         else:
-            input_entry = input_root / safe_name
-            output_entry = output_root / f"{Path(safe_name).stem}.md"
+            ext = Path(safe_name).suffix.lower().lstrip(".")
+            stem = Path(safe_name).stem
+            if ext in {"png", "jpg", "jpeg", "tif", "tiff", "bmp", "webp"}:
+                input_entry = input_root / f"{stem}.pdf"
+                output_entry = output_root / f"{stem}.md"
+            else:
+                input_entry = input_root / safe_name
+                output_entry = output_root / f"{stem}.md"
 
         return ConversionJobPaths(
             job_id=job_id,
@@ -77,6 +83,37 @@ class ConversionService:
         )
 
     def save_upload_file(self, source_path: Path, target_path: Path) -> None:
+        src_ext = source_path.suffix.lower().lstrip(".")
+        dst_ext = target_path.suffix.lower().lstrip(".")
+        if dst_ext == "pdf" and src_ext in {"png", "jpg", "jpeg", "tif", "tiff", "bmp", "webp"}:
+            from PIL import Image
+
+            img = Image.open(str(source_path))
+            frames = []
+            try:
+                while True:
+                    frame = img.copy()
+                    if frame.mode not in ("RGB", "L"):
+                        frame = frame.convert("RGB")
+                    frames.append(frame)
+                    img.seek(img.tell() + 1)
+            except EOFError:
+                pass
+            if not frames:
+                raise ConversionError("图片读取失败")
+            first = frames[0]
+            rest = frames[1:]
+            if rest:
+                first.save(
+                    str(target_path),
+                    "PDF",
+                    save_all=True,
+                    append_images=rest,
+                )
+            else:
+                first.save(str(target_path), "PDF")
+            return
+
         shutil.copy2(source_path, target_path)
 
     def convert_to_markdown(

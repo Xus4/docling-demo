@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import os
+import shutil
 import threading
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -52,6 +53,8 @@ _DOCLING_SUFFIXES = {
     ".bmp",
     ".webp",
 }
+
+_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 
 # Excel handled explicitly via pandas (per-sheet Markdown tables)
 _XLSX_SUFFIXES = {".xlsx"}
@@ -708,7 +711,7 @@ class IndustrialDocConverter:
             markdown_out.write_text(text, encoding="utf-8")
             return
 
-        if suffix == ".pdf" and self.config.pdf_vl_primary:
+        if (suffix == ".pdf" or suffix in _IMAGE_SUFFIXES) and self.config.pdf_vl_primary:
             from src.pdf_vl_transcribe import transcribe_pdf_with_vl
 
             client = self._create_dashscope_client()
@@ -782,6 +785,20 @@ class IndustrialDocConverter:
                     self._apply_llm_refine_once_to_file(markdown_out, refiner)
 
             final_md = markdown_out.read_text(encoding="utf-8")
+
+            if suffix in _IMAGE_SUFFIXES:
+                has_img_ref = bool(self._extract_markdown_image_blocks(final_md))
+                if not has_img_ref:
+                    images_dir = markdown_out.parent / "images"
+                    images_dir.mkdir(parents=True, exist_ok=True)
+                    dst_img = images_dir / Path(source).name
+                    try:
+                        import shutil
+                        shutil.copy2(source, dst_img)
+                        rel_src = "images/" + dst_img.name
+                        final_md = f"![{source.stem}]({rel_src})\n\n" + final_md
+                    except Exception as e:
+                        _log.warning("Copy image input failed: %s", repr(e))
 
             # 表格语义说明已在 transcribe_pdf_with_vl 逐页阶段插入（与 workers 并行时由锁保证全局上限）
 
@@ -948,6 +965,20 @@ class IndustrialDocConverter:
 
                 if self.config.llm_table_caption:
                     final_md, _ = self._append_table_captions_to_markdown(final_md)
+
+                if suffix in _IMAGE_SUFFIXES:
+                    has_img_ref = bool(self._extract_markdown_image_blocks(final_md))
+                    if not has_img_ref:
+                        images_dir = markdown_out.parent / "images"
+                        images_dir.mkdir(parents=True, exist_ok=True)
+                        dst_img = images_dir / Path(source).name
+                        try:
+                            shutil.copy2(source, dst_img)
+                        except Exception as e:  # noqa: BLE001
+                            _log.exception("Copy image input failed: %s", repr(e))
+                        rel_src = "images/" + dst_img.name
+                        alt = Path(source).stem
+                        final_md = f"![{alt}]({rel_src})\n\n" + final_md.lstrip()
 
                 if self.config.llm_image_caption:
                     final_md = self._append_image_captions_to_markdown(final_md, markdown_out)

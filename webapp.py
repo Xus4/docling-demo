@@ -45,11 +45,22 @@ auth_store.bootstrap_users(
 )
 job_worker = JobQueueWorker(auth_store, service)
 
-log_dir = Path(os.getenv("LOG_DIR", str(config.data_dir / "logs"))).resolve()
-log_dir.mkdir(parents=True, exist_ok=True)
-run_log_name = "webapp_" + time.strftime("%Y%m%d_%H%M%S") + "_" + str(os.getpid()) + ".log"
-run_log_file = (log_dir / run_log_name).resolve()
-os.environ["RUN_LOG_FILE"] = str(run_log_file)
+run_log_file_env = (os.getenv("RUN_LOG_FILE") or "").strip()
+if run_log_file_env:
+    run_log_file = Path(run_log_file_env).expanduser().resolve()
+    run_log_file.parent.mkdir(parents=True, exist_ok=True)
+else:
+    log_dir = Path(os.getenv("LOG_DIR", str(config.data_dir / "logs"))).resolve()
+    log_dir.mkdir(parents=True, exist_ok=True)
+    run_log_name = (
+        "webapp_"
+        + time.strftime("%Y%m%d_%H%M%S")
+        + "_"
+        + str(os.getpid())
+        + ".log"
+    )
+    run_log_file = (log_dir / run_log_name).resolve()
+    os.environ["RUN_LOG_FILE"] = str(run_log_file)
 configure_logging(
     verbose=bool(config.debug),
     log_file=run_log_file,

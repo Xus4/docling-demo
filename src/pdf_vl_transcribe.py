@@ -2226,16 +2226,45 @@ def transcribe_pdf_with_vl(
         _log.warning("pdf-vl dpi=%s 超出常见范围 72~400，仍继续", dpi_f)
 
     workers_i = max(1, int(workers))
-    doc = fitz.open(str(pdf_path))
-    try:
+    is_image = pdf_path.suffix.lower() in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
+
+    tmp_root = Path(tempfile.gettempdir()) / "docling_pdf_vl_pages"
+    tmp_root.mkdir(parents=True, exist_ok=True)
+
+    if is_image:
+        import PIL.Image
+        n = 1
+        limit = 1
+        parts: list[str] = [f"# {pdf_path.name}\n\n"]
+        page_pngs: list[Path] = []
+        png_path = tmp_root / f"{pdf_path.stem}.page_0001.png"
+        
+        log_event(
+            _log, logging.INFO, "pdf_vl.run.start.image", file=pdf_path.name,
+            table_review=bool(table_second_pass), page_md_postprocess=bool(page_markdown_postprocess),
+        )
+        
+        try:
+            img = PIL.Image.open(str(pdf_path))
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+            img.save(str(png_path), "PNG")
+            page_pngs.append(png_path)
+            _log.info(kv(event="pdf_vl.page.rendered", page="1/1", size=f"{img.width}x{img.height}"))
+        except Exception as e:
+            _log.error("Load image failed: %s", repr(e))
+            return f"# {pdf_path.name}\n\n（图片读取失败）\n", [1]
+        
+        # We don't have a doc to close later, so we will handle the rest in a normal try-finally
+        doc = None
+    else:
+        doc = fitz.open(str(pdf_path))
         n = doc.page_count
         if n <= 0:
+            doc.close()
             return f"# {pdf_path.name}\n\n（空 PDF）\n", []
         limit = n if max_pages is None else min(n, max(1, int(max_pages)))
         parts: list[str] = [f"# {pdf_path.name}\n\n"]
-
-        tmp_root = Path(tempfile.gettempdir()) / "docling_pdf_vl_pages"
-        tmp_root.mkdir(parents=True, exist_ok=True)
 
         log_event(
             _log,
@@ -2282,6 +2311,7 @@ def transcribe_pdf_with_vl(
                 )
             )
 
+    try:
         vl_failed_pages_1based: list[int] = []
 
         def _one_page(i: int, image_path: Path) -> tuple[int, str]:
@@ -2453,6 +2483,7 @@ def transcribe_pdf_with_vl(
             parts.append(page_md_map.get(i, "（本页模型输出缺失）"))
             parts.append("\n\n---\n\n")
     finally:
-        doc.close()
+        if doc is not None:
+            doc.close()
 
     return "".join(parts).rstrip() + "\n", sorted(set(vl_failed_pages_1based))

@@ -9,6 +9,7 @@ fi
 ENV_NAME="doc2md_env"
 APP_DIR="/data/docling-demo"
 LOG_FILE="app.log"
+LOG_DIR="${LOG_DIR:-$APP_DIR/data/logs}"
 
 echo "=== 开始重启服务 ==="
 
@@ -39,10 +40,16 @@ fi
 
 # 4. 守护启动 (使用 nohup)
 echo "正在启动 webapp..."
-nohup python -m uvicorn webapp:app --host 0.0.0.0 --port 8000 > "$LOG_FILE" 2>&1 &
+mkdir -p "$LOG_DIR"
+RUN_LOG_FILE="${RUN_LOG_FILE:-$LOG_DIR/webapp_$(date +%Y%m%d_%H%M%S)_$$.log}"
+export LOG_DIR
+export RUN_LOG_FILE
+nohup python -m uvicorn webapp:app --host 0.0.0.0 --port 8000 > "$RUN_LOG_FILE" 2>&1 &
+ln -sf "$RUN_LOG_FILE" "$APP_DIR/$LOG_FILE"
 
 if [ $? -eq 0 ]; then
-    echo "服务已在后台启动，日志输出至 $LOG_FILE"
+    echo "服务已在后台启动，日志输出至 $RUN_LOG_FILE"
+    echo "兼容路径：$APP_DIR/$LOG_FILE -> $RUN_LOG_FILE"
 else
     echo "启动失败，请检查配置"
 fi
