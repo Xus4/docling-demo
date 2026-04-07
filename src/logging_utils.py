@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
@@ -36,13 +37,25 @@ def configure_logging(
     *,
     verbose: bool,
     log_file: Path | None = None,
+    rotate_max_bytes: int = 50 * 1024 * 1024,
+    rotate_backup_count: int = 10,
     app: str = "app",
 ) -> None:
     level = logging.DEBUG if verbose else logging.INFO
     handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
     if log_file is not None:
         log_file.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
+        if rotate_max_bytes and rotate_max_bytes > 0 and rotate_backup_count and rotate_backup_count > 0:
+            handlers.append(
+                RotatingFileHandler(
+                    log_file,
+                    maxBytes=int(rotate_max_bytes),
+                    backupCount=int(rotate_backup_count),
+                    encoding="utf-8",
+                )
+            )
+        else:
+            handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
 
     logging.basicConfig(
         level=level,

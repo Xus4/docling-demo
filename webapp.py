@@ -45,7 +45,18 @@ auth_store.bootstrap_users(
 )
 job_worker = JobQueueWorker(auth_store, service)
 
-configure_logging(verbose=bool(config.debug), log_file=None, app="webapp")
+log_dir = Path(os.getenv("LOG_DIR", str(config.data_dir / "logs"))).resolve()
+log_dir.mkdir(parents=True, exist_ok=True)
+run_log_name = "webapp_" + time.strftime("%Y%m%d_%H%M%S") + "_" + str(os.getpid()) + ".log"
+run_log_file = (log_dir / run_log_name).resolve()
+os.environ["RUN_LOG_FILE"] = str(run_log_file)
+configure_logging(
+    verbose=bool(config.debug),
+    log_file=run_log_file,
+    rotate_max_bytes=max(1024 * 1024, int(os.getenv("LOG_MAX_BYTES", "52428800"))),
+    rotate_backup_count=max(1, int(os.getenv("LOG_BACKUP_COUNT", "10"))),
+    app="webapp",
+)
 log = logging.getLogger("webapp")
 
 

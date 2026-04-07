@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import multiprocessing as mp
+import os
 import queue
 import threading
 from pathlib import Path
@@ -10,7 +11,7 @@ from pathlib import Path
 from auth import AuthStore, JobRecord
 from config import AppConfig
 from service import ConversionError, ConversionService
-from src.logging_utils import log_event, short_job_id
+from src.logging_utils import configure_logging, log_event, short_job_id
 
 log = logging.getLogger("job_worker")
 
@@ -267,6 +268,15 @@ def _run_conversion_in_subprocess(
     is_directory: int,
 ) -> None:
     config = AppConfig.from_env()
+    run_log_file = (os.getenv("RUN_LOG_FILE") or "").strip()
+    if run_log_file:
+        configure_logging(
+            verbose=bool(config.debug),
+            log_file=Path(run_log_file),
+            rotate_max_bytes=max(1024 * 1024, int(os.getenv("LOG_MAX_BYTES", "52428800"))),
+            rotate_backup_count=max(1, int(os.getenv("LOG_BACKUP_COUNT", "10"))),
+            app="job_worker",
+        )
     service = ConversionService(config)
     auth = AuthStore(Path(auth_db_path_str))
 
