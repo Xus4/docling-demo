@@ -137,7 +137,13 @@ class ConversionService:
         return ConvertToMarkdownResult(dst, pages)
 
     def iter_supported_files(self, input_root: Path):
-        yield from IndustrialDocConverter.iter_supported_files(input_root)
+        for path in sorted(input_root.rglob("*")):
+            if not path.is_file():
+                continue
+            if path.name.startswith("."):
+                continue
+            if self.is_supported_file(path):
+                yield path
 
     def cleanup_old_jobs(self) -> None:
         if not self.app_config.auto_cleanup:

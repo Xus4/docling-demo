@@ -3231,16 +3231,9 @@ async function extractDroppedFiles(dataTransfer) {
     allFiles = allFiles.concat(files);
   }
 
-  const allowedExts = new Set([".pdf", ".docx"]);
-  const filtered = allFiles.filter(file => {
-    const name = file.name || "";
-    const ext = name.substring(name.lastIndexOf(".")).toLowerCase();
-    return allowedExts.has(ext);
-  });
-
   return {
     mode: hasDirectory ? "folder" : "file",
-    files: filtered,
+    files: allFiles,
   };
 }
 
@@ -3264,13 +3257,7 @@ async function extractDroppedFiles(dataTransfer) {
 
 folderInput.addEventListener("change", () => {
   if (folderInput.files && folderInput.files.length) {
-    const allowedExts = new Set([".pdf", ".docx"]);
-    const filtered = Array.from(folderInput.files).filter(file => {
-      const name = file.name || "";
-      const ext = name.substring(name.lastIndexOf(".")).toLowerCase();
-      return allowedExts.has(ext);
-    });
-    setSelectedUpload("folder", filtered);
+    setSelectedUpload("folder", folderInput.files);
     resetResult();
   }
 });
