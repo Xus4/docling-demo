@@ -1284,6 +1284,9 @@
       }
 
       .filename {
+        display: flex;
+        align-items: center;
+        gap: 10px;
         font-size: 14px;
         word-break: break-all;
       }
@@ -1338,6 +1341,31 @@
         color: var(--text);
         font-size: 12px;
         font-weight: 600;
+      }
+
+      .task-search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .task-search-input {
+        width: min(260px, 44vw);
+        border-radius: 9px;
+        padding: 8px 10px;
+        border: 1px solid var(--panel-border);
+        background: var(--panel-bg);
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 600;
+        outline: none;
+      }
+
+      .task-select-cb {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--brand);
+        cursor: pointer;
       }
 
       .task-filters {
@@ -1836,6 +1864,17 @@
             <div class="history-title-row">
               <p class="section-title" style="margin: 0">任务列表</p>
               <div class="history-actions">
+                <div class="task-search">
+                  <input
+                    id="taskSearchInput"
+                    class="task-search-input"
+                    type="search"
+                    placeholder="搜索文件名…"
+                    aria-label="按文件名搜索任务"
+                    autocomplete="off"
+                  />
+                  <button id="taskSearchClearBtn" class="ghost-btn" type="button">清空</button>
+                </div>
                 <div class="history-pager" aria-label="任务列表翻页">
                   <button id="taskPrevBtn" class="ghost-btn" type="button">上一页</button>
                   <span id="taskPageLabel" class="history-page-label">第 1 页</span>
@@ -1847,6 +1886,7 @@
                   </select>
                 </div>
                 <button id="refreshTasksBtn" class="ghost-btn" type="button">刷新</button>
+                <button id="batchDownloadBtn" class="ghost-btn" type="button" disabled>批量下载</button>
               </div>
             </div>
             <div id="taskFilters" class="task-filters hidden">
@@ -1930,10 +1970,13 @@ const selectedList = document.getElementById("selectedList");
       const historyWrap = document.getElementById("history");
       const historyList = document.getElementById("historyList");
       const refreshTasksBtn = document.getElementById("refreshTasksBtn");
+      const batchDownloadBtn = document.getElementById("batchDownloadBtn");
       const taskPrevBtn = document.getElementById("taskPrevBtn");
       const taskNextBtn = document.getElementById("taskNextBtn");
       const taskPageLabel = document.getElementById("taskPageLabel");
       const taskPageSizeSelect = document.getElementById("taskPageSizeSelect");
+      const taskSearchInput = document.getElementById("taskSearchInput");
+      const taskSearchClearBtn = document.getElementById("taskSearchClearBtn");
       const taskFilters = document.getElementById("taskFilters");
       const taskOwnerFilter = document.getElementById("taskOwnerFilter");
       const taskStatusFilter = document.getElementById("taskStatusFilter");
@@ -1965,6 +2008,9 @@ const selectedList = document.getElementById("selectedList");
       let taskPage = 1;
       let taskPageSize = 10;
       let taskTotal = 0;
+      let taskSearchQuery = "";
+      let taskSearchTimer = 0;
+      const selectedJobIds = new Set();
       /** 任务列表中排队/进行中项的「已用时」每秒刷新 */
       let liveElapsedInterval = null;
       /** 每次点击上传自增，用于丢弃过期的 pollJobUntilTerminal，避免多次上传互相覆盖 UI */
@@ -1974,6 +2020,13 @@ const selectedList = document.getElementById("selectedList");
 
       let toastTimer = null;
       let windowDragDepth = 0;
+
+      function syncBatchDownloadButton() {
+        if (!batchDownloadBtn) return;
+        const n = selectedJobIds.size;
+        batchDownloadBtn.disabled = n <= 0;
+        batchDownloadBtn.textContent = n > 0 ? ("批量下载（" + n + "）") : "批量下载";
+      }
 
       function formatSupportedFormatsLine(allowedTypes) {
         const types = new Set(
@@ -2598,6 +2651,7 @@ if (selectedList) selectedList.innerHTML = "";
           historyList.innerHTML =
             '<p class="history-meta" style="margin:0">暂无任务。任务会保存在服务器，重新登录后仍可在此查看与管理。</p>';
           ensureLiveElapsedTicker([]);
+          syncBatchDownloadButton();
           return;
         }
         historyWrap.classList.add("show");
@@ -2730,10 +2784,21 @@ if (selectedList) selectedList.innerHTML = "";
                   job.download_url +
                   '" target="_blank" rel="noopener">下载 ZIP</a>'
                 : "";
+            const canSelect = job.status === "succeeded" && job.download_url;
+            const checked = canSelect && selectedJobIds.has(job.job_id) ? " checked" : "";
+            const disabled = canSelect ? "" : " disabled";
+            const cb =
+              '<input type="checkbox" class="task-select-cb" data-job-select="' +
+              job.job_id +
+              '"' +
+              checked +
+              disabled +
+              ' aria-label="选择该任务用于批量下载" />';
             return (
               '<div class="history-item">' +
               '<div class="task-item-main">' +
               '<div class="filename">' +
+(cb) +
 (function() {
   // 1. 优先获取当前正在处理的文件名，如果没有则兜底使用原始文件名
   let displayName = job.current_file_name || job.current_filename || job.original_filename || "";
@@ -2792,6 +2857,7 @@ if (selectedList) selectedList.innerHTML = "";
           })
           .join("");
         ensureLiveElapsedTicker(items);
+        syncBatchDownloadButton();
       }
 
       function syncTaskPager() {
@@ -2846,6 +2912,9 @@ if (selectedList) selectedList.innerHTML = "";
           const params = new URLSearchParams();
           params.set("page", String(taskPage));
           params.set("page_size", String(taskPageSize));
+          if (taskSearchQuery) {
+            params.set("q", taskSearchQuery);
+          }
           if (currentUser.role === "admin") {
             if (taskOwnerFilter.value) params.set("owner", taskOwnerFilter.value);
             if (taskStatusFilter.value) params.set("status", taskStatusFilter.value);
@@ -2998,9 +3067,89 @@ if (selectedList) selectedList.innerHTML = "";
         });
       }
 
+      function applyTaskSearchQuery(raw) {
+        const next = String(raw || "").trim().slice(0, 120);
+        if (next === taskSearchQuery) return;
+        taskSearchQuery = next;
+        refreshTaskList({ resetPage: true, silent: true });
+      }
+
+      if (taskSearchInput) {
+        taskSearchInput.addEventListener("input", () => {
+          if (taskSearchTimer) {
+            clearTimeout(taskSearchTimer);
+          }
+          taskSearchTimer = setTimeout(() => {
+            taskSearchTimer = 0;
+            applyTaskSearchQuery(taskSearchInput.value);
+          }, 250);
+        });
+        taskSearchInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            if (taskSearchTimer) {
+              clearTimeout(taskSearchTimer);
+              taskSearchTimer = 0;
+            }
+            applyTaskSearchQuery(taskSearchInput.value);
+          }
+        });
+      }
+
+      if (taskSearchClearBtn) {
+        taskSearchClearBtn.addEventListener("click", () => {
+          if (taskSearchInput) taskSearchInput.value = "";
+          applyTaskSearchQuery("");
+        });
+      }
+
       refreshTasksBtn.addEventListener("click", () => {
         refreshTaskList();
       });
+
+      if (batchDownloadBtn) {
+        batchDownloadBtn.addEventListener("click", async () => {
+          const ids = Array.from(selectedJobIds);
+          if (!ids.length) return;
+          try {
+            batchDownloadBtn.disabled = true;
+            const resp = await fetch("/jobs/batch-download", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ job_ids: ids }),
+            });
+            if (resp.status === 401) {
+              setAuthState(null);
+              return;
+            }
+            if (!resp.ok) {
+              const data = await resp.json().catch(() => ({}));
+              showToast("error", data.detail || "批量下载失败");
+              return;
+            }
+            const blob = await resp.blob();
+            let filename = "jobs.zip";
+            const cd = resp.headers.get("content-disposition") || "";
+            const m = cd.match(/filename=\"?([^\";]+)\"?/i);
+            if (m && m[1]) {
+              filename = m[1];
+            }
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            showToast("success", "已开始下载");
+          } catch (e) {
+            showToast("error", "批量下载失败");
+          } finally {
+            syncBatchDownloadButton();
+          }
+        });
+      }
 
       applyTaskFiltersBtn.addEventListener("click", () => {
         refreshTaskList({ resetPage: true });
@@ -3016,6 +3165,21 @@ if (selectedList) selectedList.innerHTML = "";
   });
 }
 
+
+      historyList.addEventListener("change", (event) => {
+        const cb = event.target && event.target.closest
+          ? event.target.closest("[data-job-select]")
+          : null;
+        if (!cb) return;
+        const jobId = cb.getAttribute("data-job-select");
+        if (!jobId) return;
+        if (cb.checked) {
+          selectedJobIds.add(jobId);
+        } else {
+          selectedJobIds.delete(jobId);
+        }
+        syncBatchDownloadButton();
+      });
 
       historyList.addEventListener("click", async (event) => {
         const delBtn = event.target.closest("[data-job-delete]");
@@ -3048,6 +3212,8 @@ if (selectedList) selectedList.innerHTML = "";
               showToast("error", data.detail || "删除失败");
               return;
             }
+            selectedJobIds.delete(jobId);
+            syncBatchDownloadButton();
             showToast("success", data.message || "已删除");
             await refreshTaskList();
           } catch (e) {
