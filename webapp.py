@@ -446,6 +446,14 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/app/config")
+def app_config_public() -> dict[str, object]:
+    return {
+        "allowed_types": sorted(config.allowed_types),
+        "max_file_size_bytes": config.max_file_size_bytes,
+    }
+
+
 @app.post("/auth/login")
 def login(payload: LoginRequest, request: Request) -> dict[str, str]:
     user = auth_store.authenticate(payload.username, payload.password)
@@ -522,7 +530,7 @@ def auth_bootstrap(request: Request) -> dict[str, object]:
     return {
         "username": user.username,
         "role": user.role,
-        "jobs": _list_jobs_payload(user, None, None, 1, 100),
+        "jobs": _list_jobs_payload(user, None, None, 1, 10),
     }
 
 

@@ -1676,11 +1676,11 @@
       }
     </style>
   </head>
-  <body>
+  <body data-theme="light">
     <main class="page">
       <header class="brand">
         <h1>文档转 Markdown</h1>
-        <p>支持 PDF / Word / PPT / 图片智能解析</p>
+        <p id="supportedFormatsLine">支持加载中…</p>
       </header>
 
       <div class="top-actions">
@@ -1841,10 +1841,9 @@
                   <span id="taskPageLabel" class="history-page-label">第 1 页</span>
                   <button id="taskNextBtn" class="ghost-btn" type="button">下一页</button>
                   <select id="taskPageSizeSelect" class="history-page-size" aria-label="每页条数">
+                    <option value="10" selected>10/页</option>
+                    <option value="20">20/页</option>
                     <option value="50">50/页</option>
-                    <option value="100" selected>100/页</option>
-                    <option value="200">200/页</option>
-                    <option value="300">300/页</option>
                   </select>
                 </div>
                 <button id="refreshTasksBtn" class="ghost-btn" type="button">刷新</button>
@@ -1951,6 +1950,7 @@ const selectedList = document.getElementById("selectedList");
       const passwordToggle = document.getElementById("passwordToggle");
       const rememberMeInput = document.getElementById("rememberMe");
       const forgotPasswordLink = document.getElementById("forgotPasswordLink");
+      const supportedFormatsLine = document.getElementById("supportedFormatsLine");
 
       const STORAGE_KEYS = {
         theme: "docling_theme",
@@ -1963,7 +1963,7 @@ const selectedList = document.getElementById("selectedList");
       let currentUser = null;
       let taskPollTimer = null;
       let taskPage = 1;
-      let taskPageSize = 100;
+      let taskPageSize = 10;
       let taskTotal = 0;
       /** 任务列表中排队/进行中项的「已用时」每秒刷新 */
       let liveElapsedInterval = null;
@@ -1974,6 +1974,61 @@ const selectedList = document.getElementById("selectedList");
 
       let toastTimer = null;
       let windowDragDepth = 0;
+
+      function formatSupportedFormatsLine(allowedTypes) {
+        const types = new Set(
+          (Array.isArray(allowedTypes) ? allowedTypes : [])
+            .map((x) => String(x || "").trim().toLowerCase())
+            .filter(Boolean)
+            .map((x) => (x.startsWith(".") ? x.slice(1) : x))
+        );
+        const parts = [];
+        if (types.has("pdf")) parts.push("PDF");
+        if (types.has("doc") || types.has("docx")) parts.push("Word");
+        if (types.has("ppt") || types.has("pptx")) parts.push("PPT");
+        if (types.has("xls") || types.has("xlsx")) parts.push("Excel");
+        if (types.has("html") || types.has("htm")) parts.push("HTML");
+        const imgExts = ["png", "jpg", "jpeg", "tif", "tiff", "bmp", "webp"];
+        if (imgExts.some((x) => types.has(x))) parts.push("图片");
+        if (!parts.length) return "支持多格式智能解析";
+        return "支持 " + parts.join(" / ") + " 智能解析";
+      }
+
+      async function initSupportedFormatsLine() {
+        if (!supportedFormatsLine) return;
+        try {
+          const resp = await fetch("/app/config", {
+            credentials: "same-origin",
+            cache: "no-store",
+          });
+          if (!resp.ok) {
+            supportedFormatsLine.textContent = formatSupportedFormatsLine(null);
+            return;
+          }
+          const data = await resp.json();
+          supportedFormatsLine.textContent = formatSupportedFormatsLine(data.allowed_types);
+        } catch (e) {
+          supportedFormatsLine.textContent = formatSupportedFormatsLine(null);
+        }
+      }
+
+      const TASK_PAGE_SIZES = [10, 20, 50];
+
+      function normalizeTaskPageSize(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n) || n <= 0) return TASK_PAGE_SIZES[0];
+        let best = TASK_PAGE_SIZES[0];
+        let bestDiff = Math.abs(n - best);
+        for (let i = 1; i < TASK_PAGE_SIZES.length; i++) {
+          const s = TASK_PAGE_SIZES[i];
+          const diff = Math.abs(n - s);
+          if (diff < bestDiff) {
+            best = s;
+            bestDiff = diff;
+          }
+        }
+        return best;
+      }
 
       function updateConvertButtonState() {
   convertBtn.disabled = !currentFiles || currentFiles.length === 0;
@@ -2743,7 +2798,7 @@ if (selectedList) selectedList.innerHTML = "";
         if (taskPageSizeSelect) {
           const raw = Number(taskPageSizeSelect.value);
           if (Number.isFinite(raw) && raw > 0) {
-            taskPageSize = Math.max(1, Math.min(500, Math.floor(raw)));
+            taskPageSize = normalizeTaskPageSize(raw);
           }
           taskPageSizeSelect.value = String(taskPageSize);
         }
@@ -2769,7 +2824,7 @@ if (selectedList) selectedList.innerHTML = "";
         if (opts.page_size != null) {
           const ps = Number(opts.page_size);
           if (Number.isFinite(ps) && ps > 0) {
-            taskPageSize = Math.max(1, Math.min(500, Math.floor(ps)));
+            taskPageSize = normalizeTaskPageSize(ps);
           }
         }
         if (opts.page != null) {
@@ -2816,7 +2871,7 @@ if (selectedList) selectedList.innerHTML = "";
           renderTaskItems(data.items || []);
           updateTaskPollingFromItems(data.items || []);
           taskPage = Number(data.page) || taskPage;
-          taskPageSize = Number(data.page_size) || taskPageSize;
+          taskPageSize = normalizeTaskPageSize(data.page_size);
           taskTotal = Number(data.total) || 0;
           syncTaskPager();
         } catch (e) {
@@ -3658,7 +3713,8 @@ setStatus("error", "请求失败：" + (error && error.message ? error.message :
           }
         });
       }
-      applyTheme(localStorage.getItem(STORAGE_KEYS.theme) || "dark");
+      initSupportedFormatsLine();
+      applyTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
       const rememberedUser = localStorage.getItem(STORAGE_KEYS.rememberedUser) || "";
       if (rememberedUser) {
         usernameInput.value = rememberedUser;
