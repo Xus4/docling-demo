@@ -164,8 +164,8 @@ def _remove_job_workspace(job_id: str) -> None:
 def _job_to_api_dict(
     job: JobRecord,
     *,
-    queue_position: int | None,
-    queue_total: int,
+    queue_position: int | None = None,
+    queue_total: int = 0,
 ) -> dict[str, object | None]:
     out: dict[str, object | None] = {
         "job_id": job.job_id,
