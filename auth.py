@@ -714,10 +714,41 @@ class AuthStore:
                 """
                 SELECT job_id FROM jobs
                 WHERE status = 'queued'
+                  AND output_file IS NOT NULL
+                  AND output_file <> ''
                 ORDER BY datetime(created_at) ASC
                 """
             ).fetchall()
         return [str(r["job_id"]) for r in rows]
+
+    def get_queue_positions(self, job_ids: list[str]) -> tuple[dict[str, int], int]:
+        wanted = {str(x) for x in job_ids if x}
+        if not wanted:
+            return {}, self.count_queued_jobs()
+        with self._connect() as conn:
+            total_row = conn.execute(
+                "SELECT COUNT(*) AS c FROM jobs WHERE status = 'queued'"
+            ).fetchone()
+            total = int(total_row["c"]) if total_row else 0
+            if total <= 0:
+                return {}, 0
+            rows = conn.execute(
+                """
+                SELECT job_id FROM jobs
+                WHERE status = 'queued'
+                ORDER BY datetime(created_at) ASC, job_id ASC
+                """
+            ).fetchall()
+        out: dict[str, int] = {}
+        pos = 0
+        for r in rows:
+            jid = str(r["job_id"])
+            pos += 1
+            if jid in wanted:
+                out[jid] = pos
+                if len(out) == len(wanted):
+                    break
+        return out, total
 
     def delete_job(self, job_id: str) -> bool:
         with self._connect() as conn:

@@ -161,7 +161,12 @@ def _remove_job_workspace(job_id: str) -> None:
             shutil.rmtree(d, ignore_errors=True)
 
 
-def _job_to_api_dict(job: JobRecord) -> dict[str, object | None]:
+def _job_to_api_dict(
+    job: JobRecord,
+    *,
+    queue_position: int | None,
+    queue_total: int,
+) -> dict[str, object | None]:
     out: dict[str, object | None] = {
         "job_id": job.job_id,
         "owner_username": job.owner_username,
@@ -182,9 +187,8 @@ def _job_to_api_dict(job: JobRecord) -> dict[str, object | None]:
     else:
         out["download_url"] = None
 
-    q_pos, q_total = auth_store.get_queue_position(job.job_id)
-    out["queue_position"] = q_pos
-    out["queue_total"] = q_total
+    out["queue_position"] = queue_position
+    out["queue_total"] = queue_total
 
     if job.status == "running":
         out["progress_percent"] = job.progress_percent
@@ -474,8 +478,31 @@ def _list_jobs_payload(
         limit=page_size,
         offset=offset,
     )
+    queued_ids = [j.job_id for j in items if j.status == "queued"]
+    q_map: dict[str, int] = {}
+    q_total = 0
+    try:
+        if queued_ids:
+            q_map, q_total = auth_store.get_queue_positions(queued_ids)
+        else:
+            q_total = auth_store.count_queued_jobs()
+    except Exception as e:  # noqa: BLE001
+        log_event(
+            log,
+            logging.WARNING,
+            "jobs.queue_snapshot.failed",
+            err=repr(e),
+        )
+        q_map, q_total = {}, 0
     return {
-        "items": [_job_to_api_dict(j) for j in items],
+        "items": [
+            _job_to_api_dict(
+                j,
+                queue_position=q_map.get(j.job_id) if j.status == "queued" else None,
+                queue_total=q_total,
+            )
+            for j in items
+        ],
         "total": total,
         "page": page,
         "page_size": page_size,
