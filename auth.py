@@ -575,6 +575,7 @@ class AuthStore:
         viewer_role: str,
         owner_filter: str | None = None,
         status_filter: str | None = None,
+        query: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[JobRecord], int]:
@@ -594,6 +595,10 @@ class AuthStore:
         if status_filter and status_filter.strip():
             where.append("status = ?")
             params.append(status_filter.strip())
+
+        if query and query.strip():
+            where.append("LOWER(original_filename) LIKE ?")
+            params.append("%" + query.strip().lower() + "%")
 
         where_sql = (" WHERE " + " AND ".join(where)) if where else ""
 
@@ -714,8 +719,8 @@ class AuthStore:
                 """
                 SELECT job_id FROM jobs
                 WHERE status = 'queued'
-                  AND output_file IS NOT NULL
-                  AND output_file <> ''
+                AND output_file IS NOT NULL
+                AND output_file <> ''
                 ORDER BY datetime(created_at) ASC
                 """
             ).fetchall()

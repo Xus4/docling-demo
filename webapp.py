@@ -474,6 +474,7 @@ def _list_jobs_payload(
     user: AuthUser,
     owner: str | None,
     status: str | None,
+    q: str | None,
     page: int,
     page_size: int,
 ) -> dict[str, object]:
@@ -483,6 +484,7 @@ def _list_jobs_payload(
         viewer_role=user.role,
         owner_filter=owner if _is_admin(user) else None,
         status_filter=status,
+        query=q,
         limit=page_size,
         offset=offset,
     )
@@ -530,7 +532,7 @@ def auth_bootstrap(request: Request) -> dict[str, object]:
     return {
         "username": user.username,
         "role": user.role,
-        "jobs": _list_jobs_payload(user, None, None, 1, 10),
+        "jobs": _list_jobs_payload(user, None, None, None, 1, 100),
     }
 
 
@@ -574,11 +576,12 @@ def list_jobs(
     request: Request,
     owner: str | None = Query(None, description="管理员按提交人筛选"),
     status: str | None = Query(None, description="queued|running|succeeded|failed|cancelled"),
+    q: str | None = Query(None, description="按文件名关键字搜索（original_filename，大小写不敏感）"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=500),
 ) -> dict[str, object]:
     user = _require_auth_user(request)
-    return _list_jobs_payload(user, owner, status, page, page_size)
+    return _list_jobs_payload(user, owner, status, q, page, page_size)
 
 
 @app.get("/jobs/{job_id}")
@@ -688,6 +691,10 @@ def _zip_job_output_folder(job_dir: Path) -> Path:
     return Path(shutil.make_archive(str(archive_base), "zip", root_dir=str(job_dir)))
 
 
+class BatchDownloadRequest(BaseModel):
+    job_ids: list[str]
+
+
 @app.get("/jobs/{job_id}/download")
 def download_job_result(
     job_id: str, request: Request, background_tasks: BackgroundTasks
@@ -723,6 +730,68 @@ def download_job_result(
         path=zip_path,
         media_type="application/zip",
         filename=f"{Path(job.original_filename).stem or 'result'}.zip",
+    )
+
+
+@app.post("/jobs/batch-download")
+def batch_download_jobs(
+    payload: BatchDownloadRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> FileResponse:
+    user = _require_auth_user(request)
+    raw_ids = list(payload.job_ids or [])
+    job_ids: list[str] = []
+    for x in raw_ids:
+        jid = _normalize_job_id(str(x))
+        if jid not in job_ids:
+            job_ids.append(jid)
+    if not job_ids:
+        raise HTTPException(status_code=400, detail="未选择可下载的任务")
+    if len(job_ids) > 500:
+        raise HTTPException(status_code=400, detail="批量下载数量过多")
+
+    staging = Path(tempfile.mkdtemp(prefix="docling_jobs_"))
+    try:
+        for jid in job_ids:
+            job = auth_store.get_job(jid)
+            if not job:
+                raise HTTPException(status_code=404, detail=f"任务不存在: {jid}")
+            if not _can_access_job(user, job):
+                raise HTTPException(status_code=403, detail=f"无权下载任务: {jid}")
+            if job.status != "succeeded":
+                raise HTTPException(status_code=400, detail="仅支持下载已完成任务")
+
+            if job.output_root:
+                job_dir = Path(job.output_root)
+            elif job.output_file:
+                out_path = Path(job.output_file)
+                job_dir = out_path if out_path.is_dir() else out_path.parent
+            else:
+                raise HTTPException(status_code=404, detail="未找到转换结果")
+
+            if not job_dir.is_dir():
+                raise HTTPException(status_code=404, detail="未找到转换结果目录")
+
+            stem = Path(job.original_filename).stem or "result"
+            target = staging / f"{stem}_{jid[:8]}"
+            shutil.copytree(job_dir, target, dirs_exist_ok=True)
+
+        zip_path = _zip_job_output_folder(staging)
+    except HTTPException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    except Exception as exc:
+        shutil.rmtree(staging, ignore_errors=True)
+        log.exception("event=jobs.batch_download.failed count=%s", len(job_ids))
+        raise HTTPException(status_code=500, detail="批量打包下载失败") from exc
+
+    background_tasks.add_task(lambda p=zip_path: p.unlink(missing_ok=True))
+    background_tasks.add_task(lambda d=staging: shutil.rmtree(d, ignore_errors=True))
+    return FileResponse(
+        path=zip_path,
+        media_type="application/zip",
+        filename="jobs.zip",
     )
 
 
