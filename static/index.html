@@ -6,123 +6,125 @@
     <title>文档转 Markdown</title>
     <style>
       :root {
-        --bg-0: #0c1221;
-        --bg-1: #13203d;
-        --bg-2: #0f182d;
-        --glass: rgba(14, 20, 34, 0.72);
-        --glass-strong: rgba(16, 23, 38, 0.9);
-        --stroke: rgba(255, 115, 115, 0.2);
-        --stroke-strong: rgba(255, 110, 110, 0.64);
-        --text-main: #f5f1ff;
-        --text-sub: #baadc8;
-        --brand: #ff5858;
-        --brand-2: #d83232;
-        --bg-glow-1: rgba(255, 79, 79, 0.22);
-        --bg-glow-2: rgba(255, 110, 79, 0.18);
-        --bg-glow-3: rgba(255, 61, 135, 0.12);
-        --orb-1: rgba(255, 92, 92, 0.38);
-        --orb-2: rgba(255, 67, 132, 0.28);
-        --title-shadow: 0 14px 30px rgba(255, 78, 78, 0.2);
+        --bg-0: #0b1220;
+        --bg-1: #0b1326;
+        --bg-2: #0a1020;
+        --glass: rgba(13, 19, 35, 0.68);
+        --glass-strong: rgba(12, 18, 34, 0.86);
+        --stroke: rgba(116, 141, 206, 0.18);
+        --stroke-strong: rgba(98, 129, 210, 0.46);
+        --text-main: rgba(242, 246, 255, 0.96);
+        --text-sub: rgba(208, 219, 245, 0.68);
+        --text-on-brand: #ffffff;
+        --brand: #3b82f6;
+        --brand-2: #2563eb;
+        --bg-glow-1: rgba(59, 130, 246, 0.16);
+        --bg-glow-2: rgba(99, 102, 241, 0.14);
+        --bg-glow-3: rgba(14, 165, 233, 0.1);
+        --orb-1: rgba(59, 130, 246, 0.28);
+        --orb-2: rgba(99, 102, 241, 0.22);
+        --title-shadow: 0 14px 30px rgba(37, 99, 235, 0.18);
         --shell-bg:
-          radial-gradient(120% 130% at 10% 0%, rgba(255, 80, 80, 0.14), transparent 48%),
-          linear-gradient(145deg, rgba(12, 18, 31, 0.9), rgba(14, 21, 36, 0.82) 52%, rgba(21, 14, 29, 0.88));
-        --shell-glow: rgba(255, 80, 80, 0.14);
-        --shell-inner: rgba(255, 90, 90, 0.08);
-        --topbar-stroke: rgba(255, 111, 111, 0.14);
+          radial-gradient(120% 130% at 10% 0%, rgba(59, 130, 246, 0.14), transparent 48%),
+          linear-gradient(145deg, rgba(11, 18, 32, 0.92), rgba(12, 20, 40, 0.86) 52%, rgba(10, 16, 32, 0.9));
+        --shell-glow: rgba(59, 130, 246, 0.12);
+        --shell-inner: rgba(99, 102, 241, 0.08);
+        --topbar-stroke: rgba(132, 165, 255, 0.14);
         --field-bg: transparent;
-        --field-border: rgba(255, 102, 102, 0.24);
-        --field-focus: rgba(255, 108, 108, 0.7);
-        --field-focus-ring: rgba(255, 98, 98, 0.2);
-        --field-focus-glow: rgba(255, 84, 84, 0.24);
-        --field-icon: rgba(255, 175, 175, 0.78);
-        --field-text: #ffeef0;
-        --field-placeholder: rgba(255, 193, 193, 0.4);
-        --button-border: rgba(255, 92, 92, 0.36);
-        --button-overlay-1: rgba(255, 99, 99, 0.15);
-        --button-overlay-2: rgba(255, 72, 72, 0.26);
-        --button-shadow-1: rgba(188, 34, 34, 0.28);
-        --button-shadow-2: rgba(255, 92, 92, 0.2);
-        --button-shadow-hover-1: rgba(188, 34, 34, 0.36);
-        --button-shadow-hover-2: rgba(255, 92, 92, 0.26);
-        --dropzone-border: rgba(255, 106, 106, 0.36);
-        --dropzone-glow: rgba(255, 74, 74, 0.14);
-        --dropzone-bg: rgba(17, 23, 38, 0.76);
-        --dropzone-shine: rgba(255, 101, 101, 0.28);
-        --dropzone-hover-inner: rgba(255, 98, 98, 0.2);
-        --dropzone-hover-glow: rgba(255, 92, 92, 0.12);
-        --dropzone-drag-inner: rgba(255, 92, 92, 0.26);
-        --dropzone-drag-glow: rgba(255, 92, 92, 0.22);
-        --panel-bg: rgba(18, 24, 40, 0.52);
-        --panel-border: rgba(255, 110, 110, 0.16);
-        --section-divider: rgba(255, 110, 110, 0.18);
-        --status-loading-bg: rgba(112, 45, 45, 0.32);
-        --status-loading-text: #ffbbbb;
-        --status-loading-border: rgba(255, 101, 101, 0.28);
-        --success-bg: rgba(11, 83, 54, 0.35);
-        --success-text: #95ffd0;
-        --error-bg: rgba(121, 30, 30, 0.38);
-        --error-text: #ffc2c2;
-        --shadow-xl: 0 30px 72px rgba(1, 7, 20, 0.62);
+        --field-border: rgba(116, 141, 206, 0.26);
+        --field-focus: rgba(59, 130, 246, 0.82);
+        --field-focus-ring: rgba(59, 130, 246, 0.22);
+        --field-focus-glow: rgba(59, 130, 246, 0.2);
+        --field-icon: rgba(208, 219, 245, 0.82);
+        --field-text: rgba(242, 246, 255, 0.96);
+        --field-placeholder: rgba(208, 219, 245, 0.42);
+        --button-border: rgba(59, 130, 246, 0.44);
+        --button-overlay-1: rgba(59, 130, 246, 0.16);
+        --button-overlay-2: rgba(37, 99, 235, 0.22);
+        --button-shadow-1: rgba(37, 99, 235, 0.28);
+        --button-shadow-2: rgba(59, 130, 246, 0.2);
+        --button-shadow-hover-1: rgba(37, 99, 235, 0.36);
+        --button-shadow-hover-2: rgba(59, 130, 246, 0.28);
+        --dropzone-border: rgba(116, 141, 206, 0.34);
+        --dropzone-glow: rgba(59, 130, 246, 0.14);
+        --dropzone-bg: rgba(13, 19, 35, 0.72);
+        --dropzone-shine: rgba(59, 130, 246, 0.24);
+        --dropzone-hover-inner: rgba(59, 130, 246, 0.16);
+        --dropzone-hover-glow: rgba(59, 130, 246, 0.12);
+        --dropzone-drag-inner: rgba(59, 130, 246, 0.2);
+        --dropzone-drag-glow: rgba(59, 130, 246, 0.18);
+        --panel-bg: rgba(13, 19, 35, 0.58);
+        --panel-border: rgba(116, 141, 206, 0.2);
+        --section-divider: rgba(116, 141, 206, 0.18);
+        --status-loading-bg: rgba(37, 99, 235, 0.16);
+        --status-loading-text: rgba(164, 198, 255, 0.96);
+        --status-loading-border: rgba(59, 130, 246, 0.28);
+        --success-bg: rgba(16, 185, 129, 0.14);
+        --success-text: rgba(152, 255, 218, 0.92);
+        --error-bg: rgba(239, 68, 68, 0.16);
+        --error-text: rgba(255, 190, 190, 0.96);
+        --shadow-xl: 0 30px 72px rgba(1, 7, 20, 0.68);
       }
 
       body[data-theme="light"] {
-        --bg-0: #edf1fb;
-        --bg-1: #e5ecff;
-        --bg-2: #f5f8ff;
-        --glass: rgba(255, 255, 255, 0.52);
-        --glass-strong: rgba(255, 255, 255, 0.68);
-        --stroke: rgba(108, 130, 181, 0.26);
-        --stroke-strong: rgba(76, 112, 220, 0.6);
-        --text-main: #1d2534;
-        --text-sub: #6d7a92;
-        --brand: #4f67ff;
-        --brand-2: #3649ca;
-        --bg-glow-1: rgba(95, 124, 255, 0.18);
-        --bg-glow-2: rgba(106, 170, 255, 0.16);
-        --bg-glow-3: rgba(168, 111, 255, 0.12);
-        --orb-1: rgba(98, 124, 255, 0.24);
-        --orb-2: rgba(139, 120, 255, 0.18);
-        --title-shadow: 0 12px 26px rgba(79, 103, 255, 0.18);
+        --bg-0: #f4f6fb;
+        --bg-1: #eef2fa;
+        --bg-2: #ffffff;
+        --glass: rgba(255, 255, 255, 0.7);
+        --glass-strong: rgba(255, 255, 255, 0.9);
+        --stroke: rgba(148, 163, 184, 0.4);
+        --stroke-strong: rgba(148, 163, 184, 0.6);
+        --text-main: #1e293b;
+        --text-sub: #64748b;
+        --text-on-brand: #ffffff;
+        --brand: #2563eb;
+        --brand-2: #1d4ed8;
+        --bg-glow-1: rgba(0, 0, 0, 0);
+        --bg-glow-2: rgba(0, 0, 0, 0);
+        --bg-glow-3: rgba(0, 0, 0, 0);
+        --orb-1: rgba(0, 0, 0, 0);
+        --orb-2: rgba(0, 0, 0, 0);
+        --title-shadow: 0 10px 20px rgba(37, 99, 235, 0.1);
         --shell-bg:
-          radial-gradient(120% 130% at 10% 0%, rgba(94, 122, 255, 0.12), transparent 48%),
-          linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(245, 249, 255, 0.9) 52%, rgba(240, 245, 255, 0.86));
-        --shell-glow: rgba(94, 122, 255, 0.12);
-        --shell-inner: rgba(97, 124, 255, 0.08);
-        --topbar-stroke: rgba(98, 122, 190, 0.16);
-        --field-bg: transparent;
-        --field-border: rgba(113, 135, 187, 0.34);
-        --field-focus: rgba(79, 103, 255, 0.72);
-        --field-focus-ring: rgba(79, 103, 255, 0.2);
-        --field-focus-glow: rgba(79, 103, 255, 0.2);
-        --field-icon: rgba(89, 108, 162, 0.78);
-        --field-text: #1f2a45;
-        --field-placeholder: rgba(99, 114, 152, 0.6);
-        --button-border: rgba(85, 111, 255, 0.4);
-        --button-overlay-1: rgba(111, 133, 255, 0.18);
-        --button-overlay-2: rgba(83, 109, 255, 0.2);
-        --button-shadow-1: rgba(70, 93, 205, 0.26);
-        --button-shadow-2: rgba(90, 118, 255, 0.22);
-        --button-shadow-hover-1: rgba(70, 93, 205, 0.34);
-        --button-shadow-hover-2: rgba(90, 118, 255, 0.3);
-        --dropzone-border: rgba(95, 120, 205, 0.34);
-        --dropzone-glow: rgba(95, 120, 240, 0.1);
-        --dropzone-bg: rgba(250, 252, 255, 0.82);
-        --dropzone-shine: rgba(118, 142, 255, 0.3);
-        --dropzone-hover-inner: rgba(79, 103, 255, 0.16);
-        --dropzone-hover-glow: rgba(90, 118, 255, 0.14);
-        --dropzone-drag-inner: rgba(79, 103, 255, 0.2);
-        --dropzone-drag-glow: rgba(90, 118, 255, 0.2);
-        --panel-bg: rgba(255, 255, 255, 0.74);
-        --panel-border: rgba(105, 128, 186, 0.22);
-        --section-divider: rgba(108, 130, 181, 0.2);
-        --status-loading-bg: rgba(79, 103, 255, 0.14);
-        --status-loading-text: #3953cc;
-        --status-loading-border: rgba(79, 103, 255, 0.24);
-        --success-bg: rgba(16, 185, 129, 0.16);
-        --success-text: #0d8a61;
-        --error-bg: rgba(239, 68, 68, 0.16);
-        --error-text: #c93b3b;
-        --shadow-xl: 0 26px 65px rgba(29, 42, 80, 0.16);
+          radial-gradient(120% 130% at 10% 0%, rgba(37, 99, 235, 0.04), transparent 48%),
+          linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95) 52%, rgba(241, 245, 249, 0.9));
+        --shell-glow: rgba(37, 99, 235, 0.05);
+        --shell-inner: rgba(37, 99, 235, 0.03);
+        --topbar-stroke: rgba(148, 163, 184, 0.2);
+        --field-bg: #ffffff;
+        --field-border: rgba(203, 213, 225, 0.8);
+        --field-focus: rgba(37, 99, 235, 0.8);
+        --field-focus-ring: rgba(37, 99, 235, 0.15);
+        --field-focus-glow: rgba(37, 99, 235, 0.1);
+        --field-icon: rgba(100, 116, 139, 0.8);
+        --field-text: #1e293b;
+        --field-placeholder: rgba(148, 163, 184, 0.8);
+        --button-border: rgba(203, 213, 225, 0.8);
+        --button-overlay-1: rgba(241, 245, 249, 1);
+        --button-overlay-2: rgba(226, 232, 240, 1);
+        --button-shadow-1: rgba(15, 23, 42, 0.04);
+        --button-shadow-2: rgba(15, 23, 42, 0.02);
+        --button-shadow-hover-1: rgba(15, 23, 42, 0.06);
+        --button-shadow-hover-2: rgba(15, 23, 42, 0.04);
+        --dropzone-border: rgba(148, 163, 184, 0.4);
+        --dropzone-glow: rgba(37, 99, 235, 0.04);
+        --dropzone-bg: #ffffff;
+        --dropzone-shine: rgba(37, 99, 235, 0.1);
+        --dropzone-hover-inner: rgba(37, 99, 235, 0.06);
+        --dropzone-hover-glow: rgba(37, 99, 235, 0.04);
+        --dropzone-drag-inner: rgba(37, 99, 235, 0.08);
+        --dropzone-drag-glow: rgba(37, 99, 235, 0.06);
+        --panel-bg: #ffffff;
+        --panel-border: rgba(226, 232, 240, 0.8);
+        --section-divider: rgba(226, 232, 240, 0.8);
+        --status-loading-bg: rgba(239, 246, 255, 0.8);
+        --status-loading-text: #2563eb;
+        --status-loading-border: rgba(191, 219, 254, 0.8);
+        --success-bg: rgba(236, 253, 245, 0.8);
+        --success-text: #059669;
+        --error-bg: rgba(254, 242, 242, 0.8);
+        --error-text: #dc2626;
+        --shadow-xl: 0 20px 40px rgba(15, 23, 42, 0.08);
       }
 
       * {
@@ -132,7 +134,7 @@
       body {
         margin: 0;
         min-height: 100vh;
-        padding: 40px 16px;
+        padding: 24px 16px;
         font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
         color: var(--text-main);
         background:
@@ -172,6 +174,12 @@
         animation-delay: 1.2s;
       }
 
+      body[data-theme="light"]::before,
+      body[data-theme="light"]::after {
+        opacity: 0.32;
+        filter: blur(90px);
+      }
+
       @keyframes floatGlow {
         from { transform: translateY(0); }
         to { transform: translateY(-16px); }
@@ -183,6 +191,14 @@
         margin: 0 auto;
         position: relative;
         z-index: 1;
+      }
+
+      body.task-page {
+        padding: 16px 12px;
+      }
+
+      body.task-page .page {
+        max-width: 1240px;
       }
 
       .page::before {
@@ -802,6 +818,14 @@
         box-shadow: none;
       }
 
+      body[data-theme="light"] .primary-btn:disabled {
+        opacity: 1;
+        filter: none;
+        background: rgba(226, 232, 240, 1);
+        border-color: rgba(203, 213, 225, 0.9);
+        color: rgba(100, 116, 139, 1);
+      }
+
       .workspace {
         display: grid;
         gap: 10px;
@@ -846,6 +870,16 @@
       .dropzone-pick:hover {
         background: color-mix(in srgb, var(--brand) 28%, var(--panel-bg));
         filter: brightness(1.02);
+      }
+
+      body[data-theme="light"] button.dropzone-pick {
+        border: 1px solid var(--panel-border);
+        background: #ffffff;
+      }
+
+      body[data-theme="light"] .dropzone-pick:hover {
+        background: rgba(248, 250, 252, 1);
+        filter: none;
       }
 
       .dropzone-pick:active {
@@ -1307,77 +1341,150 @@
       }
 
       .history-title-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 10px;
+        display: none;
       }
 
       .history-actions {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
-        justify-content: flex-end;
+        display: none;
       }
 
       .history-pager {
-        display: flex;
-        align-items: center;
-        gap: 8px;
+        display: none;
       }
 
       .history-page-label {
-        font-size: 12px;
-        color: var(--text-sub);
-        white-space: nowrap;
+        display: none;
       }
 
       .history-page-size {
-        border-radius: 9px;
-        padding: 8px 10px;
-        border: 1px solid var(--panel-border);
-        background: var(--panel-bg);
-        color: var(--text);
-        font-size: 12px;
-        font-weight: 600;
+        display: none;
       }
 
       .task-search {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
       }
 
       .task-search-input {
         width: min(260px, 44vw);
-        border-radius: 9px;
-        padding: 8px 10px;
+        border-radius: 12px;
+        padding: 11px 38px 11px 36px;
         border: 1px solid var(--panel-border);
-        background: var(--panel-bg);
-        color: var(--text);
-        font-size: 12px;
+        background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+        color: var(--field-text);
+        font-size: 13px;
         font-weight: 600;
         outline: none;
+      }
+
+      .task-search-input::placeholder {
+        color: var(--field-placeholder);
+      }
+
+      .task-search-shell {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        flex: 0 1 auto;
+      }
+
+      .task-search-icon {
+        position: absolute;
+        left: 12px;
+        width: 16px;
+        height: 16px;
+        color: var(--text-sub);
+        pointer-events: none;
+      }
+
+      .task-icon-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        border: 1px solid var(--panel-border);
+        background: color-mix(in srgb, var(--panel-bg) 78%, transparent);
+        color: var(--text-sub);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition:
+          background 0.16s ease,
+          border-color 0.16s ease,
+          transform 0.08s ease,
+          filter 0.16s ease;
+      }
+
+      .task-search-clear {
+        position: absolute;
+        right: 8px;
+        width: 28px;
+        height: 28px;
+        border-radius: 10px;
+        border: none;
+        background: transparent;
+        color: var(--text-sub);
+      }
+
+      .task-search-clear:hover {
+        background: color-mix(in srgb, var(--panel-border) 48%, transparent);
+        color: var(--text-main);
+        filter: none;
+        border-color: transparent;
+      }
+
+      .task-icon-btn:hover {
+        border-color: var(--stroke);
+        filter: brightness(1.05);
+      }
+
+      .task-icon-btn:active {
+        transform: scale(0.98);
+      }
+
+      .task-icon-btn svg {
+        width: 16px;
+        height: 16px;
       }
 
       .task-select-cb {
         width: 16px;
         height: 16px;
-        accent-color: var(--brand);
         cursor: pointer;
+        appearance: none;
+        border-radius: 4px;
+        border: 1px solid var(--panel-border);
+        background: color-mix(in srgb, var(--panel-bg) 78%, transparent);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+      }
+
+      .task-select-cb:checked {
+        border-color: var(--brand);
+        background: color-mix(in srgb, var(--brand) 22%, transparent);
+      }
+
+      .task-select-cb:checked::after {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 2px;
+        background: var(--brand);
       }
 
       .task-filters {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        align-items: flex-end;
-        margin-bottom: 12px;
-        padding: 10px 12px;
-        border-radius: 10px;
-        border: 1px solid var(--panel-border);
-        background: var(--panel-bg);
+        display: inline-flex;
+        flex-wrap: nowrap;
+        gap: 10px;
+        align-items: center;
+        margin: 0;
+        padding: 0;
+        border-radius: 0;
+        border: none;
+        background: transparent;
       }
 
       .task-filters.hidden {
@@ -1385,21 +1492,615 @@
       }
 
       .filter-field {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
         color: var(--text-sub);
       }
 
+      .filter-field > span {
+        display: none;
+      }
+
       .filter-field select {
-        min-width: 140px;
-        padding: 8px 10px;
-        border-radius: 8px;
-        border: 1px solid var(--field-border);
-        background: var(--field-bg);
+        min-width: 120px;
+        height: 38px;
+        padding: 0 12px;
+        border-radius: 12px;
+        border: 1px solid var(--panel-border);
+        background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
         color: var(--field-text);
         font-size: 13px;
+        font-weight: 650;
+      }
+
+      .task-board {
+        margin-top: 14px;
+        border-radius: 16px;
+        border: 1px solid var(--panel-border);
+        background: var(--panel-bg);
+        box-shadow: var(--shadow-xl);
+        overflow: hidden;
+      }
+
+      .task-board-toolbar {
+        padding: 14px 14px 10px;
+        border-bottom: 1px solid var(--section-divider);
+        background:
+          radial-gradient(120% 120% at 0% 0%, color-mix(in srgb, var(--brand) 14%, transparent), transparent 46%),
+          var(--glass);
+      }
+
+      .task-toolbar-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .task-toolbar-left,
+      .task-toolbar-right {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .task-toolbar-left {
+        min-width: 0;
+        flex: 1 1 auto;
+        flex-wrap: wrap;
+        grid-column: 1;
+      }
+
+      .task-toolbar-right {
+        justify-content: flex-end;
+        flex: 0 0 auto;
+        flex-wrap: nowrap;
+        grid-column: 2;
+        justify-self: end;
+      }
+
+      .task-total-label {
+        font-size: 13px;
+        color: var(--text-sub);
+        white-space: nowrap;
+        margin-right: 2px;
+      }
+
+      .task-primary-btn {
+        height: 38px;
+        padding: 0 14px;
+        min-width: 112px;
+        border-radius: 12px;
+        border: 1px solid color-mix(in srgb, var(--brand) 62%, transparent);
+        background: linear-gradient(145deg, color-mix(in srgb, var(--brand) 22%, transparent), color-mix(in srgb, var(--brand-2) 26%, transparent));
+        color: var(--text-on-brand);
+        font-size: 13px;
+        font-weight: 760;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition:
+          filter 0.18s ease,
+          transform 0.08s ease,
+          border-color 0.18s ease;
+      }
+
+      .task-primary-btn:hover {
+        filter: brightness(1.06);
+        border-color: color-mix(in srgb, var(--brand) 74%, transparent);
+      }
+
+      .task-primary-btn:active {
+        transform: scale(0.98);
+      }
+
+      .task-primary-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        filter: none;
+      }
+
+      .task-muted-btn {
+        height: 38px;
+        padding: 0 14px;
+        min-width: 92px;
+        border-radius: 12px;
+        border: 1px solid var(--panel-border);
+        background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+        color: var(--text-main);
+        font-size: 13px;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition:
+          filter 0.18s ease,
+          transform 0.08s ease,
+          border-color 0.18s ease;
+      }
+
+      .task-muted-btn:hover {
+        filter: brightness(1.05);
+        border-color: var(--stroke);
+      }
+
+      .task-muted-btn:active {
+        transform: scale(0.98);
+      }
+
+      .task-muted-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        filter: none;
+      }
+
+      .task-muted-btn svg,
+      .task-primary-btn svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      #refreshTasksBtn {
+        min-width: 84px;
+      }
+
+      .task-batch-row {
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .task-batch-left,
+      .task-batch-right {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .task-selected-label {
+        font-size: 13px;
+        color: var(--text-sub);
+        white-space: nowrap;
+      }
+
+      .task-board-pager {
+        padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--section-divider);
+        background: var(--glass);
+        flex-wrap: wrap;
+      }
+
+      .task-pager-left,
+      .task-pager-center,
+      .task-pager-right {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .task-pager-right {
+        flex-shrink: 0;
+      }
+
+      .task-page-size {
+        height: 34px;
+        padding: 0 10px;
+        border-radius: 10px;
+        border: 1px solid var(--panel-border);
+        background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+        color: var(--text-main);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .task-page-btn {
+        height: 34px;
+        min-width: 34px;
+        padding: 0 10px;
+        border-radius: 10px;
+        border: 1px solid var(--panel-border);
+        background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+        color: var(--text-sub);
+        font-size: 12px;
+        font-weight: 760;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition:
+          filter 0.18s ease,
+          transform 0.08s ease,
+          border-color 0.18s ease;
+      }
+
+      .task-page-btn:hover {
+        filter: brightness(1.05);
+        border-color: var(--stroke);
+      }
+
+      .task-page-btn:active {
+        transform: scale(0.98);
+      }
+
+      .task-page-btn[disabled] {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      .task-page-btn.active {
+        border-color: var(--brand);
+        background: color-mix(in srgb, var(--brand) 16%, transparent);
+        color: var(--text-main);
+      }
+
+      .task-page-dots {
+        color: color-mix(in srgb, var(--text-sub) 60%, transparent);
+        font-weight: 800;
+        padding: 0 2px;
+        user-select: none;
+      }
+
+      .task-page-state {
+        font-size: 12px;
+        color: var(--text-sub);
+        white-space: nowrap;
+      }
+
+      .task-jump-input {
+        width: 76px;
+        height: 34px;
+        padding: 0 10px;
+        border-radius: 10px;
+        border: 1px solid var(--panel-border);
+        background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+        color: var(--text-main);
+        font-size: 12px;
+        font-weight: 700;
+        outline: none;
+      }
+
+      .task-jump-input::-webkit-outer-spin-button,
+      .task-jump-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+
+      .task-jump-input[type="number"] {
+        appearance: textfield;
+      }
+
+      .task-list {
+        display: grid;
+        gap: 10px;
+        padding: 12px 14px 14px;
+        max-height: calc(100vh - 260px);
+        overflow-y: auto;
+        align-content: start;
+      }
+
+      .history-item {
+        border-radius: 14px;
+        border: 1px solid var(--panel-border);
+        background: var(--panel-bg);
+        padding: 14px 14px;
+        gap: 12px;
+        transition:
+          border-color 0.18s ease,
+          filter 0.18s ease,
+          transform 0.08s ease;
+      }
+
+      .history-item:hover {
+        border-color: var(--stroke-strong);
+        filter: brightness(1.03);
+      }
+
+      .task-row-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .task-row-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .task-file-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        flex: 0 0 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.94);
+      }
+
+      .task-file-icon.xlsx {
+        background: linear-gradient(145deg, rgba(16, 185, 129, 0.84), rgba(5, 150, 105, 0.86));
+      }
+
+      .task-file-icon.pdf {
+        background: linear-gradient(145deg, rgba(239, 68, 68, 0.86), rgba(220, 38, 38, 0.88));
+      }
+
+      .task-file-icon.other {
+        background: linear-gradient(145deg, rgba(59, 130, 246, 0.86), rgba(37, 99, 235, 0.9));
+      }
+
+      .task-file-icon svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      .task-title-text {
+        font-size: 14px;
+        font-weight: 760;
+        color: var(--text-main);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: min(620px, 56vw);
+      }
+
+      .task-status-pill {
+        font-size: 12px;
+        font-weight: 760;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--panel-border);
+        color: var(--text-sub);
+        background: color-mix(in srgb, var(--panel-bg) 82%, transparent);
+        white-space: nowrap;
+      }
+
+      .task-status-pill.succeeded {
+        border-color: rgba(16, 185, 129, 0.34);
+        color: rgba(152, 255, 218, 0.92);
+        background: rgba(16, 185, 129, 0.1);
+      }
+
+      .task-status-pill.running {
+        border-color: rgba(59, 130, 246, 0.34);
+        color: rgba(164, 198, 255, 0.96);
+        background: rgba(59, 130, 246, 0.1);
+      }
+
+      .task-status-pill.queued {
+        border-color: rgba(99, 102, 241, 0.32);
+        color: rgba(188, 196, 255, 0.92);
+        background: rgba(99, 102, 241, 0.1);
+      }
+
+      .task-status-pill.failed {
+        border-color: rgba(239, 68, 68, 0.34);
+        color: rgba(255, 190, 190, 0.96);
+        background: rgba(239, 68, 68, 0.1);
+      }
+
+      .task-status-pill.cancelled {
+        border-color: var(--panel-border);
+        color: var(--text-sub);
+        background: color-mix(in srgb, var(--panel-border) 22%, transparent);
+      }
+
+      body[data-theme="light"] .task-status-pill {
+        background: rgba(248, 250, 252, 1);
+        color: #475569;
+        border-color: rgba(203, 213, 225, 0.95);
+      }
+
+      body[data-theme="light"] .task-status-pill.succeeded {
+        border-color: rgba(16, 185, 129, 0.55);
+        color: var(--success-text);
+        background: rgba(236, 253, 245, 1);
+      }
+
+      body[data-theme="light"] .task-status-pill.running {
+        border-color: rgba(37, 99, 235, 0.45);
+        color: #1d4ed8;
+        background: rgba(239, 246, 255, 1);
+      }
+
+      body[data-theme="light"] .task-status-pill.queued {
+        border-color: rgba(37, 99, 235, 0.32);
+        color: #2563eb;
+        background: rgba(239, 246, 255, 0.85);
+      }
+
+      body[data-theme="light"] .task-status-pill.failed {
+        border-color: rgba(220, 38, 38, 0.5);
+        color: var(--error-text);
+        background: rgba(254, 242, 242, 1);
+      }
+
+      body[data-theme="light"] .task-status-pill.cancelled {
+        border-color: rgba(148, 163, 184, 0.7);
+        color: #64748b;
+        background: rgba(241, 245, 249, 1);
+      }
+
+      .task-row-meta {
+        margin-top: 6px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        color: var(--text-sub);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .task-meta-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+
+      .task-meta-item svg {
+        width: 14px;
+        height: 14px;
+        color: color-mix(in srgb, var(--text-sub) 66%, transparent);
+      }
+
+      .task-row-message {
+        margin-top: 8px;
+        font-size: 12px;
+        font-weight: 650;
+        color: var(--text-sub);
+      }
+
+      .task-row-message.success {
+        color: rgba(152, 255, 218, 0.9);
+      }
+
+      .task-row-message.error {
+        color: rgba(255, 190, 190, 0.96);
+      }
+
+      body[data-theme="light"] .task-row-message.success {
+        color: var(--success-text);
+      }
+
+      body[data-theme="light"] .task-row-message.error {
+        color: var(--error-text);
+      }
+
+      .task-inline-btn {
+        height: 34px;
+        padding: 0 12px;
+        border-radius: 10px;
+        border: 1px solid var(--panel-border);
+        background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+        color: var(--text-main);
+        font-size: 12px;
+        font-weight: 760;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition:
+          filter 0.18s ease,
+          transform 0.08s ease,
+          border-color 0.18s ease;
+      }
+
+      .task-inline-btn:hover {
+        filter: brightness(1.05);
+        border-color: var(--stroke);
+      }
+
+      .task-inline-btn:active {
+        transform: scale(0.98);
+      }
+
+      .task-inline-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        filter: none;
+      }
+
+      body[data-theme="light"] .task-inline-btn:disabled,
+      body[data-theme="light"] .task-muted-btn:disabled,
+      body[data-theme="light"] .task-primary-btn:disabled {
+        opacity: 1;
+        filter: none;
+        border-color: rgba(203, 213, 225, 0.95);
+        background: rgba(226, 232, 240, 1);
+        color: rgba(100, 116, 139, 1);
+      }
+
+      .task-inline-btn.primary {
+        border-color: var(--brand);
+        background: var(--brand);
+        color: var(--text-on-brand);
+      }
+
+      .task-inline-btn.primary:hover {
+        filter: brightness(1.1);
+        border-color: var(--brand-2);
+      }
+
+      .task-inline-btn svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      .task-inline-btn.danger {
+        color: var(--error-text);
+        border-color: color-mix(in srgb, var(--error-text) 40%, transparent);
+        background: var(--error-bg);
+      }
+
+      .task-menu {
+        position: relative;
+      }
+
+      .task-menu-pop {
+        position: absolute;
+        right: 0;
+        top: 40px;
+        min-width: 140px;
+        padding: 6px;
+        border-radius: 12px;
+        border: 1px solid rgba(116, 141, 206, 0.22);
+        background: rgba(10, 16, 32, 0.92);
+        box-shadow: 0 18px 40px rgba(1, 7, 20, 0.52);
+        z-index: 60;
+        display: none;
+      }
+
+      .task-menu.open .task-menu-pop {
+        display: block;
+      }
+
+      .task-menu-item {
+        width: 100%;
+        border: none;
+        background: transparent;
+        color: rgba(242, 246, 255, 0.92);
+        font-size: 12px;
+        font-weight: 700;
+        padding: 10px 10px;
+        border-radius: 10px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .task-menu-item:hover {
+        background: rgba(116, 141, 206, 0.12);
+      }
+
+      .task-menu-item.danger {
+        color: rgba(255, 190, 190, 0.96);
+      }
+
+      .task-menu-item svg {
+        width: 16px;
+        height: 16px;
       }
 
       .history-item {
@@ -1494,9 +2195,9 @@
 
       .task-row-actions {
         display: flex;
-        flex-direction: column;
-        gap: 6px;
-        align-items: flex-end;
+        flex-direction: row;
+        gap: 8px;
+        align-items: center;
         flex-shrink: 0;
       }
 
@@ -1704,7 +2405,7 @@
       }
     </style>
   </head>
-  <body data-theme="light">
+  <body data-theme="dark">
     <main class="page">
       <header class="brand">
         <h1>文档转 Markdown</h1>
@@ -1861,53 +2562,110 @@
           </div>
 
           <div id="history" class="history">
-            <div class="history-title-row">
-              <p class="section-title" style="margin: 0">任务列表</p>
-              <div class="history-actions">
-                <div class="task-search">
-                  <input
-                    id="taskSearchInput"
-                    class="task-search-input"
-                    type="search"
-                    placeholder="搜索文件名…"
-                    aria-label="按文件名搜索任务"
-                    autocomplete="off"
-                  />
-                  <button id="taskSearchClearBtn" class="ghost-btn" type="button">清空</button>
+            <div class="task-board">
+              <div class="task-board-toolbar">
+                <div class="task-toolbar-row">
+                  <div class="task-toolbar-left">
+                    <div class="task-search-shell">
+                      <svg class="task-search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M10.5 18.5C14.6421 18.5 18 15.1421 18 11C18 6.85786 14.6421 3.5 10.5 3.5C6.35786 3.5 3 6.85786 3 11C3 15.1421 6.35786 18.5 10.5 18.5Z" stroke="currentColor" stroke-width="1.8"></path>
+                        <path d="M16.3 16.3L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                      </svg>
+                      <input
+                        id="taskSearchInput"
+                        class="task-search-input"
+                        type="search"
+                        placeholder="搜索文件名..."
+                        aria-label="按文件名搜索任务"
+                        autocomplete="off"
+                      />
+                      <button id="taskSearchClearBtn" class="task-icon-btn task-search-clear" type="button" aria-label="清空搜索" title="清空">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                        </svg>
+                      </button>
+                    </div>
+                    <div id="taskFilters" class="task-filters hidden">
+                      <label class="filter-field">
+                        <span>用户</span>
+                        <select id="taskOwnerFilter" aria-label="按用户筛选"></select>
+                      </label>
+                      <label class="filter-field">
+                        <span>状态</span>
+                        <select id="taskStatusFilter" aria-label="按状态筛选">
+                          <option value="">全部状态</option>
+                          <option value="queued">排队中</option>
+                          <option value="running">处理中</option>
+                          <option value="succeeded">已完成</option>
+                          <option value="failed">失败</option>
+                          <option value="cancelled">已取消</option>
+                        </select>
+                      </label>
+                      <button id="applyTaskFiltersBtn" type="button" class="task-muted-btn">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M4 5H20L14 12V19L10 21V12L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+                        </svg>
+                        <span>应用筛选</span>
+                      </button>
+                      <button id="resetTaskFiltersBtn" type="button" class="task-muted-btn">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M21 12A9 9 0 1 1 18.4 5.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                          <path d="M21 4V10H15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                        <span>重置</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="task-toolbar-right">
+                    <span id="taskTotalLabel" class="task-total-label">共 0 条</span>
+                    <button id="refreshTasksBtn" class="task-muted-btn" type="button">
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M20 12A8 8 0 1 1 17.66 6.34" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                        <path d="M20 4V10H14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+                      </svg>
+                      <span>刷新</span>
+                    </button>
+                    <button id="batchDownloadBtn" class="task-primary-btn" type="button" disabled>
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M12 3V14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                        <path d="M8 10L12 14L16 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                        <path d="M4 17.5C4 18.8807 5.11929 20 6.5 20H17.5C18.8807 20 20 18.8807 20 17.5V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                      </svg>
+                      <span>批量下载</span>
+                    </button>
+                  </div>
                 </div>
-                <div class="history-pager" aria-label="任务列表翻页">
-                  <button id="taskPrevBtn" class="ghost-btn" type="button">上一页</button>
-                  <span id="taskPageLabel" class="history-page-label">第 1 页</span>
-                  <button id="taskNextBtn" class="ghost-btn" type="button">下一页</button>
-                  <select id="taskPageSizeSelect" class="history-page-size" aria-label="每页条数">
-                    <option value="10" selected>10/页</option>
-                    <option value="20">20/页</option>
-                    <option value="50">50/页</option>
+                <div class="task-batch-row">
+                  <div class="task-batch-left">
+                    <input id="taskSelectAllCb" type="checkbox" class="task-select-cb" aria-label="全选当前页可下载任务" />
+                    <span id="taskSelectedLabel" class="task-selected-label">已选择 0 项</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="task-board-pager" aria-label="任务列表翻页">
+                <div class="task-pager-left">
+                  <span class="task-page-state">每页</span>
+                  <select id="taskPageSizeSelect" class="task-page-size" aria-label="每页条数">
+                    <option value="10" selected>10 条</option>
+                    <option value="20">20 条</option>
+                    <option value="50">50 条</option>
                   </select>
                 </div>
-                <button id="refreshTasksBtn" class="ghost-btn" type="button">刷新</button>
-                <button id="batchDownloadBtn" class="ghost-btn" type="button" disabled>批量下载</button>
+                <div class="task-pager-center">
+                  <button id="taskPrevBtn" class="task-page-btn" type="button" aria-label="上一页">上一页</button>
+                  <div id="taskPageNumbers" class="task-pager-center"></div>
+                  <button id="taskNextBtn" class="task-page-btn" type="button" aria-label="下一页">下一页</button>
+                </div>
+                <div class="task-pager-right">
+                  <span id="taskPageLabel" class="task-page-state">第 1 / 1 页</span>
+                  <span class="task-page-state">跳转</span>
+                  <input id="taskJumpInput" class="task-jump-input" type="number" min="1" step="1" aria-label="跳转到页码" />
+                </div>
               </div>
+
+              <div id="historyList" class="task-list"></div>
             </div>
-            <div id="taskFilters" class="task-filters hidden">
-              <label class="filter-field">
-                <span>用户</span>
-                <select id="taskOwnerFilter" aria-label="按用户筛选"></select>
-              </label>
-              <label class="filter-field">
-                <span>状态</span>
-                <select id="taskStatusFilter" aria-label="按状态筛选">
-                  <option value="">全部</option>
-                  <option value="queued">排队中</option>
-                  <option value="running">转换中</option>
-                  <option value="succeeded">已完成</option>
-                  <option value="failed">失败</option>
-                  <option value="cancelled">已取消</option>
-                </select>
-              </label>
-              <button id="applyTaskFiltersBtn" type="button" class="ghost-btn">应用筛选</button>
-            </div>
-            <div id="historyList" class="history-list"></div>
           </div>
         </section>
       </section>
@@ -1981,6 +2739,12 @@ const selectedList = document.getElementById("selectedList");
       const taskOwnerFilter = document.getElementById("taskOwnerFilter");
       const taskStatusFilter = document.getElementById("taskStatusFilter");
       const applyTaskFiltersBtn = document.getElementById("applyTaskFiltersBtn");
+      const resetTaskFiltersBtn = document.getElementById("resetTaskFiltersBtn");
+      const taskTotalLabel = document.getElementById("taskTotalLabel");
+      const taskSelectedLabel = document.getElementById("taskSelectedLabel");
+      const taskSelectAllCb = document.getElementById("taskSelectAllCb");
+      const taskPageNumbers = document.getElementById("taskPageNumbers");
+      const taskJumpInput = document.getElementById("taskJumpInput");
       const sessionBoot = document.getElementById("sessionBoot");
       const authBox = document.getElementById("authBox");
       const workArea = document.getElementById("workArea");
@@ -1994,6 +2758,15 @@ const selectedList = document.getElementById("selectedList");
       const rememberMeInput = document.getElementById("rememberMe");
       const forgotPasswordLink = document.getElementById("forgotPasswordLink");
       const supportedFormatsLine = document.getElementById("supportedFormatsLine");
+      const topActions = document.querySelector(".top-actions");
+      if (refreshTasksBtn) {
+        refreshTasksBtn.style.whiteSpace = "nowrap";
+        refreshTasksBtn.style.minWidth = "84px";
+      }
+      if (batchDownloadBtn) {
+        batchDownloadBtn.style.whiteSpace = "nowrap";
+        batchDownloadBtn.style.minWidth = "112px";
+      }
 
       const STORAGE_KEYS = {
         theme: "docling_theme",
@@ -2011,6 +2784,7 @@ const selectedList = document.getElementById("selectedList");
       let taskSearchQuery = "";
       let taskSearchTimer = 0;
       const selectedJobIds = new Set();
+      let lastRenderableSelectableJobIds = [];
       /** 任务列表中排队/进行中项的「已用时」每秒刷新 */
       let liveElapsedInterval = null;
       /** 每次点击上传自增，用于丢弃过期的 pollJobUntilTerminal，避免多次上传互相覆盖 UI */
@@ -2025,7 +2799,7 @@ const selectedList = document.getElementById("selectedList");
         if (!batchDownloadBtn) return;
         const n = selectedJobIds.size;
         batchDownloadBtn.disabled = n <= 0;
-        batchDownloadBtn.textContent = n > 0 ? ("批量下载（" + n + "）") : "批量下载";
+        if (taskSelectedLabel) taskSelectedLabel.textContent = "已选择 " + n + " 项";
       }
 
       function formatSupportedFormatsLine(allowedTypes) {
@@ -2415,6 +3189,7 @@ function removeSelectedFileAt(index) {
         opts = opts || {};
         if (user) {
           currentUser = user;
+          document.body.classList.add("task-page");
           mainShell.classList.remove("login-shell");
           authBox.classList.add("hidden");
           workArea.classList.remove("hidden");
@@ -2457,6 +3232,7 @@ function removeSelectedFileAt(index) {
         }
         stopTaskPolling();
         currentUser = null;
+        document.body.classList.remove("task-page");
         if (sessionBoot) sessionBoot.classList.add("hidden");
         mainShell.classList.add("login-shell");
         authBox.classList.remove("hidden");
@@ -2575,7 +3351,7 @@ if (selectedList) selectedList.innerHTML = "";
             return;
           }
           const now = Date.now();
-          let txt = "已用时 " + formatDurationZh(now - t0);
+          let txt = "耗时 " + formatDurationZh(now - t0);
           const t1 = parseIsoMs(s);
           if (t1 != null && st === "running") {
             const processingMs = now - t1;
@@ -2651,10 +3427,16 @@ if (selectedList) selectedList.innerHTML = "";
           historyList.innerHTML =
             '<p class="history-meta" style="margin:0">暂无任务。任务会保存在服务器，重新登录后仍可在此查看与管理。</p>';
           ensureLiveElapsedTicker([]);
+          lastRenderableSelectableJobIds = [];
+          if (taskSelectAllCb) {
+            taskSelectAllCb.checked = false;
+            taskSelectAllCb.indeterminate = false;
+          }
           syncBatchDownloadButton();
           return;
         }
         historyWrap.classList.add("show");
+        lastRenderableSelectableJobIds = [];
         historyList.innerHTML = items
           .map(function (job) {
             const ownerLine =
@@ -2762,27 +3544,27 @@ if (selectedList) selectedList.innerHTML = "";
 
             const canCancel = job.status === "queued" || job.status === "running";
             const cancelBtn = canCancel
-              ? '<button type="button" class="task-cancel-btn" data-job-cancel="' +
+              ? '<button type="button" class="task-inline-btn" data-job-cancel="' +
                 job.job_id +
-                '">取消</button>'
+                '"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span>取消</span></button>'
               : "";
-            const canDelete = job.status !== "running";
+            const canDelete = job.status !== "running" && job.status !== "queued";
             const deleteBtn = canDelete
-              ? '<button type="button" class="task-delete-btn" data-job-delete="' +
+              ? '<button type="button" class="task-inline-btn danger" data-job-delete="' +
                 job.job_id +
-                '">删除记录</button>'
+                '"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M10 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M14 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M6 7L7 20H17L18 7" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path><path d="M9 7V5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5V7" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span>删除记录</span></button>'
               : "";
-            const canRetry = job.status !== "queued" && job.status !== "running";
+            const canRetry = job.status === "failed" || job.status === "cancelled" || job.status === "succeeded";
             const retryBtn = canRetry
-              ? '<button type="button" class="task-retry-btn" data-job-retry="' +
+              ? '<button type="button" class="task-inline-btn" data-job-retry="' +
                 job.job_id +
-                '">重试</button>'
+                '"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 12A9 9 0 1 1 18.4 5.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path><path d="M21 4V10H15" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></svg><span>重试</span></button>'
               : "";
             const dl =
               job.download_url && job.status === "succeeded"
-                ? '<a class="download-btn" href="' +
+                ? '<a class="task-inline-btn primary" href="' +
                   job.download_url +
-                  '" target="_blank" rel="noopener">下载 ZIP</a>'
+                  '" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3V14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M8 10L12 14L16 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 17.5C4 18.8807 5.11929 20 6.5 20H17.5C18.8807 20 20 18.8807 20 17.5V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span>下载 ZIP</span></a>'
                 : "";
             const canSelect = job.status === "succeeded" && job.download_url;
             const checked = canSelect && selectedJobIds.has(job.job_id) ? " checked" : "";
@@ -2794,55 +3576,112 @@ if (selectedList) selectedList.innerHTML = "";
               checked +
               disabled +
               ' aria-label="选择该任务用于批量下载" />';
-            return (
-              '<div class="history-item">' +
-              '<div class="task-item-main">' +
-              '<div class="filename">' +
-(cb) +
-(function() {
-  // 1. 优先获取当前正在处理的文件名，如果没有则兜底使用原始文件名
-  let displayName = job.current_file_name || job.current_filename || job.original_filename || "";
-  
-  // 2. 截取纯文件名（去掉类似 pdf/ 的前缀）
-  let baseName = String(displayName).split('/').pop().split('\\').pop();
-  
-  // 3. 直接返回纯文件名，彻底去掉“显示文件夹名称”的相关逻辑
-  return baseName.replace(/</g, "&lt;");
-})() +
-"</div>" +
-
-
-              ownerLine +
-              (function () {
-                const liveElapsedHtml =
-                  job.status === "queued" || job.status === "running"
-                    ? ' <span class="task-live-elapsed" data-created-at="' +
-                      escapeAttr(job.created_at) +
-                      '" data-started-at="' +
-                      escapeAttr(job.started_at || "") +
-                      '" data-progress-percent="' +
-                      escapeAttr(job.progress_percent || "0") +
-                      '" data-st="' +
-                      escapeAttr(job.status) +
-                      '"></span>'
+            if (canSelect) lastRenderableSelectableJobIds.push(job.job_id);
+            const nameForExt = job.original_filename || job.current_file_name || job.current_filename || "";
+            const ext = String(nameForExt).split(".").pop().toLowerCase();
+            const iconKind = ext === "xlsx" || ext === "xls" ? "xlsx" : ext === "pdf" ? "pdf" : "other";
+            const iconHtml =
+              iconKind === "xlsx"
+                ? '<div class="task-file-icon xlsx" aria-hidden="true">X</div>'
+                : iconKind === "pdf"
+                  ? '<div class="task-file-icon pdf" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 3H14L19 8V21H7V3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M14 3V8H19" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M8.5 13.5H15.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><path d="M8.5 17H13.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg></div>'
+                  : '<div class="task-file-icon other" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M6 12H6.01M12 12H12.01M18 12H18.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path></svg></div>';
+            const baseName = (function() {
+              let displayName = job.current_file_name || job.current_filename || job.original_filename || "";
+              return String(displayName).split('/').pop().split('\\').pop().replace(/</g, "&lt;");
+            })();
+            const pillClass = job.status === "succeeded" ? "succeeded" : job.status === "running" ? "running" : job.status === "queued" ? "queued" : job.status === "failed" ? "failed" : "cancelled";
+            const pillText = job.status === "running" ? "处理中" : statusLabel(job.status);
+            const messageLine =
+              job.status === "succeeded"
+                ? '<div class="task-row-message success">输出文件已生成，可下载压缩包</div>'
+                : job.status === "cancelled"
+                  ? '<div class="task-row-message error">取消原因：' +
+                    (job.error_message ? String(job.error_message).replace(/</g, "&lt;") : "用户主动取消") +
+                    "</div>"
+                  : job.status === "failed"
+                    ? '<div class="task-row-message error">解析失败：' +
+                      (job.error_message ? String(job.error_message).replace(/</g, "&lt;") : "请重试") +
+                      "</div>"
                     : "";
+            const metaOwner =
+              currentUser && currentUser.role === "admin"
+                ? '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 12C14.4853 12 16.5 9.98528 16.5 7.5C16.5 5.01472 14.4853 3 12 3C9.51472 3 7.5 5.01472 7.5 7.5C7.5 9.98528 9.51472 12 12 12Z" stroke="currentColor" stroke-width="1.8"></path><path d="M4 20.25C4.7 16.9 7.8 14.5 12 14.5C16.2 14.5 19.3 16.9 20 20.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg><span>' +
+                  String(job.owner_username || "—").replace(/</g, "&lt;") +
+                  "</span></span>"
+                : "";
+            const metaCreated =
+              '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 6V12L16 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M21 12A9 9 0 1 1 12 3A9 9 0 0 1 21 12Z" stroke="currentColor" stroke-width="1.8"></path></svg><span>' +
+              formatTime(job.created_at) +
+              "</span></span>";
+            const metaFinished =
+              job.finished_at
+                ? '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg><span>' +
+                  formatTime(job.finished_at) +
+                  "</span></span>"
+                : "";
+            const liveElapsedHtml =
+              job.status === "queued" || job.status === "running"
+                ? ' <span class="task-live-elapsed" data-created-at="' +
+                  escapeAttr(job.created_at) +
+                  '" data-started-at="' +
+                  escapeAttr(job.started_at || "") +
+                  '" data-progress-percent="' +
+                  escapeAttr(job.progress_percent || "0") +
+                  '" data-st="' +
+                  escapeAttr(job.status) +
+                  '"></span>'
+                : "";
+            const metaElapsed = (function () {
+              if (job.status === "queued" || job.status === "running") {
                 return (
-                  '<div class="history-meta">' +
-                  "创建：" +
-                  formatTime(job.created_at) +
-                  (job.finished_at ? " · 结束：" + formatTime(job.finished_at) : "") +
-                  totalDurationMetaLine(job) +
+                  '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 7V12L15 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="1.8"></path></svg><span>' +
                   liveElapsedHtml +
-                  "</div>"
+                  "</span></span>"
                 );
-              })() +
+              }
+              const c = parseIsoMs(job.created_at);
+              const f = parseIsoMs(job.finished_at);
+              if (c != null && f != null && f >= c) {
+                return (
+                  '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 7V12L15 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="1.8"></path></svg><span>耗时 ' +
+                  formatDurationZh(f - c) +
+                  "</span></span>"
+                );
+              }
+              return "";
+            })();
+            const menu = "";
+            return (
+              '<div class="history-item" data-status="' +
+              escapeAttr(job.status) +
+              '">' +
+              '<div class="task-item-main">' +
+              '<div class="task-row-top">' +
+              '<div class="task-row-left">' +
+              cb +
+              iconHtml +
+              '<div class="task-title-text" title="' +
+              escapeAttr(baseName) +
+              '">' +
+              baseName +
+              "</div>" +
+              '<span class="task-status-pill ' +
+              pillClass +
+              '">' +
+              pillText +
+              "</span>" +
+              "</div>" +
+              "</div>" +
+              '<div class="task-row-meta">' +
+              metaOwner +
+              metaCreated +
+              metaFinished +
+              metaElapsed +
+              "</div>" +
               queueLine +
               partialPagesLine +
-              '<span class="task-status-badge task-status-' +
-              job.status +
-              '">' +
-              statusLabel(job.status) +
-              "</span>" +
+              messageLine +
               progressBlock +
               err +
               "</div>" +
@@ -2857,6 +3696,12 @@ if (selectedList) selectedList.innerHTML = "";
           })
           .join("");
         ensureLiveElapsedTicker(items);
+        if (taskSelectAllCb) {
+          const totalSelectable = lastRenderableSelectableJobIds.length;
+          const selectedSelectable = lastRenderableSelectableJobIds.filter((id) => selectedJobIds.has(id)).length;
+          taskSelectAllCb.checked = totalSelectable > 0 && selectedSelectable === totalSelectable;
+          taskSelectAllCb.indeterminate = selectedSelectable > 0 && selectedSelectable < totalSelectable;
+        }
         syncBatchDownloadButton();
       }
 
@@ -2874,9 +3719,39 @@ if (selectedList) selectedList.innerHTML = "";
         if (taskPage > totalPages) taskPage = totalPages;
         if (taskPrevBtn) taskPrevBtn.disabled = taskPage <= 1;
         if (taskNextBtn) taskNextBtn.disabled = taskPage >= totalPages;
-        if (taskPageLabel) {
-          taskPageLabel.textContent =
-            "第 " + taskPage + " 页" + (taskTotal ? " · 共 " + taskTotal + " 条" : "");
+        if (taskPageLabel) taskPageLabel.textContent = "第 " + taskPage + " / " + totalPages + " 页";
+        if (taskTotalLabel) taskTotalLabel.textContent = "共 " + taskTotal + " 条";
+        if (taskJumpInput) taskJumpInput.value = "";
+        if (taskPageNumbers) {
+          const pages = [];
+          const pushPage = (p) => pages.push({ t: String(p), p });
+          const pushDots = () => pages.push({ t: "…", p: null });
+          if (totalPages <= 7) {
+            for (let i = 1; i <= totalPages; i++) pushPage(i);
+          } else {
+            pushPage(1);
+            if (taskPage > 4) pushDots();
+            const start = Math.max(2, taskPage - 1);
+            const end = Math.min(totalPages - 1, taskPage + 1);
+            for (let i = start; i <= end; i++) pushPage(i);
+            if (taskPage < totalPages - 3) pushDots();
+            pushPage(totalPages);
+          }
+          taskPageNumbers.innerHTML = pages
+            .map((x) => {
+              if (x.p == null) return '<span class="task-page-dots">…</span>';
+              const active = x.p === taskPage ? " active" : "";
+              return (
+                '<button type="button" class="task-page-btn' +
+                active +
+                '" data-task-page="' +
+                x.p +
+                '">' +
+                x.t +
+                "</button>"
+              );
+            })
+            .join("");
         }
       }
 
@@ -3155,6 +4030,36 @@ if (selectedList) selectedList.innerHTML = "";
         refreshTaskList({ resetPage: true });
       });
 
+      if (resetTaskFiltersBtn) {
+        resetTaskFiltersBtn.addEventListener("click", () => {
+          if (taskOwnerFilter) taskOwnerFilter.value = "";
+          if (taskStatusFilter) taskStatusFilter.value = "";
+          taskSearchQuery = "";
+          if (taskSearchInput) taskSearchInput.value = "";
+          selectedJobIds.clear();
+          syncBatchDownloadButton();
+          refreshTaskList({ resetPage: true });
+        });
+      }
+
+      if (taskSelectAllCb) {
+        taskSelectAllCb.addEventListener("change", () => {
+          const target = !!taskSelectAllCb.checked;
+          (lastRenderableSelectableJobIds || []).forEach((id) => {
+            if (target) selectedJobIds.add(id);
+            else selectedJobIds.delete(id);
+          });
+          historyList.querySelectorAll('input.task-select-cb[data-job-select]:not([disabled])').forEach((el) => {
+            el.checked = target;
+          });
+          syncBatchDownloadButton();
+          const totalSelectable = lastRenderableSelectableJobIds.length;
+          const selectedSelectable = lastRenderableSelectableJobIds.filter((id) => selectedJobIds.has(id)).length;
+          taskSelectAllCb.checked = totalSelectable > 0 && selectedSelectable === totalSelectable;
+          taskSelectAllCb.indeterminate = selectedSelectable > 0 && selectedSelectable < totalSelectable;
+        });
+      }
+
       if (selectedList) {
   selectedList.addEventListener("click", function (event) {
     const btn = event.target.closest("[data-remove-index]");
@@ -3179,9 +4084,27 @@ if (selectedList) selectedList.innerHTML = "";
           selectedJobIds.delete(jobId);
         }
         syncBatchDownloadButton();
+        if (taskSelectAllCb) {
+          const totalSelectable = lastRenderableSelectableJobIds.length;
+          const selectedSelectable = lastRenderableSelectableJobIds.filter((id) => selectedJobIds.has(id)).length;
+          taskSelectAllCb.checked = totalSelectable > 0 && selectedSelectable === totalSelectable;
+          taskSelectAllCb.indeterminate = selectedSelectable > 0 && selectedSelectable < totalSelectable;
+        }
       });
 
       historyList.addEventListener("click", async (event) => {
+        const menuBtn = event.target.closest("[data-task-menu-btn]");
+        if (menuBtn) {
+          const jobId = menuBtn.getAttribute("data-task-menu-btn");
+          if (!jobId) return;
+          document.querySelectorAll(".task-menu.open").forEach((el) => {
+            if (el.getAttribute("data-task-menu") !== jobId) el.classList.remove("open");
+          });
+          const host = historyList.querySelector('.task-menu[data-task-menu="' + jobId.replace(/"/g, "&quot;") + '"]');
+          if (host) host.classList.toggle("open");
+          return;
+        }
+
         const delBtn = event.target.closest("[data-job-delete]");
         if (delBtn) {
           const jobId = delBtn.getAttribute("data-job-delete");
@@ -3297,6 +4220,31 @@ if (selectedList) selectedList.innerHTML = "";
           showToast("error", "取消请求失败");
         }
       });
+
+      document.addEventListener("click", (e) => {
+        const insideMenu = e.target && e.target.closest ? e.target.closest(".task-menu") : null;
+        if (insideMenu) return;
+        document.querySelectorAll(".task-menu.open").forEach((el) => el.classList.remove("open"));
+      });
+
+      if (taskPageNumbers) {
+        taskPageNumbers.addEventListener("click", (e) => {
+          const btn = e.target.closest("[data-task-page]");
+          if (!btn) return;
+          const p = Number(btn.getAttribute("data-task-page"));
+          if (!Number.isFinite(p) || p <= 0) return;
+          refreshTaskList({ page: p });
+        });
+      }
+
+      if (taskJumpInput) {
+        taskJumpInput.addEventListener("keydown", (e) => {
+          if (e.key !== "Enter") return;
+          const p = Number(taskJumpInput.value);
+          if (!Number.isFinite(p) || p <= 0) return;
+          refreshTaskList({ page: Math.floor(p) });
+        });
+      }
 
       loginBtn.addEventListener("click", async () => {
         const username = usernameInput.value.trim();
