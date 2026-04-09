@@ -6,9 +6,9 @@
     <title>文档转 Markdown</title>
     <style>
       :root {
-        --bg-0: #0b1220;
-        --bg-1: #0b1326;
-        --bg-2: #0a1020;
+        --bg-0: #141923;
+        --bg-1: #181f2b;
+        --bg-2: #1d2430;
         --glass: rgba(13, 19, 35, 0.68);
         --glass-strong: rgba(12, 18, 34, 0.86);
         --stroke: rgba(116, 141, 206, 0.18);
@@ -16,19 +16,17 @@
         --text-main: rgba(242, 246, 255, 0.96);
         --text-sub: rgba(208, 219, 245, 0.68);
         --text-on-brand: #ffffff;
-        --brand: #3b82f6;
-        --brand-2: #2563eb;
-        --bg-glow-1: rgba(59, 130, 246, 0.16);
-        --bg-glow-2: rgba(99, 102, 241, 0.14);
-        --bg-glow-3: rgba(14, 165, 233, 0.1);
-        --orb-1: rgba(59, 130, 246, 0.28);
-        --orb-2: rgba(99, 102, 241, 0.22);
-        --title-shadow: 0 14px 30px rgba(37, 99, 235, 0.18);
-        --shell-bg:
-          radial-gradient(120% 130% at 10% 0%, rgba(59, 130, 246, 0.14), transparent 48%),
-          linear-gradient(145deg, rgba(11, 18, 32, 0.92), rgba(12, 20, 40, 0.86) 52%, rgba(10, 16, 32, 0.9));
-        --shell-glow: rgba(59, 130, 246, 0.12);
-        --shell-inner: rgba(99, 102, 241, 0.08);
+        --brand: #5c7db8;
+        --brand-2: #4f6ea2;
+        --bg-glow-1: rgba(92, 125, 184, 0.04);
+        --bg-glow-2: rgba(79, 110, 162, 0.03);
+        --bg-glow-3: rgba(92, 125, 184, 0.02);
+        --orb-1: rgba(92, 125, 184, 0.04);
+        --orb-2: rgba(79, 110, 162, 0.03);
+        --title-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        --shell-bg: linear-gradient(145deg, rgba(19, 25, 35, 0.92), rgba(27, 35, 47, 0.9));
+        --shell-glow: rgba(92, 125, 184, 0.04);
+        --shell-inner: rgba(92, 125, 184, 0.04);
         --topbar-stroke: rgba(132, 165, 255, 0.14);
         --field-bg: transparent;
         --field-border: rgba(116, 141, 206, 0.26);
@@ -39,20 +37,20 @@
         --field-text: rgba(242, 246, 255, 0.96);
         --field-placeholder: rgba(208, 219, 245, 0.42);
         --button-border: rgba(59, 130, 246, 0.44);
-        --button-overlay-1: rgba(59, 130, 246, 0.16);
-        --button-overlay-2: rgba(37, 99, 235, 0.22);
-        --button-shadow-1: rgba(37, 99, 235, 0.28);
-        --button-shadow-2: rgba(59, 130, 246, 0.2);
-        --button-shadow-hover-1: rgba(37, 99, 235, 0.36);
-        --button-shadow-hover-2: rgba(59, 130, 246, 0.28);
+        --button-overlay-1: rgba(92, 125, 184, 0.1);
+        --button-overlay-2: rgba(79, 110, 162, 0.14);
+        --button-shadow-1: rgba(0, 0, 0, 0.2);
+        --button-shadow-2: rgba(0, 0, 0, 0.08);
+        --button-shadow-hover-1: rgba(0, 0, 0, 0.24);
+        --button-shadow-hover-2: rgba(0, 0, 0, 0.12);
         --dropzone-border: rgba(116, 141, 206, 0.34);
-        --dropzone-glow: rgba(59, 130, 246, 0.14);
+        --dropzone-glow: rgba(92, 125, 184, 0.06);
         --dropzone-bg: rgba(13, 19, 35, 0.72);
-        --dropzone-shine: rgba(59, 130, 246, 0.24);
-        --dropzone-hover-inner: rgba(59, 130, 246, 0.16);
-        --dropzone-hover-glow: rgba(59, 130, 246, 0.12);
-        --dropzone-drag-inner: rgba(59, 130, 246, 0.2);
-        --dropzone-drag-glow: rgba(59, 130, 246, 0.18);
+        --dropzone-shine: rgba(92, 125, 184, 0.1);
+        --dropzone-hover-inner: rgba(92, 125, 184, 0.08);
+        --dropzone-hover-glow: rgba(92, 125, 184, 0.06);
+        --dropzone-drag-inner: rgba(92, 125, 184, 0.1);
+        --dropzone-drag-glow: rgba(92, 125, 184, 0.08);
         --panel-bg: rgba(13, 19, 35, 0.58);
         --panel-border: rgba(116, 141, 206, 0.2);
         --section-divider: rgba(116, 141, 206, 0.18);
@@ -63,13 +61,13 @@
         --success-text: rgba(152, 255, 218, 0.92);
         --error-bg: rgba(239, 68, 68, 0.16);
         --error-text: rgba(255, 190, 190, 0.96);
-        --shadow-xl: 0 30px 72px rgba(1, 7, 20, 0.68);
+        --shadow-xl: 0 14px 34px rgba(1, 7, 20, 0.42);
       }
 
       body[data-theme="light"] {
-        --bg-0: #e8eef8;
-        --bg-1: #dfe8f6;
-        --bg-2: #f4f8ff;
+        --bg-0: #eef1f5;
+        --bg-1: #e7ebf0;
+        --bg-2: #f4f6f8;
         --glass: rgba(248, 251, 255, 0.78);
         --glass-strong: rgba(251, 253, 255, 0.92);
         --stroke: rgba(105, 130, 182, 0.34);
@@ -77,19 +75,17 @@
         --text-main: #0f1b32;
         --text-sub: #5a6f92;
         --text-on-brand: #ffffff;
-        --brand: #2563eb;
-        --brand-2: #1e40af;
-        --bg-glow-1: rgba(37, 99, 235, 0.12);
-        --bg-glow-2: rgba(56, 189, 248, 0.1);
-        --bg-glow-3: rgba(79, 70, 229, 0.08);
-        --orb-1: rgba(37, 99, 235, 0.18);
-        --orb-2: rgba(56, 189, 248, 0.14);
-        --title-shadow: 0 12px 24px rgba(30, 64, 175, 0.16);
-        --shell-bg:
-          radial-gradient(120% 130% at 10% 0%, rgba(37, 99, 235, 0.14), transparent 50%),
-          linear-gradient(145deg, rgba(250, 252, 255, 0.98), rgba(243, 248, 255, 0.98) 54%, rgba(235, 243, 255, 0.95));
-        --shell-glow: rgba(37, 99, 235, 0.12);
-        --shell-inner: rgba(37, 99, 235, 0.1);
+        --brand: #4b6fa9;
+        --brand-2: #3f5f92;
+        --bg-glow-1: rgba(75, 111, 169, 0.03);
+        --bg-glow-2: rgba(75, 111, 169, 0.02);
+        --bg-glow-3: rgba(75, 111, 169, 0.015);
+        --orb-1: rgba(75, 111, 169, 0.02);
+        --orb-2: rgba(75, 111, 169, 0.015);
+        --title-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+        --shell-bg: linear-gradient(145deg, rgba(249, 251, 253, 0.97), rgba(241, 245, 249, 0.97));
+        --shell-glow: rgba(75, 111, 169, 0.03);
+        --shell-inner: rgba(75, 111, 169, 0.04);
         --topbar-stroke: rgba(121, 146, 190, 0.26);
         --field-bg: rgba(244, 249, 255, 0.92);
         --field-border: rgba(182, 200, 230, 0.95);
@@ -102,18 +98,18 @@
         --button-border: rgba(134, 165, 219, 0.72);
         --button-overlay-1: rgba(255, 255, 255, 0.28);
         --button-overlay-2: rgba(191, 219, 254, 0.16);
-        --button-shadow-1: rgba(37, 99, 235, 0.26);
-        --button-shadow-2: rgba(29, 78, 216, 0.2);
-        --button-shadow-hover-1: rgba(37, 99, 235, 0.34);
-        --button-shadow-hover-2: rgba(29, 78, 216, 0.26);
+        --button-shadow-1: rgba(28, 43, 66, 0.14);
+        --button-shadow-2: rgba(28, 43, 66, 0.06);
+        --button-shadow-hover-1: rgba(28, 43, 66, 0.2);
+        --button-shadow-hover-2: rgba(28, 43, 66, 0.08);
         --dropzone-border: rgba(163, 186, 224, 0.9);
-        --dropzone-glow: rgba(37, 99, 235, 0.08);
+        --dropzone-glow: rgba(75, 111, 169, 0.04);
         --dropzone-bg: rgba(247, 251, 255, 0.94);
-        --dropzone-shine: rgba(37, 99, 235, 0.14);
-        --dropzone-hover-inner: rgba(37, 99, 235, 0.1);
-        --dropzone-hover-glow: rgba(37, 99, 235, 0.08);
-        --dropzone-drag-inner: rgba(37, 99, 235, 0.14);
-        --dropzone-drag-glow: rgba(37, 99, 235, 0.12);
+        --dropzone-shine: rgba(75, 111, 169, 0.07);
+        --dropzone-hover-inner: rgba(75, 111, 169, 0.05);
+        --dropzone-hover-glow: rgba(75, 111, 169, 0.04);
+        --dropzone-drag-inner: rgba(75, 111, 169, 0.06);
+        --dropzone-drag-glow: rgba(75, 111, 169, 0.05);
         --panel-bg: rgba(247, 251, 255, 0.93);
         --panel-border: rgba(188, 208, 237, 0.92);
         --section-divider: rgba(198, 217, 241, 0.86);
@@ -124,7 +120,7 @@
         --success-text: #059669;
         --error-bg: rgba(254, 242, 242, 0.8);
         --error-text: #dc2626;
-        --shadow-xl: 0 22px 52px rgba(33, 67, 128, 0.16);
+        --shadow-xl: 0 10px 24px rgba(33, 67, 128, 0.1);
       }
 
       * {
@@ -137,12 +133,7 @@
         padding: 24px 16px;
         font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
         color: var(--text-main);
-        background:
-          radial-gradient(48% 36% at 10% 8%, var(--bg-glow-1), transparent 72%),
-          radial-gradient(36% 30% at 92% 10%, var(--bg-glow-2), transparent 74%),
-          radial-gradient(34% 26% at 86% 88%, var(--bg-glow-3), transparent 76%),
-          radial-gradient(28% 24% at 16% 84%, color-mix(in srgb, var(--brand) 9%, transparent), transparent 78%),
-          linear-gradient(145deg, var(--bg-0) 0%, var(--bg-1) 46%, var(--bg-2) 100%);
+        background: linear-gradient(145deg, var(--bg-0) 0%, var(--bg-1) 46%, var(--bg-2) 100%);
         overflow-x: hidden;
       }
 
@@ -153,9 +144,7 @@
         pointer-events: none;
         z-index: 0;
         border-radius: 999px;
-        filter: blur(70px);
-        opacity: 0.6;
-        animation: floatGlow 8s ease-in-out infinite alternate;
+        display: none;
       }
 
       body::before {
@@ -177,8 +166,7 @@
 
       body[data-theme="light"]::before,
       body[data-theme="light"]::after {
-        opacity: 0.32;
-        filter: blur(90px);
+        display: none;
       }
 
       @keyframes floatGlow {
@@ -208,11 +196,9 @@
         inset: 80px 8% auto;
         height: 420px;
         pointer-events: none;
-        background:
-          radial-gradient(32% 34% at 14% 30%, color-mix(in srgb, var(--brand) 28%, transparent), transparent 74%),
-          radial-gradient(30% 32% at 86% 36%, color-mix(in srgb, var(--brand-2) 26%, transparent), transparent 76%);
-        filter: blur(36px);
-        opacity: 0.55;
+        background: none;
+        filter: none;
+        opacity: 0;
         z-index: -1;
       }
 
@@ -2471,8 +2457,8 @@
       .download-btn,
       .modal-btn-confirm,
       .task-retry-btn {
-        background: #60a5fa !important;
-        border: 1px solid #3b82f6 !important;
+        background: #6b7280 !important;
+        border: 1px solid #4b5563 !important;
         color: #ffffff !important;
         box-shadow: none !important;
         filter: none !important;
@@ -2483,8 +2469,8 @@
       .download-btn:hover,
       .modal-btn-confirm:hover,
       .task-retry-btn:hover {
-        background: #3b82f6 !important;
-        border-color: #2563eb !important;
+        background: #4b5563 !important;
+        border-color: #374151 !important;
         box-shadow: none !important;
         filter: none !important;
       }
@@ -2499,9 +2485,9 @@
       .top-logout-btn,
       .top-bar-icon-btn,
       .task-icon-btn {
-        background: #eff6ff !important;
-        border: 1px solid #60a5fa !important;
-        color: #1d4ed8 !important;
+        background: #f3f4f6 !important;
+        border: 1px solid #d1d5db !important;
+        color: #374151 !important;
         box-shadow: none !important;
         filter: none !important;
       }
@@ -2516,16 +2502,16 @@
       .top-logout-btn:hover,
       .top-bar-icon-btn:hover,
       .task-icon-btn:hover {
-        background: #dbeafe !important;
-        border-color: #3b82f6 !important;
-        color: #1e40af !important;
+        background: #e5e7eb !important;
+        border-color: #9ca3af !important;
+        color: #1f2937 !important;
         box-shadow: none !important;
         filter: none !important;
       }
 
       .task-inline-btn.primary {
-        background: #60a5fa !important;
-        border-color: #3b82f6 !important;
+        background: #6b7280 !important;
+        border-color: #4b5563 !important;
         color: #ffffff !important;
       }
 
@@ -2538,7 +2524,7 @@
         border-radius: 0 !important;
         background: transparent !important;
         background-color: transparent !important;
-        color: #2563eb !important;
+        color: #4b5563 !important;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -2548,7 +2534,7 @@
       #themeToggle:hover {
         background: transparent !important;
         border-color: transparent !important;
-        color: #1d4ed8 !important;
+        color: #1f2937 !important;
       }
 
       #themeToggle svg {
@@ -2557,7 +2543,7 @@
       }
 
       #themeToggle.switching svg {
-        animation: themeSwitchSpin 0.34s ease;
+        animation: none;
       }
 
       body[data-theme="dark"] #themeToggle {
@@ -2586,17 +2572,17 @@
 
       /* 上传文件/文件夹两个大按钮：纯色填充 + 虚线边框，hover 变深且实线 */
       button.dropzone-pick {
-        background: #eaf3ff !important;
-        border: 1px dashed #93c5fd !important;
-        color: #1d4ed8 !important;
+        background: #f3f4f6 !important;
+        border: 1px dashed #9ca3af !important;
+        color: #374151 !important;
         box-shadow: none !important;
         background-image: none !important;
       }
 
       .dropzone-pick:hover {
-        background: #dbeafe !important;
+        background: #e5e7eb !important;
         border-style: solid !important;
-        border-color: #60a5fa !important;
+        border-color: #6b7280 !important;
         box-shadow: none !important;
         filter: none !important;
       }
@@ -2604,7 +2590,7 @@
       /* 不要透明或白色按钮背景 */
       button,
       .download-btn {
-        background-color: #eff6ff;
+        background-color: #f3f4f6;
       }
 
       /* 任务列表区域全部去掉加粗 */
@@ -2622,13 +2608,13 @@
         height: 38px;
         padding: 0 34px 0 12px;
         border-radius: 10px;
-        border: 1px solid #93c5fd;
-        background-color: #eff6ff;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M3 5.5L7 9.5L11 5.5' fill='none' stroke='%233b82f6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        border: 1px solid #9ca3af;
+        background-color: #f3f4f6;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M3 5.5L7 9.5L11 5.5' fill='none' stroke='%236b7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
         background-repeat: no-repeat;
         background-position: right 10px center;
         background-size: 14px 14px;
-        color: #1e3a8a;
+        color: #374151;
         font-size: 13px;
         line-height: 1;
         cursor: pointer;
@@ -2636,21 +2622,21 @@
 
       .filter-field select:hover,
       .task-page-size:hover {
-        border-color: #60a5fa;
-        background-color: #dbeafe;
+        border-color: #6b7280;
+        background-color: #e5e7eb;
       }
 
       .filter-field select:focus,
       .task-page-size:focus {
         outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.55);
+        border-color: #4b5563;
+        box-shadow: 0 0 0 2px rgba(156, 163, 175, 0.35);
       }
 
       .filter-field select option,
       .task-page-size option {
         color: #0f172a;
-        background: #eff6ff;
+        background: #f3f4f6;
       }
 
       /* 暗色主题优化：极简黑灰风（参考工作日志风格） */
@@ -2894,142 +2880,101 @@
         color: #9ca3af !important;
       }
 
-      /* 暗色主题 v2：科幻高对比（深空 + 霓虹青紫） */
+      /* 最终覆盖：克制科技风（低饱和冷色 + 轻发光） */
       body[data-theme="dark"] {
-        --bg-0: #070a14;
-        --bg-1: #0c1324;
-        --bg-2: #151a33;
-        --bg-glow-1: rgba(56, 189, 248, 0.2);
-        --bg-glow-2: rgba(168, 85, 247, 0.18);
-        --bg-glow-3: rgba(34, 211, 238, 0.16);
-        --orb-1: rgba(56, 189, 248, 0.26);
-        --orb-2: rgba(168, 85, 247, 0.22);
-        --text-main: #eef4ff;
-        --text-sub: #b8c6e8;
-        --panel-bg: rgba(20, 28, 48, 0.82);
-        --panel-border: rgba(104, 129, 186, 0.66);
-        --section-divider: rgba(95, 121, 182, 0.62);
+        --bg-0: #0f1622;
+        --bg-1: #111b2a;
+        --bg-2: #162235;
       }
 
-      body[data-theme="dark"] .shell,
-      body[data-theme="dark"] .dropzone,
-      body[data-theme="dark"] .task-board,
-      body[data-theme="dark"] .task-board-toolbar,
-      body[data-theme="dark"] .task-board-pager,
-      body[data-theme="dark"] .history-item,
-      body[data-theme="dark"] .result-card,
-      body[data-theme="dark"] .selected-item {
-        background: linear-gradient(155deg, rgba(18, 28, 52, 0.86), rgba(22, 34, 62, 0.8)) !important;
-        border-color: rgba(96, 124, 184, 0.72) !important;
-        box-shadow:
-          0 0 0 1px rgba(138, 175, 255, 0.12) inset,
-          0 10px 32px rgba(3, 8, 24, 0.45),
-          0 0 26px rgba(56, 189, 248, 0.1) !important;
+      body[data-theme="light"] {
+        --bg-0: #edf3fb;
+        --bg-1: #e8effa;
+        --bg-2: #f4f8ff;
       }
 
-      body[data-theme="dark"] .task-search-input,
-      body[data-theme="dark"] .filter-field select,
-      body[data-theme="dark"] .task-page-size {
-        background: rgba(27, 40, 70, 0.9) !important;
-        border-color: rgba(100, 128, 188, 0.82) !important;
-        color: #edf6ff !important;
-      }
-
-      body[data-theme="dark"] .task-search-input:focus,
-      body[data-theme="dark"] .filter-field select:focus,
-      body[data-theme="dark"] .task-page-size:focus {
-        border-color: #67e8f9 !important;
-        box-shadow: 0 0 0 2px rgba(103, 232, 249, 0.28) !important;
-      }
-
-      body[data-theme="dark"] .task-muted-btn,
-      body[data-theme="dark"] .task-inline-btn,
-      body[data-theme="dark"] .task-page-btn,
-      body[data-theme="dark"] .task-delete-btn,
-      body[data-theme="dark"] .task-cancel-btn,
-      body[data-theme="dark"] .modal-btn-cancel,
-      body[data-theme="dark"] .ghost-btn,
-      body[data-theme="dark"] .task-icon-btn {
-        background: linear-gradient(180deg, rgba(45, 62, 102, 0.94), rgba(38, 53, 89, 0.94)) !important;
-        border-color: rgba(120, 154, 228, 0.8) !important;
-        color: #e8f0ff !important;
-      }
-
-      body[data-theme="dark"] .task-muted-btn:hover,
-      body[data-theme="dark"] .task-inline-btn:hover,
-      body[data-theme="dark"] .task-page-btn:hover,
-      body[data-theme="dark"] .task-delete-btn:hover,
-      body[data-theme="dark"] .task-cancel-btn:hover,
-      body[data-theme="dark"] .modal-btn-cancel:hover,
-      body[data-theme="dark"] .ghost-btn:hover,
-      body[data-theme="dark"] .task-icon-btn:hover {
-        border-color: #67e8f9 !important;
-        box-shadow: 0 0 14px rgba(103, 232, 249, 0.34) !important;
-      }
-
-      body[data-theme="dark"] .primary-btn,
-      body[data-theme="dark"] .task-primary-btn,
-      body[data-theme="dark"] .download-btn,
-      body[data-theme="dark"] .modal-btn-confirm,
-      body[data-theme="dark"] .task-retry-btn,
-      body[data-theme="dark"] .task-inline-btn.primary {
-        background: linear-gradient(140deg, #22d3ee, #7c3aed) !important;
-        border-color: #67e8f9 !important;
-        color: #ffffff !important;
-        box-shadow: 0 0 18px rgba(34, 211, 238, 0.35) !important;
-      }
-
-      body[data-theme="dark"] .primary-btn:hover,
-      body[data-theme="dark"] .task-primary-btn:hover,
-      body[data-theme="dark"] .download-btn:hover,
-      body[data-theme="dark"] .modal-btn-confirm:hover,
-      body[data-theme="dark"] .task-retry-btn:hover,
-      body[data-theme="dark"] .task-inline-btn.primary:hover {
-        background: linear-gradient(140deg, #67e8f9, #8b5cf6) !important;
-        border-color: #a5f3fc !important;
-        box-shadow: 0 0 24px rgba(103, 232, 249, 0.46) !important;
-      }
-
-      body[data-theme="dark"] button.dropzone-pick {
-        background: rgba(40, 56, 92, 0.92) !important;
-        border-color: #67e8f9 !important;
-        color: #e3f9ff !important;
-      }
-
-      body[data-theme="dark"] .dropzone-pick:hover {
-        background: rgba(52, 74, 120, 0.95) !important;
-        border-color: #a5f3fc !important;
-        box-shadow: 0 0 16px rgba(103, 232, 249, 0.36) !important;
-      }
-
-      body[data-theme="dark"] #themeToggle {
-        color: #67e8f9 !important;
-        text-shadow: 0 0 14px rgba(103, 232, 249, 0.5);
-      }
-
-      body[data-theme="dark"] .top-logout-btn {
-        color: #c4b5fd !important;
-      }
-
-      body[data-theme="dark"] .top-logout-btn:hover {
-        color: #ddd6fe !important;
-        text-shadow: 0 0 10px rgba(221, 214, 254, 0.42);
-      }
-
-      /* 扩展下载按钮的亮色科幻风格到更多关键元素 */
+      .shell,
+      .dropzone,
+      .task-board,
+      .task-board-toolbar,
+      .task-board-pager,
+      .history-item,
+      .result-card,
+      .selected-item,
       .primary-btn,
       .task-primary-btn,
       .task-inline-btn.primary,
       .task-retry-btn,
       #batchDownloadBtn,
-      #convertBtn {
-        background: linear-gradient(135deg, #38bdf8 0%, #6366f1 52%, #a855f7 100%) !important;
-        border-color: #67e8f9 !important;
-        color: #ffffff !important;
+      #convertBtn,
+      .download-btn,
+      .modal-btn-confirm,
+      .task-muted-btn,
+      .task-inline-btn,
+      .task-page-btn,
+      .task-delete-btn,
+      .task-cancel-btn,
+      .modal-btn-cancel,
+      .ghost-btn,
+      .task-icon-btn,
+      .top-logout-btn,
+      .task-page-btn.active,
+      button.dropzone-pick,
+      .task-search-input,
+      .progress-fill,
+      .progress-bar {
+        background-image: none !important;
+      }
+
+      .task-board-toolbar {
+        background:
+          radial-gradient(130% 120% at 0% 0%, rgba(96, 165, 250, 0.1), transparent 52%),
+          var(--glass) !important;
+      }
+
+      .progress-fill,
+      .progress-bar {
+        background: linear-gradient(90deg, #60a5fa, #38bdf8) !important;
+      }
+
+      .task-file-icon.xlsx { background: linear-gradient(145deg, #0f766e, #0f766e) !important; }
+      .task-file-icon.pdf { background: linear-gradient(145deg, #b91c1c, #991b1b) !important; }
+      .task-file-icon.docx { background: linear-gradient(145deg, #1d4ed8, #1e40af) !important; }
+      .task-file-icon.other { background: linear-gradient(145deg, #334155, #1f2937) !important; }
+
+      .brand h1,
+      body[data-theme="dark"] .brand h1 {
+        background: linear-gradient(95deg, #1d4ed8 0%, #2563eb 48%, #4f46e5 100%) !important;
+        color: transparent !important;
+        -webkit-background-clip: text !important;
+        background-clip: text !important;
+        text-shadow: 0 0 18px rgba(37, 99, 235, 0.24) !important;
+      }
+
+      .shell,
+      .dropzone,
+      .task-board,
+      .task-board-pager,
+      .history-item,
+      .result-card,
+      .selected-item {
+        border-color: color-mix(in srgb, var(--panel-border) 72%, #60a5fa) !important;
         box-shadow:
-          0 10px 24px rgba(56, 189, 248, 0.26),
-          0 0 20px rgba(99, 102, 241, 0.24),
-          0 0 0 1px rgba(255, 255, 255, 0.18) inset !important;
+          0 0 0 1px rgba(96, 165, 250, 0.1) inset,
+          0 10px 26px rgba(2, 8, 24, 0.22) !important;
+      }
+
+      .primary-btn,
+      .task-primary-btn,
+      .task-inline-btn.primary,
+      .task-retry-btn,
+      #batchDownloadBtn,
+      #convertBtn,
+      .download-btn,
+      .modal-btn-confirm {
+        background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+        border-color: #60a5fa !important;
+        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25) !important;
       }
 
       .primary-btn:hover,
@@ -3037,128 +2982,42 @@
       .task-inline-btn.primary:hover,
       .task-retry-btn:hover,
       #batchDownloadBtn:hover,
-      #convertBtn:hover {
-        background: linear-gradient(135deg, #67e8f9 0%, #818cf8 52%, #c084fc 100%) !important;
-        border-color: #a5f3fc !important;
+      #convertBtn:hover,
+      .download-btn:hover,
+      .modal-btn-confirm:hover {
+        background: linear-gradient(135deg, #60a5fa, #3b82f6) !important;
+        border-color: #93c5fd !important;
+        box-shadow: 0 10px 24px rgba(59, 130, 246, 0.28) !important;
+      }
+
+      button.dropzone-pick {
+        background: linear-gradient(150deg, rgba(37, 99, 235, 0.2), rgba(59, 130, 246, 0.14)) !important;
+        border: 1px solid rgba(96, 165, 250, 0.7) !important;
+        color: #dbeafe !important;
         box-shadow:
-          0 14px 30px rgba(103, 232, 249, 0.34),
-          0 0 26px rgba(129, 140, 248, 0.3),
-          0 0 0 1px rgba(255, 255, 255, 0.24) inset !important;
+          0 8px 18px rgba(30, 64, 175, 0.2),
+          0 0 0 1px rgba(147, 197, 253, 0.2) inset !important;
       }
 
-      button.dropzone-pick,
-      body[data-theme="dark"] button.dropzone-pick {
-        background: linear-gradient(140deg, rgba(56, 189, 248, 0.18), rgba(168, 85, 247, 0.2)) !important;
-        border-color: #67e8f9 !important;
-        color: #e8f7ff !important;
-      }
-
-      .dropzone-pick:hover,
-      body[data-theme="dark"] .dropzone-pick:hover {
-        background: linear-gradient(140deg, rgba(103, 232, 249, 0.26), rgba(192, 132, 252, 0.28)) !important;
-        border-color: #a5f3fc !important;
-        box-shadow: 0 0 16px rgba(103, 232, 249, 0.36) !important;
-      }
-
-      .task-page-btn.active {
-        background: linear-gradient(135deg, rgba(56, 189, 248, 0.34), rgba(124, 58, 237, 0.34)) !important;
-        border-color: #67e8f9 !important;
-        color: #f8fbff !important;
-      }
-
-      /* 浅色主题同步为亮色科幻风格 */
-      body[data-theme="light"] {
-        --bg-0: #ecf6ff;
-        --bg-1: #e8f2ff;
-        --bg-2: #f7f2ff;
-        --bg-glow-1: rgba(56, 189, 248, 0.16);
-        --bg-glow-2: rgba(99, 102, 241, 0.14);
-        --bg-glow-3: rgba(168, 85, 247, 0.12);
-        --orb-1: rgba(56, 189, 248, 0.2);
-        --orb-2: rgba(168, 85, 247, 0.16);
+      .dropzone-pick:hover {
+        background: linear-gradient(150deg, rgba(59, 130, 246, 0.26), rgba(96, 165, 250, 0.2)) !important;
+        border-color: rgba(147, 197, 253, 0.9) !important;
+        color: #eff6ff !important;
+        box-shadow:
+          0 10px 22px rgba(30, 64, 175, 0.26),
+          0 0 0 1px rgba(191, 219, 254, 0.28) inset !important;
       }
 
       body[data-theme="light"] .shell,
       body[data-theme="light"] .dropzone,
       body[data-theme="light"] .task-board,
-      body[data-theme="light"] .task-board-toolbar,
       body[data-theme="light"] .task-board-pager,
       body[data-theme="light"] .history-item,
       body[data-theme="light"] .result-card,
       body[data-theme="light"] .selected-item {
-        background: linear-gradient(160deg, rgba(248, 252, 255, 0.9), rgba(243, 238, 255, 0.82)) !important;
-        border-color: rgba(153, 181, 235, 0.78) !important;
         box-shadow:
-          0 0 0 1px rgba(167, 139, 250, 0.14) inset,
-          0 12px 28px rgba(71, 85, 105, 0.12),
-          0 0 24px rgba(56, 189, 248, 0.16) !important;
-      }
-
-      body[data-theme="light"] .task-search-input,
-      body[data-theme="light"] .filter-field select,
-      body[data-theme="light"] .task-page-size {
-        background: linear-gradient(180deg, rgba(239, 248, 255, 0.95), rgba(236, 243, 255, 0.94)) !important;
-        border-color: rgba(125, 158, 223, 0.86) !important;
-        color: #1e2b46 !important;
-      }
-
-      body[data-theme="light"] .task-search-input:focus,
-      body[data-theme="light"] .filter-field select:focus,
-      body[data-theme="light"] .task-page-size:focus {
-        border-color: #38bdf8 !important;
-        box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.22) !important;
-      }
-
-      body[data-theme="light"] .task-muted-btn,
-      body[data-theme="light"] .task-inline-btn,
-      body[data-theme="light"] .task-page-btn,
-      body[data-theme="light"] .task-delete-btn,
-      body[data-theme="light"] .task-cancel-btn,
-      body[data-theme="light"] .modal-btn-cancel,
-      body[data-theme="light"] .ghost-btn,
-      body[data-theme="light"] .task-icon-btn {
-        background: linear-gradient(180deg, rgba(230, 243, 255, 0.96), rgba(221, 235, 255, 0.95)) !important;
-        border-color: rgba(123, 156, 224, 0.82) !important;
-        color: #1f3b7a !important;
-      }
-
-      body[data-theme="light"] .task-muted-btn:hover,
-      body[data-theme="light"] .task-inline-btn:hover,
-      body[data-theme="light"] .task-page-btn:hover,
-      body[data-theme="light"] .task-delete-btn:hover,
-      body[data-theme="light"] .task-cancel-btn:hover,
-      body[data-theme="light"] .modal-btn-cancel:hover,
-      body[data-theme="light"] .ghost-btn:hover,
-      body[data-theme="light"] .task-icon-btn:hover {
-        border-color: #38bdf8 !important;
-        box-shadow: 0 0 12px rgba(56, 189, 248, 0.24) !important;
-      }
-
-      body[data-theme="light"] button.dropzone-pick {
-        background: linear-gradient(140deg, rgba(56, 189, 248, 0.16), rgba(168, 85, 247, 0.16)) !important;
-        border-color: #38bdf8 !important;
-        color: #1e3a8a !important;
-      }
-
-      body[data-theme="light"] .dropzone-pick:hover {
-        background: linear-gradient(140deg, rgba(103, 232, 249, 0.24), rgba(192, 132, 252, 0.22)) !important;
-        border-color: #67e8f9 !important;
-        box-shadow: 0 0 14px rgba(56, 189, 248, 0.28) !important;
-      }
-
-      /* 标题渐变风 */
-      .brand h1 {
-        background: linear-gradient(95deg, #22d3ee 0%, #60a5fa 35%, #818cf8 68%, #c084fc 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-      }
-
-      body[data-theme="dark"] .brand h1 {
-        background: linear-gradient(95deg, #67e8f9 0%, #93c5fd 34%, #a5b4fc 68%, #ddd6fe 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
+          0 0 0 1px rgba(59, 130, 246, 0.12) inset,
+          0 10px 20px rgba(37, 99, 235, 0.08) !important;
       }
 
       @media (max-width: 680px) {
