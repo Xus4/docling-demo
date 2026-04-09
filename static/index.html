@@ -826,6 +826,18 @@
         color: rgba(100, 116, 139, 1);
       }
 
+      body[data-theme="light"] #convertBtn.primary-btn:not(:disabled) {
+        border-color: var(--brand-2);
+        background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+        box-shadow:
+          0 10px 20px rgba(37, 99, 235, 0.22),
+          0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+      }
+
+      body[data-theme="light"] #convertBtn.primary-btn:not(:disabled):hover {
+        filter: brightness(1.04) saturate(1.06);
+      }
+
       .workspace {
         display: grid;
         gap: 10px;
@@ -1515,6 +1527,10 @@
         font-weight: 650;
       }
 
+      body:not(.role-admin) #taskOwnerFilterField {
+        display: none;
+      }
+
       .task-board {
         margin-top: 14px;
         border-radius: 16px;
@@ -1844,6 +1860,10 @@
         background: linear-gradient(145deg, rgba(239, 68, 68, 0.86), rgba(220, 38, 38, 0.88));
       }
 
+      .task-file-icon.docx {
+        background: linear-gradient(145deg, rgba(37, 99, 235, 0.9), rgba(29, 78, 216, 0.92));
+      }
+
       .task-file-icon.other {
         background: linear-gradient(145deg, rgba(59, 130, 246, 0.86), rgba(37, 99, 235, 0.9));
       }
@@ -1872,6 +1892,34 @@
         color: var(--text-sub);
         background: color-mix(in srgb, var(--panel-bg) 82%, transparent);
         white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .task-pill-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: currentColor;
+        box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 18%, transparent);
+        flex: 0 0 6px;
+      }
+
+      .task-pill-spinner {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        border: 2px solid color-mix(in srgb, currentColor 26%, transparent);
+        border-top-color: currentColor;
+        box-sizing: border-box;
+        animation: taskPillSpin 0.8s linear infinite;
+        flex: 0 0 12px;
+      }
+
+      @keyframes taskPillSpin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
       }
 
       .task-status-pill.succeeded {
@@ -2586,7 +2634,7 @@
                       </button>
                     </div>
                     <div id="taskFilters" class="task-filters hidden">
-                      <label class="filter-field">
+                      <label id="taskOwnerFilterField" class="filter-field">
                         <span>用户</span>
                         <select id="taskOwnerFilter" aria-label="按用户筛选"></select>
                       </label>
@@ -3190,6 +3238,7 @@ function removeSelectedFileAt(index) {
         if (user) {
           currentUser = user;
           document.body.classList.add("task-page");
+          document.body.classList.toggle("role-admin", user.role === "admin");
           mainShell.classList.remove("login-shell");
           authBox.classList.add("hidden");
           workArea.classList.remove("hidden");
@@ -3211,11 +3260,11 @@ function removeSelectedFileAt(index) {
                 "</span>"
               : "") +
             "</span>";
+          taskFilters.classList.remove("hidden");
           if (user.role === "admin") {
-            taskFilters.classList.remove("hidden");
             loadAdminUserFilters();
           } else {
-            taskFilters.classList.add("hidden");
+            if (taskOwnerFilter) taskOwnerFilter.value = "";
           }
           updateConvertButtonState();
           if (opts.initialJobs && Array.isArray(opts.initialJobs.items)) {
@@ -3233,6 +3282,7 @@ function removeSelectedFileAt(index) {
         stopTaskPolling();
         currentUser = null;
         document.body.classList.remove("task-page");
+        document.body.classList.remove("role-admin");
         if (sessionBoot) sessionBoot.classList.add("hidden");
         mainShell.classList.add("login-shell");
         authBox.classList.remove("hidden");
@@ -3579,19 +3629,34 @@ if (selectedList) selectedList.innerHTML = "";
             if (canSelect) lastRenderableSelectableJobIds.push(job.job_id);
             const nameForExt = job.original_filename || job.current_file_name || job.current_filename || "";
             const ext = String(nameForExt).split(".").pop().toLowerCase();
-            const iconKind = ext === "xlsx" || ext === "xls" ? "xlsx" : ext === "pdf" ? "pdf" : "other";
+            const iconKind =
+              ext === "xlsx" || ext === "xls"
+                ? "xlsx"
+                : ext === "pdf"
+                  ? "pdf"
+                  : ext === "docx" || ext === "doc"
+                    ? "docx"
+                    : "other";
             const iconHtml =
               iconKind === "xlsx"
                 ? '<div class="task-file-icon xlsx" aria-hidden="true">X</div>'
                 : iconKind === "pdf"
                   ? '<div class="task-file-icon pdf" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 3H14L19 8V21H7V3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M14 3V8H19" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M8.5 13.5H15.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><path d="M8.5 17H13.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg></div>'
-                  : '<div class="task-file-icon other" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M6 12H6.01M12 12H12.01M18 12H18.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path></svg></div>';
+                  : iconKind === "docx"
+                    ? '<div class="task-file-icon docx" aria-hidden="true">W</div>'
+                    : '<div class="task-file-icon other" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M6 12H6.01M12 12H12.01M18 12H18.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path></svg></div>';
             const baseName = (function() {
               let displayName = job.current_file_name || job.current_filename || job.original_filename || "";
               return String(displayName).split('/').pop().split('\\').pop().replace(/</g, "&lt;");
             })();
             const pillClass = job.status === "succeeded" ? "succeeded" : job.status === "running" ? "running" : job.status === "queued" ? "queued" : job.status === "failed" ? "failed" : "cancelled";
             const pillText = job.status === "running" ? "处理中" : statusLabel(job.status);
+            const pillIndicator =
+              job.status === "running"
+                ? '<span class="task-pill-spinner" aria-hidden="true"></span>'
+                : job.status === "succeeded" || job.status === "failed"
+                  ? '<span class="task-pill-dot" aria-hidden="true"></span>'
+                  : "";
             const messageLine =
               job.status === "succeeded"
                 ? '<div class="task-row-message success">输出文件已生成，可下载压缩包</div>'
@@ -3670,6 +3735,7 @@ if (selectedList) selectedList.innerHTML = "";
               pillClass +
               '">' +
               pillText +
+              pillIndicator +
               "</span>" +
               "</div>" +
               "</div>" +
@@ -3792,8 +3858,8 @@ if (selectedList) selectedList.innerHTML = "";
           }
           if (currentUser.role === "admin") {
             if (taskOwnerFilter.value) params.set("owner", taskOwnerFilter.value);
-            if (taskStatusFilter.value) params.set("status", taskStatusFilter.value);
           }
+          if (taskStatusFilter.value) params.set("status", taskStatusFilter.value);
           const resp = await fetch("/jobs?" + params.toString(), {
             credentials: "same-origin",
             cache: "no-store",
