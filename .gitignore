@@ -8,4 +8,5 @@ __pycache__/
 /data/output/*
 !/data/output/.gitkeep
 /data/*.db
+/data/logs
 .DS_Store
