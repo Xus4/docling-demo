@@ -161,7 +161,7 @@ class ConverterConfig:
     llm_log_stream_response: bool = False
 
     llm_table_caption: bool = False
-    llm_table_caption_max_tables: int = 20
+    llm_table_caption_max_tables: int = 0
     llm_table_caption_max_chars: int = 500
     llm_table_caption_context_lines: int = 3
 
@@ -730,29 +730,33 @@ class IndustrialDocConverter:
             )
             page_markdown_postprocess: Optional[Callable[[str], str]] = None
             if self.config.llm_table_caption:
-                cap_total = max(0, int(self.config.llm_table_caption_max_tables))
-                if cap_total > 0:
+                cap_total_raw = int(self.config.llm_table_caption_max_tables)
+                cap_unlimited = cap_total_raw <= 0
+                if cap_unlimited:
+                    _log.info("[pdf-vl] 表格语义说明：逐页插入（全局上限=不限）")
+                else:
                     _log.info(
                         "[pdf-vl] 表格语义说明：逐页插入（全局上限=%s 张表）",
-                        cap_total,
+                        cap_total_raw,
                     )
-                    cap_lock = threading.Lock()
-                    cap_remaining = [cap_total]
+                cap_lock = threading.Lock()
+                cap_remaining: list[Optional[int]] = [None if cap_unlimited else max(0, cap_total_raw)]
 
-                    def _page_table_caption(md: str) -> str:
+                def _page_table_caption(md: str) -> str:
+                    with cap_lock:
+                        budget = cap_remaining[0]
+                    if budget is not None and budget <= 0:
+                        return md
+                    new_md, used = self._append_table_captions_to_markdown(
+                        md,
+                        max_tables=0 if budget is None else budget,
+                    )
+                    if budget is not None:
                         with cap_lock:
-                            budget = cap_remaining[0]
-                        if budget <= 0:
-                            return md
-                        new_md, used = self._append_table_captions_to_markdown(
-                            md,
-                            max_tables=budget,
-                        )
-                        with cap_lock:
-                            cap_remaining[0] -= used
-                        return new_md
+                            cap_remaining[0] = max(0, int(cap_remaining[0] or 0) - used)
+                    return new_md
 
-                    page_markdown_postprocess = _page_table_caption
+                page_markdown_postprocess = _page_table_caption
 
             md, pdf_vl_failed = transcribe_pdf_with_vl(
                 client=client,
@@ -858,6 +862,17 @@ class IndustrialDocConverter:
             if self.config.markdown_exclude_page_header_footer:
                 md_kw["labels"] = _MARKDOWN_LABELS_WITHOUT_PAGE_HEADER_FOOTER
             result.document.save_as_markdown(markdown_out, **md_kw)
+            try:
+                from src.vl_markdown_utils import rewrite_markdown_image_refs_to_relative
+                md0 = markdown_out.read_text(encoding="utf-8")
+                md1, changed = rewrite_markdown_image_refs_to_relative(
+                    markdown_text=md0,
+                    markdown_out_path=markdown_out,
+                )
+                if changed > 0:
+                    markdown_out.write_text(md1, encoding="utf-8")
+            except Exception as e:  # noqa: BLE001
+                _log.warning("Rewrite image refs to relative failed: %s", repr(e))
 
             if self.config.markdown_escape_dimension_asterisks:
                 md = markdown_out.read_text(encoding="utf-8")
@@ -986,6 +1001,15 @@ class IndustrialDocConverter:
                 if self.config.markdown_escape_dimension_asterisks:
                     final_md = _escape_dimension_like_asterisks(final_md)
 
+                try:
+                    from src.vl_markdown_utils import rewrite_markdown_image_refs_to_relative
+                    final_md, _ = rewrite_markdown_image_refs_to_relative(
+                        markdown_text=final_md,
+                        markdown_out_path=markdown_out,
+                    )
+                except Exception as e:  # noqa: BLE001
+                    _log.warning("Rewrite image refs to relative failed: %s", repr(e))
+
                 markdown_out.write_text(final_md, encoding="utf-8")
             except Exception as e:  # noqa: BLE001
                 _log.exception("Append markdown enrichments failed: %s", repr(e))
@@ -1078,11 +1102,11 @@ class IndustrialDocConverter:
         if not blocks:
             return markdown_text, 0
 
-        max_tables_eff = (
-            max(0, int(max_tables))
-            if max_tables is not None
-            else max(0, int(self.config.llm_table_caption_max_tables))
-        )
+        max_tables_raw = int(max_tables) if max_tables is not None else int(self.config.llm_table_caption_max_tables)
+        if max_tables_raw == 0:
+            max_tables_eff = len(blocks)
+        else:
+            max_tables_eff = max(0, max_tables_raw)
         if max_tables_eff <= 0:
             return markdown_text, 0
 

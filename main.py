@@ -384,8 +384,8 @@ def main() -> int:
     parser.add_argument(
         "--llm-table-caption-max-tables",
         type=int,
-        default=100,
-        help="每个文档最多为多少个表格生成语义补偿。",
+        default=env_int("LLM_TABLE_CAPTION_MAX_TABLES", 0),
+        help="每个文档最多为多少个表格生成语义补偿；0 表示不限制。",
     )
     parser.add_argument(
         "--llm-table-caption-max-chars",

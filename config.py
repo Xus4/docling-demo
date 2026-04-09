@@ -208,7 +208,7 @@ class AppConfig:
             llm_table_caption=env_bool("LLM_TABLE_CAPTION", True),
             llm_table_caption_max_chars=llm_table_caption_max_chars,
             llm_table_caption_max_tables=max(
-                0, env_int("LLM_TABLE_CAPTION_MAX_TABLES", 20)
+                0, env_int("LLM_TABLE_CAPTION_MAX_TABLES", 0)
             ),
             llm_table_caption_context_lines=max(
                 0, env_int("LLM_TABLE_CAPTION_CONTEXT_LINES", 3)

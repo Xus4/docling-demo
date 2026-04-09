@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Literal
@@ -22,6 +23,80 @@ def extract_markdown_image_refs(markdown_text: str) -> list[str]:
     if not markdown_text:
         return []
     return [m.group("path") for m in _IMAGE_MD_RE.finditer(markdown_text)]
+
+
+def rewrite_markdown_image_refs_to_relative(
+    *,
+    markdown_text: str,
+    markdown_out_path: Path,
+) -> tuple[str, int]:
+    md_dir = markdown_out_path.parent
+    images_dir = md_dir / "images"
+    changed = 0
+
+    def _rewrite_one(ref: str) -> str:
+        nonlocal changed
+        r = (ref or "").strip()
+        if not r:
+            return ref
+        if r.startswith("http://") or r.startswith("https://") or r.startswith("data:") or r.startswith("blob:"):
+            return ref
+        if r.startswith("file://"):
+            local = r[len("file://") :]
+            if local.startswith("/") and len(local) >= 3 and local[2] == ":":
+                local = local[1:]
+            r = local
+        if _looks_like_windows_abs(r) or r.startswith("/") or r.startswith("\\"):
+            local_abs = Path(r).resolve()
+        else:
+            local_abs = (md_dir / r).resolve()
+        if not local_abs.exists():
+            return ref
+        try:
+            rel = local_abs.relative_to(md_dir).as_posix()
+            if rel != ref:
+                changed += 1
+            return rel
+        except Exception:
+            pass
+        if not local_abs.is_file():
+            return ref
+        images_dir.mkdir(parents=True, exist_ok=True)
+        base = local_abs.name
+        dst = images_dir / base
+        if dst.exists():
+            try:
+                if dst.resolve() == local_abs:
+                    rel = dst.relative_to(md_dir).as_posix()
+                    if rel != ref:
+                        changed += 1
+                    return rel
+            except Exception:
+                pass
+            stem = dst.stem
+            suf = dst.suffix
+            i = 2
+            while dst.exists():
+                dst = images_dir / f"{stem}-{i}{suf}"
+                i += 1
+        try:
+            shutil.copy2(local_abs, dst)
+        except Exception:
+            return ref
+        rel = dst.relative_to(md_dir).as_posix()
+        if rel != ref:
+            changed += 1
+        return rel
+
+    def _sub(m: re.Match) -> str:
+        old = m.group("path")
+        new = _rewrite_one(old)
+        if new == old:
+            return m.group(0)
+        return m.group(0).replace(old, new, 1)
+
+    out = _IMAGE_MD_RE.sub(_sub, markdown_text or "")
+    return out, changed
 
 
 def extract_markdown_image_refs_with_line_index(
