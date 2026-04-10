@@ -1228,13 +1228,14 @@
       .toast {
         position: fixed;
         top: 18px;
-        right: 18px;
+        left: 50%;
+        transform: translateX(-50%);
         z-index: 999;
         display: none;
         align-items: center;
         gap: 10px;
         min-width: 200px;
-        max-width: min(320px, calc(100vw - 32px));
+        max-width: min(560px, calc(100vw - 32px));
         padding: 12px 14px;
         border-radius: 12px;
         border: 1px solid var(--panel-border);
@@ -1243,6 +1244,7 @@
         box-shadow: 0 18px 46px rgba(0, 0, 0, 0.25);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
+        text-align: center;
       }
 
       .toast.show {
@@ -1252,11 +1254,11 @@
 
       @keyframes toastIn {
         from {
-          transform: translateY(-8px);
+          transform: translate(-50%, -8px);
           opacity: 0;
         }
         to {
-          transform: translateY(0);
+          transform: translate(-50%, 0);
           opacity: 1;
         }
       }
@@ -5588,7 +5590,6 @@ if (selectedList) selectedList.innerHTML = "";
         const password = passwordInput.value;
         if (!username || !password) {
           const msg = "请输入用户名和密码";
-          setAuthFeedback("error", msg);
           showToast("error", msg);
           return;
         }
@@ -5619,7 +5620,6 @@ if (selectedList) selectedList.innerHTML = "";
           if (!resp.ok) {
             const errMsg =
               formatApiDetail(payload) || "登录失败（HTTP " + resp.status + "）";
-            setAuthFeedback("error", errMsg);
             showToast("error", errMsg);
             return;
           }
@@ -5634,7 +5634,6 @@ if (selectedList) selectedList.innerHTML = "";
               ? payload.message.trim()
               : "登录成功，欢迎 " + (payload.username || username)) +
             (payload.role === "admin" ? "（管理员）" : "");
-          setAuthFeedback("success", okMsg);
           showToast("success", okMsg);
           loginOkScheduled = true;
           window.setTimeout(function () {
@@ -5649,7 +5648,6 @@ if (selectedList) selectedList.innerHTML = "";
           }, 400);
         } catch (error) {
           const netMsg = "登录请求失败，请检查网络或稍后重试";
-          setAuthFeedback("error", netMsg);
           showToast("error", netMsg);
         } finally {
           if (!loginOkScheduled) {
