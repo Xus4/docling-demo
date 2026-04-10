@@ -1,6 +1,6 @@
 # 智枢文档（docling-demo）
 
-基于 [Docling](https://github.com/docling-project/docling) 的工业文档转换：**批量 CLI** 与 **FastAPI Web** 共用同一套转换配置（`.env` / `AppConfig`）。支持 PDF、Word、PPT、HTML、常见图片、Excel 等格式输出 **Markdown**，并可选 **PDF 按页多模态（VL）转写**、表格/图片语义说明、表格块纠错等（通过 OpenAI 兼容接口，默认对接阿里云百炼，也可指向本地 Ollama 等）。
+基于 [Docling](https://github.com/docling-project/docling) 的工业文档转换：**批量 CLI** 与 **FastAPI Web** 共用同一套转换配置（`.env` / `AppConfig`）。支持 PDF、Word、图片、Excel 等格式输出 **Markdown**，并可选 **PDF 按页多模态（VL）转写**、表格/图片语义说明、表格块纠错等（通过 OpenAI 兼容接口，默认对接阿里云百炼，也可指向本地 Ollama 等）。
 
 ---
 
