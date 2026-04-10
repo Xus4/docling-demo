@@ -3416,6 +3416,8 @@ const selectedList = document.getElementById("selectedList");
       let currentRootName = ""; 
       let currentUser = null;
       let taskPollTimer = null;
+      let taskListRequestSeq = 0;
+      let taskListAbortController = null;
       let taskPage = 1;
       let taskPageSize = 10;
       let taskTotal = 0;
@@ -3438,6 +3440,15 @@ const selectedList = document.getElementById("selectedList");
         const n = selectedJobIds.size;
         batchDownloadBtn.disabled = n <= 0;
         if (taskSelectedLabel) taskSelectedLabel.textContent = "已选择 " + n + " 项";
+      }
+
+      function clearTaskSelections() {
+        selectedJobIds.clear();
+        if (taskSelectAllCb) {
+          taskSelectAllCb.checked = false;
+          taskSelectAllCb.indeterminate = false;
+        }
+        syncBatchDownloadButton();
       }
 
       function formatSupportedFormatsLine(allowedTypes) {
@@ -4418,6 +4429,15 @@ if (selectedList) selectedList.innerHTML = "";
           historyList.innerHTML = "";
           return;
         }
+        const requestSeq = ++taskListRequestSeq;
+        if (taskListAbortController) {
+          try {
+            taskListAbortController.abort();
+          } catch (e) {
+            /* ignore */
+          }
+        }
+        taskListAbortController = new AbortController();
         if (opts.page_size != null) {
           const ps = Number(opts.page_size);
           if (Number.isFinite(ps) && ps > 0) {
@@ -4453,12 +4473,15 @@ if (selectedList) selectedList.innerHTML = "";
           const resp = await fetch("/jobs?" + params.toString(), {
             credentials: "same-origin",
             cache: "no-store",
+            signal: taskListAbortController.signal,
           });
+          if (requestSeq !== taskListRequestSeq) return;
           if (resp.status === 401) {
             setAuthState(null);
             return;
           }
           const data = await resp.json();
+          if (requestSeq !== taskListRequestSeq) return;
           if (!resp.ok) {
             if (!opts.silent) showToast("error", data.detail || "加载任务失败");
             if (!opts.silent) {
@@ -4475,6 +4498,8 @@ if (selectedList) selectedList.innerHTML = "";
           taskTotal = Number(data.total) || 0;
           syncTaskPager();
         } catch (e) {
+          if (e && e.name === "AbortError") return;
+          if (requestSeq !== taskListRequestSeq) return;
           if (!opts.silent) showToast("error", "加载任务列表失败");
           if (!opts.silent) {
             historyWrap.classList.add("show");
@@ -4690,6 +4715,7 @@ if (selectedList) selectedList.innerHTML = "";
       }
 
       applyTaskFiltersBtn.addEventListener("click", () => {
+        clearTaskSelections();
         refreshTaskList({ resetPage: true });
       });
 
@@ -4699,8 +4725,21 @@ if (selectedList) selectedList.innerHTML = "";
           if (taskStatusFilter) taskStatusFilter.value = "";
           taskSearchQuery = "";
           if (taskSearchInput) taskSearchInput.value = "";
-          selectedJobIds.clear();
-          syncBatchDownloadButton();
+          clearTaskSelections();
+          refreshTaskList({ resetPage: true });
+        });
+      }
+
+      if (taskOwnerFilter) {
+        taskOwnerFilter.addEventListener("change", () => {
+          clearTaskSelections();
+          refreshTaskList({ resetPage: true });
+        });
+      }
+
+      if (taskStatusFilter) {
+        taskStatusFilter.addEventListener("change", () => {
+          clearTaskSelections();
           refreshTaskList({ resetPage: true });
         });
       }
