@@ -37,7 +37,7 @@ STATIC_DIR = ROOT / "static"
 config = AppConfig.from_env()
 config.ensure_dirs()
 service = ConversionService(config)
-auth_store = AuthStore(config.auth_db_path)
+auth_store = AuthStore(config.database_url)
 auth_store.bootstrap_users(
     users=config.auth_users,
     initial_password=config.initial_password,

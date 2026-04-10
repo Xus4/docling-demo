@@ -260,7 +260,7 @@ def _run_directory_conversion(
 def _run_conversion_in_subprocess(
     *,
     job_id: str,
-    auth_db_path_str: str,
+    database_url: str,
     input_file: str,
     output_file: str,
     input_root: str | None,
@@ -278,7 +278,7 @@ def _run_conversion_in_subprocess(
             app="job_worker",
         )
     service = ConversionService(config)
-    auth = AuthStore(Path(auth_db_path_str))
+    auth = AuthStore(database_url)
 
     if int(is_directory):
         _run_directory_conversion(
@@ -380,7 +380,7 @@ class JobQueueWorker:
             target=_run_conversion_in_subprocess,
             kwargs={
                 "job_id": job_id,
-                "auth_db_path_str": str(self.auth.db_path),
+                "database_url": str(self.auth.database_url),
                 "input_file": str(inp),
                 "output_file": str(out),
                 "input_root": rec.input_root,

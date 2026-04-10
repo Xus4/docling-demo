@@ -3,10 +3,14 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
-import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Mapping
+
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import Engine
+from sqlalchemy.pool import NullPool
 
 
 def _hash_password(password: str, salt: str | None = None) -> str:
@@ -83,69 +87,181 @@ class JobRecord:
 
 
 class AuthStore:
-    def __init__(self, db_path: Path) -> None:
-        self.db_path = db_path
-        try:
-            self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        except Exception as exc:
-            raise RuntimeError(f"无法创建 SQLite 目录: {self.db_path.parent}") from exc
+    def __init__(self, database_url: str) -> None:
+        self.database_url = str(database_url or "").strip()
+        if not self.database_url:
+            raise RuntimeError("DATABASE_URL 不能为空")
+        self.engine = self._create_engine(self.database_url)
+        self.dialect = str(self.engine.dialect.name or "").lower()
+        self._ensure_sqlite_parent_dir()
         self._init_db()
 
-    def _connect(self) -> sqlite3.Connection:
+    def _create_engine(self, database_url: str) -> Engine:
+        if database_url.startswith("sqlite:"):
+            return create_engine(
+                database_url,
+                poolclass=NullPool,
+                connect_args={"timeout": 10, "check_same_thread": False},
+            )
+        return create_engine(database_url, pool_pre_ping=True)
+
+    def _ensure_sqlite_parent_dir(self) -> None:
+        if not self.database_url.startswith("sqlite:///"):
+            return
+        raw = self.database_url[len("sqlite:///") :]
+        if raw == ":memory:":
+            return
         try:
-            conn = sqlite3.connect(str(self.db_path), timeout=10.0)
-        except sqlite3.OperationalError as exc:
-            raise sqlite3.OperationalError(f"{exc} (db_path={self.db_path})") from exc
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA busy_timeout = 5000")
-        return conn
+            p = Path(raw).expanduser().resolve()
+            p.parent.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:
+            raise RuntimeError(f"无法创建数据库目录: {raw}") from exc
 
     def _init_db(self) -> None:
-        with self._connect() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT NOT NULL UNIQUE,
-                    password_hash TEXT NOT NULL,
-                    role TEXT NOT NULL DEFAULT 'user',
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        with self.engine.begin() as conn:
+            if self.dialect == "mysql":
+                conn.execute(
+                    text(
+                        """
+                        CREATE TABLE IF NOT EXISTS users (
+                            id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                            username VARCHAR(255) NOT NULL UNIQUE,
+                            password_hash TEXT NOT NULL,
+                            role VARCHAR(32) NOT NULL DEFAULT 'user',
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
                 )
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS jobs (
-                    job_id TEXT PRIMARY KEY,
-                    owner_username TEXT NOT NULL,
-                    role_snapshot TEXT,
-                    original_filename TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    input_file TEXT NOT NULL,
-                    output_file TEXT,
-                    error_message TEXT,
-                    cancel_requested INTEGER NOT NULL DEFAULT 0,
-                    attempt_count INTEGER NOT NULL DEFAULT 0,
-                    created_at TEXT NOT NULL,
-                    started_at TEXT,
-                    finished_at TEXT
+                conn.execute(
+                    text(
+                        """
+                        CREATE TABLE IF NOT EXISTS jobs (
+                            job_id VARCHAR(64) PRIMARY KEY,
+                            owner_username VARCHAR(255) NOT NULL,
+                            role_snapshot VARCHAR(32),
+                            original_filename TEXT NOT NULL,
+                            status VARCHAR(32) NOT NULL,
+                            input_file TEXT NOT NULL,
+                            output_file TEXT,
+                            error_message TEXT,
+                            cancel_requested INTEGER NOT NULL DEFAULT 0,
+                            attempt_count INTEGER NOT NULL DEFAULT 0,
+                            created_at VARCHAR(32) NOT NULL,
+                            started_at VARCHAR(32),
+                            finished_at VARCHAR(32),
+                            progress_percent INTEGER,
+                            progress_note TEXT,
+                            progress_pages_done INTEGER,
+                            progress_pages_total INTEGER,
+                            result_extra TEXT,
+                            current_file_name TEXT,
+                            is_directory INTEGER NOT NULL DEFAULT 0,
+                            input_root TEXT,
+                            output_root TEXT,
+                            total_files INTEGER,
+                            processed_files INTEGER,
+                            succeeded_files INTEGER,
+                            failed_files INTEGER
+                        )
+                        """
+                    )
                 )
-                """
-            )
+            else:
+                conn.execute(
+                    text(
+                        """
+                        CREATE TABLE IF NOT EXISTS users (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            username TEXT NOT NULL UNIQUE,
+                            password_hash TEXT NOT NULL,
+                            role TEXT NOT NULL DEFAULT 'user',
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                )
+                conn.execute(
+                    text(
+                        """
+                        CREATE TABLE IF NOT EXISTS jobs (
+                            job_id TEXT PRIMARY KEY,
+                            owner_username TEXT NOT NULL,
+                            role_snapshot TEXT,
+                            original_filename TEXT NOT NULL,
+                            status TEXT NOT NULL,
+                            input_file TEXT NOT NULL,
+                            output_file TEXT,
+                            error_message TEXT,
+                            cancel_requested INTEGER NOT NULL DEFAULT 0,
+                            attempt_count INTEGER NOT NULL DEFAULT 0,
+                            created_at TEXT NOT NULL,
+                            started_at TEXT,
+                            finished_at TEXT,
+                            progress_percent INTEGER,
+                            progress_note TEXT,
+                            progress_pages_done INTEGER,
+                            progress_pages_total INTEGER,
+                            result_extra TEXT,
+                            current_file_name TEXT,
+                            is_directory INTEGER NOT NULL DEFAULT 0,
+                            input_root TEXT,
+                            output_root TEXT,
+                            total_files INTEGER,
+                            processed_files INTEGER,
+                            succeeded_files INTEGER,
+                            failed_files INTEGER
+                        )
+                        """
+                    )
+                )
+
+            self._ensure_indexes(conn)
+            self._migrate_jobs_columns(conn)
+
+    def _ensure_indexes(self, conn) -> None:
+        try:
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_jobs_owner_created "
-                "ON jobs (owner_username, created_at DESC)"
+                text(
+                    "CREATE INDEX idx_jobs_owner_created ON jobs (owner_username, created_at)"
+                )
             )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status)"
-            )
-            self._migrate_jobs_progress_columns(conn)
-            self._migrate_jobs_folder_columns(conn)
+        except Exception:
+            pass
+        try:
+            conn.execute(text("CREATE INDEX idx_jobs_status ON jobs (status)"))
+        except Exception:
+            pass
+
+    def _migrate_jobs_columns(self, conn) -> None:
+        insp = inspect(conn)
+        try:
+            cols = {c["name"] for c in insp.get_columns("jobs")}
+        except Exception:
+            cols = set()
+        stmts: list[str] = []
+        for name, ddl in [
+            ("progress_percent", "ALTER TABLE jobs ADD COLUMN progress_percent INTEGER"),
+            ("progress_note", "ALTER TABLE jobs ADD COLUMN progress_note TEXT"),
+            ("progress_pages_done", "ALTER TABLE jobs ADD COLUMN progress_pages_done INTEGER"),
+            ("progress_pages_total", "ALTER TABLE jobs ADD COLUMN progress_pages_total INTEGER"),
+            ("result_extra", "ALTER TABLE jobs ADD COLUMN result_extra TEXT"),
+            ("current_file_name", "ALTER TABLE jobs ADD COLUMN current_file_name TEXT"),
+            ("is_directory", "ALTER TABLE jobs ADD COLUMN is_directory INTEGER NOT NULL DEFAULT 0"),
+            ("input_root", "ALTER TABLE jobs ADD COLUMN input_root TEXT"),
+            ("output_root", "ALTER TABLE jobs ADD COLUMN output_root TEXT"),
+            ("total_files", "ALTER TABLE jobs ADD COLUMN total_files INTEGER"),
+            ("processed_files", "ALTER TABLE jobs ADD COLUMN processed_files INTEGER"),
+            ("succeeded_files", "ALTER TABLE jobs ADD COLUMN succeeded_files INTEGER"),
+            ("failed_files", "ALTER TABLE jobs ADD COLUMN failed_files INTEGER"),
+        ]:
+            if name not in cols:
+                stmts.append(ddl)
+        for sql in stmts:
             try:
-                conn.execute("PRAGMA journal_mode=WAL")
-            except sqlite3.OperationalError:
+                conn.execute(text(sql))
+            except Exception:
                 pass
-            conn.commit()
 
     def bootstrap_users(
         self,
@@ -155,27 +271,35 @@ class AuthStore:
     ) -> None:
         all_users = {u.strip() for u in users if u.strip()}
         all_users.add(admin_username.strip())
-        with self._connect() as conn:
+        with self.engine.begin() as conn:
             for username in sorted(all_users):
                 role = "admin" if username == admin_username else "user"
                 exists = conn.execute(
-                    "SELECT 1 FROM users WHERE username = ?",
-                    (username,),
+                    text("SELECT 1 FROM users WHERE username = :u"),
+                    {"u": username},
                 ).fetchone()
                 if exists:
                     continue
                 conn.execute(
-                    "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-                    (username, _hash_password(initial_password), role),
+                    text(
+                        "INSERT INTO users (username, password_hash, role) "
+                        "VALUES (:u, :ph, :r)"
+                    ),
+                    {"u": username, "ph": _hash_password(initial_password), "r": role},
                 )
-            conn.commit()
 
     def authenticate(self, username: str, password: str) -> AuthUser | None:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT username, password_hash, role FROM users WHERE username = ?",
-                (username.strip(),),
-            ).fetchone()
+        with self.engine.connect() as conn:
+            row = (
+                conn.execute(
+                    text(
+                        "SELECT username, password_hash, role FROM users WHERE username = :u"
+                    ),
+                    {"u": username.strip()},
+                )
+                .mappings()
+                .fetchone()
+            )
         if not row:
             return None
         if not _verify_password(password, row["password_hash"]):
@@ -183,56 +307,20 @@ class AuthStore:
         return AuthUser(username=row["username"], role=row["role"])
 
     def get_user(self, username: str) -> AuthUser | None:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT username, role FROM users WHERE username = ?",
-                (username.strip(),),
-            ).fetchone()
+        with self.engine.connect() as conn:
+            row = (
+                conn.execute(
+                    text("SELECT username, role FROM users WHERE username = :u"),
+                    {"u": username.strip()},
+                )
+                .mappings()
+                .fetchone()
+            )
         if not row:
             return None
         return AuthUser(username=row["username"], role=row["role"])
 
-    def _migrate_jobs_progress_columns(self, conn: sqlite3.Connection) -> None:
-        info = conn.execute("PRAGMA table_info(jobs)").fetchall()
-        colnames = {str(r[1]) for r in info}
-        stmts: list[str] = []
-        if "progress_percent" not in colnames:
-            stmts.append("ALTER TABLE jobs ADD COLUMN progress_percent INTEGER")
-        if "progress_note" not in colnames:
-            stmts.append("ALTER TABLE jobs ADD COLUMN progress_note TEXT")
-        if "progress_pages_done" not in colnames:
-            stmts.append("ALTER TABLE jobs ADD COLUMN progress_pages_done INTEGER")
-        if "progress_pages_total" not in colnames:
-            stmts.append("ALTER TABLE jobs ADD COLUMN progress_pages_total INTEGER")
-        if "result_extra" not in colnames:
-            stmts.append("ALTER TABLE jobs ADD COLUMN result_extra TEXT")
-        if "current_file_name" not in colnames:
-            stmts.append("ALTER TABLE jobs ADD COLUMN current_file_name TEXT")
-        for sql in stmts:
-            conn.execute(sql)
-
-    def _migrate_jobs_folder_columns(self, conn: sqlite3.Connection) -> None:
-        info = conn.execute("PRAGMA table_info(jobs)").fetchall()
-        colnames = {str(r[1]) for r in info}
-        stmts: list[str] = []
-        if "is_directory" not in colnames:
-            stmts.append("ALTER TABLE jobs ADD COLUMN is_directory INTEGER NOT NULL DEFAULT 0")
-        if "input_root" not in colnames:
-            stmts.append("ALTER TABLE jobs ADD COLUMN input_root TEXT")
-        if "output_root" not in colnames:
-            stmts.append("ALTER TABLE jobs ADD COLUMN output_root TEXT")
-        if "total_files" not in colnames:
-            stmts.append("ALTER TABLE jobs ADD COLUMN total_files INTEGER")
-        if "processed_files" not in colnames:
-            stmts.append("ALTER TABLE jobs ADD COLUMN processed_files INTEGER")
-        if "succeeded_files" not in colnames:
-            stmts.append("ALTER TABLE jobs ADD COLUMN succeeded_files INTEGER")
-        if "failed_files" not in colnames:
-            stmts.append("ALTER TABLE jobs ADD COLUMN failed_files INTEGER")
-        for sql in stmts:
-            conn.execute(sql)
-
-    def _row_to_job(self, row: sqlite3.Row) -> JobRecord:
+    def _row_to_job(self, row: Mapping[str, Any]) -> JobRecord:
         keys = set(row.keys())
         return JobRecord(
             job_id=row["job_id"],
@@ -334,68 +422,80 @@ class AuthStore:
         failed_files: int | None = None,
     ) -> None:
         now = _utc_now_iso()
-        with self._connect() as conn:
+        with self.engine.begin() as conn:
             conn.execute(
-                """
-                INSERT INTO jobs (
-                    job_id, owner_username, role_snapshot, original_filename,
-                    status, input_file, output_file, created_at,
-                    is_directory, input_root, output_root,
-                    total_files, processed_files, succeeded_files, failed_files
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    job_id,
-                    owner_username.strip(),
-                    role_snapshot,
-                    original_filename,
-                    status,
-                    input_file,
-                    output_file,
-                    now,
-                    int(is_directory),
-                    input_root,
-                    output_root,
-                    total_files,
-                    processed_files,
-                    succeeded_files,
-                    failed_files,
+                text(
+                    """
+                    INSERT INTO jobs (
+                        job_id, owner_username, role_snapshot, original_filename,
+                        status, input_file, output_file, created_at,
+                        is_directory, input_root, output_root,
+                        total_files, processed_files, succeeded_files, failed_files
+                    ) VALUES (
+                        :job_id, :owner_username, :role_snapshot, :original_filename,
+                        :status, :input_file, :output_file, :created_at,
+                        :is_directory, :input_root, :output_root,
+                        :total_files, :processed_files, :succeeded_files, :failed_files
+                    )
+                    """
                 ),
+                {
+                    "job_id": job_id,
+                    "owner_username": owner_username.strip(),
+                    "role_snapshot": role_snapshot,
+                    "original_filename": original_filename,
+                    "status": status,
+                    "input_file": input_file,
+                    "output_file": output_file,
+                    "created_at": now,
+                    "is_directory": int(is_directory),
+                    "input_root": input_root,
+                    "output_root": output_root,
+                    "total_files": total_files,
+                    "processed_files": processed_files,
+                    "succeeded_files": succeeded_files,
+                    "failed_files": failed_files,
+                },
             )
-            conn.commit()
 
     def get_job(self, job_id: str) -> JobRecord | None:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM jobs WHERE job_id = ?", (job_id,)
-            ).fetchone()
+        with self.engine.connect() as conn:
+            row = (
+                conn.execute(
+                    text("SELECT * FROM jobs WHERE job_id = :job_id"),
+                    {"job_id": job_id},
+                )
+                .mappings()
+                .fetchone()
+            )
         if not row:
             return None
         return self._row_to_job(row)
 
     def try_claim_job_running(self, job_id: str) -> bool:
         now = _utc_now_iso()
-        with self._connect() as conn:
+        with self.engine.begin() as conn:
             cur = conn.execute(
-                """
-                UPDATE jobs SET
-                    status = 'running',
-                    started_at = ?,
-                    attempt_count = attempt_count + 1,
-                    progress_percent = 0,
-                    progress_note = '开始处理…',
-                    progress_pages_done = NULL,
-                    progress_pages_total = NULL,
-                    result_extra = NULL,
-                    processed_files = COALESCE(processed_files, 0),
-                    succeeded_files = COALESCE(succeeded_files, 0),
-                    failed_files = COALESCE(failed_files, 0)
-                WHERE job_id = ? AND status = 'queued'
-                """,
-                (now, job_id),
+                text(
+                    """
+                    UPDATE jobs SET
+                        status = 'running',
+                        started_at = :started_at,
+                        attempt_count = attempt_count + 1,
+                        progress_percent = 0,
+                        progress_note = '开始处理…',
+                        progress_pages_done = NULL,
+                        progress_pages_total = NULL,
+                        result_extra = NULL,
+                        processed_files = COALESCE(processed_files, 0),
+                        succeeded_files = COALESCE(succeeded_files, 0),
+                        failed_files = COALESCE(failed_files, 0)
+                    WHERE job_id = :job_id AND status = 'queued'
+                    """
+                ),
+                {"started_at": now, "job_id": job_id},
             )
-            conn.commit()
-            return cur.rowcount > 0
+            return bool(cur.rowcount and cur.rowcount > 0)
 
     def mark_job_succeeded(
         self,
@@ -405,167 +505,185 @@ class AuthStore:
         result_extra: str | None = None,
     ) -> bool:
         now = _utc_now_iso()
-        with self._connect() as conn:
+        with self.engine.begin() as conn:
             cur = conn.execute(
-                """
-                UPDATE jobs SET
-                    status = 'succeeded',
-                    output_file = ?,
-                    finished_at = ?,
-                    error_message = NULL,
-                    progress_percent = NULL,
-                    progress_note = NULL,
-                    progress_pages_done = NULL,
-                    progress_pages_total = NULL,
-                    result_extra = ?
-                WHERE job_id = ? AND status = 'running'
-                """,
-                (output_file, now, result_extra, job_id),
+                text(
+                    """
+                    UPDATE jobs SET
+                        status = 'succeeded',
+                        output_file = :output_file,
+                        finished_at = :finished_at,
+                        error_message = NULL,
+                        progress_percent = NULL,
+                        progress_note = NULL,
+                        progress_pages_done = NULL,
+                        progress_pages_total = NULL,
+                        result_extra = :result_extra
+                    WHERE job_id = :job_id AND status = 'running'
+                    """
+                ),
+                {
+                    "output_file": output_file,
+                    "finished_at": now,
+                    "result_extra": result_extra,
+                    "job_id": job_id,
+                },
             )
-            conn.commit()
-            return cur.rowcount > 0
+            return bool(cur.rowcount and cur.rowcount > 0)
 
     def mark_job_failed(self, job_id: str, error_message: str) -> bool:
         now = _utc_now_iso()
-        with self._connect() as conn:
+        with self.engine.begin() as conn:
             cur = conn.execute(
-                """
-                UPDATE jobs SET
-                    status = 'failed',
-                    finished_at = ?,
-                    error_message = ?,
-                    progress_percent = NULL,
-                    progress_note = NULL,
-                    progress_pages_done = NULL,
-                    progress_pages_total = NULL,
-                    result_extra = NULL
-                WHERE job_id = ? AND status = 'running'
-                """,
-                (now, error_message[:4000], job_id),
+                text(
+                    """
+                    UPDATE jobs SET
+                        status = 'failed',
+                        finished_at = :finished_at,
+                        error_message = :error_message,
+                        progress_percent = NULL,
+                        progress_note = NULL,
+                        progress_pages_done = NULL,
+                        progress_pages_total = NULL,
+                        result_extra = NULL
+                    WHERE job_id = :job_id AND status = 'running'
+                    """
+                ),
+                {"finished_at": now, "error_message": error_message[:4000], "job_id": job_id},
             )
-            conn.commit()
-            return cur.rowcount > 0
+            return bool(cur.rowcount and cur.rowcount > 0)
 
     def mark_job_cancelled_finished(self, job_id: str, message: str | None = None) -> None:
         now = _utc_now_iso()
         msg = message or "已取消"
-        with self._connect() as conn:
+        with self.engine.begin() as conn:
             conn.execute(
-                """
-                UPDATE jobs SET
-                    status = 'cancelled',
-                    finished_at = ?,
-                    error_message = ?,
-                    output_file = NULL,
-                    progress_percent = NULL,
-                    progress_note = NULL,
-                    progress_pages_done = NULL,
-                    progress_pages_total = NULL,
-                    result_extra = NULL
-                WHERE job_id = ?
-                """,
-                (now, msg, job_id),
+                text(
+                    """
+                    UPDATE jobs SET
+                        status = 'cancelled',
+                        finished_at = :finished_at,
+                        error_message = :error_message,
+                        output_file = NULL,
+                        progress_percent = NULL,
+                        progress_note = NULL,
+                        progress_pages_done = NULL,
+                        progress_pages_total = NULL,
+                        result_extra = NULL
+                    WHERE job_id = :job_id
+                    """
+                ),
+                {"finished_at": now, "error_message": msg, "job_id": job_id},
             )
-            conn.commit()
 
     def try_reset_job_queued(self, job_id: str) -> bool:
         now = _utc_now_iso()
-        with self._connect() as conn:
+        with self.engine.begin() as conn:
             cur = conn.execute(
-                """
-                UPDATE jobs SET
-                    status = 'queued',
-                    cancel_requested = 0,
-                    started_at = NULL,
-                    finished_at = NULL,
-                    error_message = NULL,
-                    created_at = ?,
-                    progress_percent = NULL,
-                    progress_note = NULL,
-                    progress_pages_done = NULL,
-                    progress_pages_total = NULL,
-                    current_file_name = NULL,
-                    result_extra = NULL,
-                    processed_files = 0,
-                    succeeded_files = 0,
-                    failed_files = 0
-                WHERE job_id = ? AND status IN ('failed', 'cancelled', 'succeeded')
-                """,
-                (now, job_id),
+                text(
+                    """
+                    UPDATE jobs SET
+                        status = 'queued',
+                        cancel_requested = 0,
+                        started_at = NULL,
+                        finished_at = NULL,
+                        error_message = NULL,
+                        created_at = :created_at,
+                        progress_percent = NULL,
+                        progress_note = NULL,
+                        progress_pages_done = NULL,
+                        progress_pages_total = NULL,
+                        current_file_name = NULL,
+                        result_extra = NULL,
+                        processed_files = 0,
+                        succeeded_files = 0,
+                        failed_files = 0
+                    WHERE job_id = :job_id AND status IN ('failed', 'cancelled', 'succeeded')
+                    """
+                ),
+                {"created_at": now, "job_id": job_id},
             )
-            conn.commit()
-            return cur.rowcount > 0
+            return bool(cur.rowcount and cur.rowcount > 0)
 
     def try_mark_job_cancelled_queued(self, job_id: str) -> bool:
         return self.try_mark_job_cancelled(job_id)
 
     def try_mark_job_cancelled(self, job_id: str) -> bool:
         now = _utc_now_iso()
-        with self._connect() as conn:
+        with self.engine.begin() as conn:
             cur = conn.execute(
-                """
-                UPDATE jobs SET
-                    status = 'cancelled',
-                    finished_at = ?,
-                    error_message = '已取消',
-                    output_file = NULL,
-                    cancel_requested = 0,
-                    progress_percent = NULL,
-                    progress_note = NULL,
-                    progress_pages_done = NULL,
-                    progress_pages_total = NULL,
-                    result_extra = NULL
-                WHERE job_id = ? AND status IN ('queued', 'running')
-                """,
-                (now, job_id),
+                text(
+                    """
+                    UPDATE jobs SET
+                        status = 'cancelled',
+                        finished_at = :finished_at,
+                        error_message = '已取消',
+                        output_file = NULL,
+                        cancel_requested = 0,
+                        progress_percent = NULL,
+                        progress_note = NULL,
+                        progress_pages_done = NULL,
+                        progress_pages_total = NULL,
+                        result_extra = NULL
+                    WHERE job_id = :job_id AND status IN ('queued', 'running')
+                    """
+                ),
+                {"finished_at": now, "job_id": job_id},
             )
-            conn.commit()
-            return cur.rowcount > 0
+            return bool(cur.rowcount and cur.rowcount > 0)
 
     def reset_orphan_running_jobs_to_queued(self) -> int:
-        with self._connect() as conn:
+        with self.engine.begin() as conn:
             cur = conn.execute(
-                """
-                UPDATE jobs SET
-                    status = 'queued',
-                    started_at = NULL,
-                    cancel_requested = 0,
-                    progress_percent = NULL,
-                    progress_note = NULL,
-                    progress_pages_done = NULL,
-                    progress_pages_total = NULL,
-                    result_extra = NULL
-                WHERE status = 'running'
-                """
+                text(
+                    """
+                    UPDATE jobs SET
+                        status = 'queued',
+                        started_at = NULL,
+                        cancel_requested = 0,
+                        progress_percent = NULL,
+                        progress_note = NULL,
+                        progress_pages_done = NULL,
+                        progress_pages_total = NULL,
+                        result_extra = NULL
+                    WHERE status = 'running'
+                    """
+                )
             )
-            conn.commit()
             return int(cur.rowcount) if cur.rowcount is not None else 0
 
     def set_job_cancel_requested(self, job_id: str) -> bool:
-        with self._connect() as conn:
+        with self.engine.begin() as conn:
             cur = conn.execute(
-                """
-                UPDATE jobs SET cancel_requested = 1
-                WHERE job_id = ? AND status = 'running'
-                """,
-                (job_id,),
+                text(
+                    """
+                    UPDATE jobs SET cancel_requested = 1
+                    WHERE job_id = :job_id AND status = 'running'
+                    """
+                ),
+                {"job_id": job_id},
             )
-            conn.commit()
-            return cur.rowcount > 0
+            return bool(cur.rowcount and cur.rowcount > 0)
 
     def refresh_job_cancel_requested(self, job_id: str) -> int:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT cancel_requested FROM jobs WHERE job_id = ?",
-                (job_id,),
-            ).fetchone()
+        with self.engine.connect() as conn:
+            row = (
+                conn.execute(
+                    text("SELECT cancel_requested FROM jobs WHERE job_id = :job_id"),
+                    {"job_id": job_id},
+                )
+                .mappings()
+                .fetchone()
+            )
         return int(row["cancel_requested"]) if row else 0
 
     def list_usernames(self) -> list[str]:
-        with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT username FROM users ORDER BY username COLLATE NOCASE"
-            ).fetchall()
+        with self.engine.connect() as conn:
+            rows = (
+                conn.execute(text("SELECT username FROM users ORDER BY username"))
+                .mappings()
+                .fetchall()
+            )
         return [str(r["username"]) for r in rows]
 
     def list_jobs(
@@ -583,46 +701,56 @@ class AuthStore:
         offset = max(0, offset)
         is_admin = viewer_role == "admin"
         where: list[str] = []
-        params: list[object] = []
+        params: dict[str, object] = {}
 
         if not is_admin:
-            where.append("owner_username = ?")
-            params.append(viewer_username)
+            where.append("owner_username = :viewer_username")
+            params["viewer_username"] = viewer_username
         elif owner_filter and owner_filter.strip():
-            where.append("owner_username = ?")
-            params.append(owner_filter.strip())
+            where.append("owner_username = :owner_filter")
+            params["owner_filter"] = owner_filter.strip()
 
         if status_filter and status_filter.strip():
-            where.append("status = ?")
-            params.append(status_filter.strip())
+            where.append("status = :status_filter")
+            params["status_filter"] = status_filter.strip()
 
         if query and query.strip():
-            where.append("LOWER(original_filename) LIKE ?")
-            params.append("%" + query.strip().lower() + "%")
+            where.append("LOWER(original_filename) LIKE :q")
+            params["q"] = "%" + query.strip().lower() + "%"
 
         where_sql = (" WHERE " + " AND ".join(where)) if where else ""
 
-        with self._connect() as conn:
-            total_row = conn.execute(
-                f"SELECT COUNT(*) AS c FROM jobs{where_sql}", params
-            ).fetchone()
+        with self.engine.connect() as conn:
+            total_row = (
+                conn.execute(text(f"SELECT COUNT(*) AS c FROM jobs{where_sql}"), params)
+                .mappings()
+                .fetchone()
+            )
             total = int(total_row["c"]) if total_row else 0
-            rows = conn.execute(
-                f"""
-                SELECT * FROM jobs{where_sql}
-                ORDER BY datetime(created_at) DESC
-                LIMIT ? OFFSET ?
-                """,
-                [*params, limit, offset],
-            ).fetchall()
+            rows = (
+                conn.execute(
+                    text(
+                        f"""
+                        SELECT * FROM jobs{where_sql}
+                        ORDER BY created_at DESC
+                        LIMIT :limit OFFSET :offset
+                        """
+                    ),
+                    {**params, "limit": limit, "offset": offset},
+                )
+                .mappings()
+                .fetchall()
+            )
 
         return [self._row_to_job(r) for r in rows], total
 
     def count_queued_jobs(self) -> int:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) AS c FROM jobs WHERE status = 'queued'"
-            ).fetchone()
+        with self.engine.connect() as conn:
+            row = (
+                conn.execute(text("SELECT COUNT(*) AS c FROM jobs WHERE status = 'queued'"))
+                .mappings()
+                .fetchone()
+            )
         return int(row["c"]) if row else 0
 
     def get_queue_position(self, job_id: str) -> tuple[int | None, int]:
@@ -630,16 +758,22 @@ class AuthStore:
         job = self.get_job(job_id)
         if not job or job.status != "queued":
             return None, total
-        with self._connect() as conn:
-            row = conn.execute(
-                """
-                SELECT COUNT(*) + 1 AS pos FROM jobs AS j2
-                WHERE j2.status = 'queued' AND (
-                    j2.created_at < ? OR (j2.created_at = ? AND j2.job_id < ?)
+        with self.engine.connect() as conn:
+            row = (
+                conn.execute(
+                    text(
+                        """
+                        SELECT COUNT(*) + 1 AS pos FROM jobs AS j2
+                        WHERE j2.status = 'queued' AND (
+                            j2.created_at < :created_at OR (j2.created_at = :created_at AND j2.job_id < :job_id)
+                        )
+                        """
+                    ),
+                    {"created_at": job.created_at, "job_id": job_id},
                 )
-                """,
-                (job.created_at, job.created_at, job_id),
-            ).fetchone()
+                .mappings()
+                .fetchone()
+            )
         pos = int(row["pos"]) if row else 1
         return pos, total
 
@@ -654,31 +788,30 @@ class AuthStore:
         current_file_name: str | None = None,
     ) -> None:
         sets: list[str] = []
-        params: list[object] = []
+        params: dict[str, object] = {}
         if percent is not None:
-            sets.append("progress_percent = ?")
-            params.append(max(0, min(100, int(percent))))
+            sets.append("progress_percent = :progress_percent")
+            params["progress_percent"] = max(0, min(100, int(percent)))
         if note is not None:
-            sets.append("progress_note = ?")
-            params.append(str(note)[:500])
+            sets.append("progress_note = :progress_note")
+            params["progress_note"] = str(note)[:500]
         if pages_done is not None:
-            sets.append("progress_pages_done = ?")
-            params.append(int(pages_done))
+            sets.append("progress_pages_done = :progress_pages_done")
+            params["progress_pages_done"] = int(pages_done)
         if pages_total is not None:
-            sets.append("progress_pages_total = ?")
-            params.append(int(pages_total))
+            sets.append("progress_pages_total = :progress_pages_total")
+            params["progress_pages_total"] = int(pages_total)
         if current_file_name is not None:
-            sets.append("current_file_name = ?")
-            params.append(str(current_file_name)[:500])
+            sets.append("current_file_name = :current_file_name")
+            params["current_file_name"] = str(current_file_name)[:500]
         if not sets:
             return
-        params.append(job_id)
-        with self._connect() as conn:
+        params["job_id"] = job_id
+        with self.engine.begin() as conn:
             conn.execute(
-                f"UPDATE jobs SET {', '.join(sets)} WHERE job_id = ?",
+                text(f"UPDATE jobs SET {', '.join(sets)} WHERE job_id = :job_id"),
                 params,
             )
-            conn.commit()
 
     def update_job_file_counts(
         self,
@@ -690,60 +823,73 @@ class AuthStore:
         failed_files: int | None = None,
     ) -> None:
         sets: list[str] = []
-        params: list[object] = []
+        params: dict[str, object] = {}
         if total_files is not None:
-            sets.append("total_files = ?")
-            params.append(int(total_files))
+            sets.append("total_files = :total_files")
+            params["total_files"] = int(total_files)
         if processed_files is not None:
-            sets.append("processed_files = ?")
-            params.append(int(processed_files))
+            sets.append("processed_files = :processed_files")
+            params["processed_files"] = int(processed_files)
         if succeeded_files is not None:
-            sets.append("succeeded_files = ?")
-            params.append(int(succeeded_files))
+            sets.append("succeeded_files = :succeeded_files")
+            params["succeeded_files"] = int(succeeded_files)
         if failed_files is not None:
-            sets.append("failed_files = ?")
-            params.append(int(failed_files))
+            sets.append("failed_files = :failed_files")
+            params["failed_files"] = int(failed_files)
         if not sets:
             return
-        params.append(job_id)
-        with self._connect() as conn:
+        params["job_id"] = job_id
+        with self.engine.begin() as conn:
             conn.execute(
-                f"UPDATE jobs SET {', '.join(sets)} WHERE job_id = ?",
+                text(f"UPDATE jobs SET {', '.join(sets)} WHERE job_id = :job_id"),
                 params,
             )
-            conn.commit()
 
     def list_queued_job_ids(self) -> list[str]:
-        with self._connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT job_id FROM jobs
-                WHERE status = 'queued'
-                AND output_file IS NOT NULL
-                AND output_file <> ''
-                ORDER BY datetime(created_at) ASC
-                """
-            ).fetchall()
+        with self.engine.connect() as conn:
+            rows = (
+                conn.execute(
+                    text(
+                        """
+                        SELECT job_id FROM jobs
+                        WHERE status = 'queued'
+                        AND output_file IS NOT NULL
+                        AND output_file <> ''
+                        ORDER BY created_at ASC
+                        """
+                    )
+                )
+                .mappings()
+                .fetchall()
+            )
         return [str(r["job_id"]) for r in rows]
 
     def get_queue_positions(self, job_ids: list[str]) -> tuple[dict[str, int], int]:
         wanted = {str(x) for x in job_ids if x}
         if not wanted:
             return {}, self.count_queued_jobs()
-        with self._connect() as conn:
-            total_row = conn.execute(
-                "SELECT COUNT(*) AS c FROM jobs WHERE status = 'queued'"
-            ).fetchone()
+        with self.engine.connect() as conn:
+            total_row = (
+                conn.execute(text("SELECT COUNT(*) AS c FROM jobs WHERE status = 'queued'"))
+                .mappings()
+                .fetchone()
+            )
             total = int(total_row["c"]) if total_row else 0
             if total <= 0:
                 return {}, 0
-            rows = conn.execute(
-                """
-                SELECT job_id FROM jobs
-                WHERE status = 'queued'
-                ORDER BY datetime(created_at) ASC, job_id ASC
-                """
-            ).fetchall()
+            rows = (
+                conn.execute(
+                    text(
+                        """
+                        SELECT job_id FROM jobs
+                        WHERE status = 'queued'
+                        ORDER BY created_at ASC, job_id ASC
+                        """
+                    )
+                )
+                .mappings()
+                .fetchall()
+            )
         out: dict[str, int] = {}
         pos = 0
         for r in rows:
@@ -756,7 +902,9 @@ class AuthStore:
         return out, total
 
     def delete_job(self, job_id: str) -> bool:
-        with self._connect() as conn:
-            cur = conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
-            conn.commit()
-            return cur.rowcount > 0
+        with self.engine.begin() as conn:
+            cur = conn.execute(
+                text("DELETE FROM jobs WHERE job_id = :job_id"),
+                {"job_id": job_id},
+            )
+            return bool(cur.rowcount and cur.rowcount > 0)
