@@ -98,8 +98,6 @@ $env:MAX_FILE_SIZE="20MB"
 $env:ALLOWED_TYPES="pdf,docx,pptx,html,png,jpg,jpeg"
 $env:DATA_DIR="./data"
 $env:DEBUG="false"
-$env:AUTO_CLEANUP="true"
-$env:CLEANUP_MAX_AGE_HOURS="24"
 ```
 
 说明：
@@ -107,8 +105,6 @@ $env:CLEANUP_MAX_AGE_HOURS="24"
 - `MAX_FILE_SIZE`：最大上传文件大小（支持 `B/KB/MB/GB`，例如 `20MB`）
 - `ALLOWED_TYPES`：允许上传的扩展名白名单（逗号分隔）
 - `DATA_DIR`：数据根目录（默认 `./data`）
-- `AUTO_CLEANUP`：是否自动清理历史任务目录
-- `CLEANUP_MAX_AGE_HOURS`：自动清理阈值（小时）
 
 可选转换参数（将你原 CLI 常用参数映射为环境变量）：
 

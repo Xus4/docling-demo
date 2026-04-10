@@ -120,7 +120,7 @@ async def _lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Docling Demo Web Service",
+    title="智枢文档",
     debug=config.debug,
     lifespan=_lifespan,
 )
@@ -335,8 +335,6 @@ async def _ingest_uploads_create_job(
 
     paths = None
     try:
-        service.cleanup_old_jobs()
-
         if upload_kind == "file":
             if len(merged_files) != 1:
                 raise HTTPException(status_code=400, detail="单文件上传只能包含 1 个文件")

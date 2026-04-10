@@ -294,22 +294,27 @@ class AuthStore:
         if not uname:
             return
         h = _hash_password(initial_password)
-        with self._connect() as conn:
+        with self.engine.begin() as conn:
             row = conn.execute(
-                "SELECT username FROM users WHERE username = ?",
-                (uname,),
+                text("SELECT 1 FROM users WHERE username = :u"),
+                {"u": uname},
             ).fetchone()
             if row:
                 conn.execute(
-                    "UPDATE users SET password_hash = ?, role = 'admin' WHERE username = ?",
-                    (h, uname),
+                    text(
+                        "UPDATE users SET password_hash = :ph, role = 'admin' "
+                        "WHERE username = :u"
+                    ),
+                    {"ph": h, "u": uname},
                 )
             else:
                 conn.execute(
-                    "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'admin')",
-                    (uname, h),
+                    text(
+                        "INSERT INTO users (username, password_hash, role) "
+                        "VALUES (:u, :ph, 'admin')"
+                    ),
+                    {"u": uname, "ph": h},
                 )
-            conn.commit()
 
     def authenticate(self, username: str, password: str) -> AuthUser | None:
         with self.engine.connect() as conn:

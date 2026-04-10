@@ -110,8 +110,6 @@ class AppConfig:
     data_dir: Path
     input_dir: Path
     output_dir: Path
-    auto_cleanup: bool
-    cleanup_max_age_hours: int
     pdf_vl_primary: bool
     pdf_vl_dpi: float
     pdf_vl_workers: int
@@ -181,7 +179,6 @@ class AppConfig:
             os.getenv("MAX_FILE_SIZE", "20MB"),
             default_bytes=20 * 1024 * 1024,
         )
-        cleanup_hours = int(os.getenv("CLEANUP_MAX_AGE_HOURS", "24"))
         max_num_pages_raw = os.getenv("MAX_NUM_PAGES", "").strip()
         llm_max_tokens_raw = os.getenv("LLM_MAX_TOKENS", "").strip()
         llm_max_tokens = int(llm_max_tokens_raw) if llm_max_tokens_raw else 16384
@@ -233,8 +230,6 @@ class AppConfig:
             data_dir=data_dir,
             input_dir=input_dir,
             output_dir=output_dir,
-            auto_cleanup=_parse_bool(os.getenv("AUTO_CLEANUP"), default=False),
-            cleanup_max_age_hours=max(1, cleanup_hours),
             pdf_vl_primary=_parse_bool(os.getenv("PDF_VL_PRIMARY"), default=True),
             pdf_vl_dpi=float(os.getenv("PDF_VL_DPI", "180")),
             pdf_vl_workers=max(1, int(os.getenv("PDF_VL_WORKERS", "10"))),

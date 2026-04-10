@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>文档转 Markdown</title>
+    <title>智枢文档 · 多模态智能转写</title>
     <style>
       :root {
         --bg-0: #141923;
@@ -220,6 +220,14 @@
         margin: 14px 0 0;
         color: var(--text-sub);
         font-size: 15px;
+      }
+
+      .brand .brand-tagline {
+        margin: 10px 0 0;
+        font-size: 13px;
+        letter-spacing: 0.14em;
+        font-weight: 500;
+        color: color-mix(in srgb, var(--text-sub) 92%, transparent);
       }
 
       /* 右上角统一工具栏（主题 / 用户 / 退出） */
@@ -630,6 +638,27 @@
         margin-top: 22px;
         display: grid;
         gap: 12px;
+      }
+
+      .auth-feedback {
+        margin: 0;
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-size: 14px;
+        line-height: 1.5;
+        text-align: center;
+      }
+
+      .auth-feedback.auth-feedback-success {
+        background: var(--success-bg);
+        color: var(--success-text);
+        border: 1px solid color-mix(in srgb, var(--success-text) 28%, transparent);
+      }
+
+      .auth-feedback.auth-feedback-error {
+        background: var(--error-bg);
+        color: var(--error-text);
+        border: 1px solid color-mix(in srgb, var(--error-text) 28%, transparent);
       }
 
       .field {
@@ -1170,6 +1199,10 @@
 
       .toast-error {
         border-color: color-mix(in srgb, var(--error-text) 32%, transparent);
+      }
+
+      .toast-warn {
+        border-color: color-mix(in srgb, var(--warning-text, #d4a017) 35%, transparent);
       }
 
       .status-loading {
@@ -3051,7 +3084,8 @@
   <body data-theme="dark">
     <main class="page">
       <header class="brand">
-        <h1>文档转 Markdown</h1>
+        <h1>智枢文档</h1>
+        <p class="brand-tagline">多模态工业文档 · 结构保真 · 智能转写 Markdown</p>
         <p id="supportedFormatsLine">支持加载中…</p>
       </header>
 
@@ -3117,6 +3151,13 @@
               <a id="forgotPasswordLink" class="forgot-link" href="#" role="button">忘记密码？</a>
             </div>
             <button id="loginBtn" class="primary-btn" type="button">登录</button>
+            <p
+              id="authFeedback"
+              class="auth-feedback hidden"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            ></p>
           </div>
         </section>
 
@@ -3395,6 +3436,7 @@ const selectedList = document.getElementById("selectedList");
       const passwordToggle = document.getElementById("passwordToggle");
       const rememberMeInput = document.getElementById("rememberMe");
       const forgotPasswordLink = document.getElementById("forgotPasswordLink");
+      const authFeedback = document.getElementById("authFeedback");
       const supportedFormatsLine = document.getElementById("supportedFormatsLine");
       const topActions = document.querySelector(".top-actions");
       if (refreshTasksBtn) {
@@ -3410,7 +3452,35 @@ const selectedList = document.getElementById("selectedList");
         theme: "docling_theme",
         history: "docling_history",
         rememberedUser: "docling_remembered_user",
+        accessToken: "docling_access_token",
+        tokenExpiresAt: "docling_token_expires_at",
       };
+
+      function getStoredAccessToken() {
+        const exp = localStorage.getItem(STORAGE_KEYS.tokenExpiresAt);
+        if (exp && Number(exp) < Date.now()) {
+          localStorage.removeItem(STORAGE_KEYS.accessToken);
+          localStorage.removeItem(STORAGE_KEYS.tokenExpiresAt);
+          return null;
+        }
+        return localStorage.getItem(STORAGE_KEYS.accessToken);
+      }
+
+      function authHeaderObject() {
+        const t = getStoredAccessToken();
+        return t ? { Authorization: "Bearer " + t } : {};
+      }
+
+      function mergeAuthHeaders(headers) {
+        const h = headers ? Object.assign({}, headers) : {};
+        Object.assign(h, authHeaderObject());
+        return h;
+      }
+
+      function clearStoredAuthToken() {
+        localStorage.removeItem(STORAGE_KEYS.accessToken);
+        localStorage.removeItem(STORAGE_KEYS.tokenExpiresAt);
+      }
       let currentUploadMode = null; // "file" | "folder"
       let currentFiles = [];
       let currentRootName = ""; 
@@ -3595,12 +3665,66 @@ const selectedList = document.getElementById("selectedList");
           clearTimeout(toastTimer);
           toastTimer = null;
         }
-        toast.className = "toast show " + (type === "success" ? "toast-success" : "toast-error");
-        toast.textContent = (type === "success" ? "✔ " : "✖ ") + text;
+        var t = String(text || "");
+        var isSuccess = type === "success";
+        var isWarn = type === "warn";
+        toast.className =
+          "toast show " +
+          (isSuccess ? "toast-success" : isWarn ? "toast-warn" : "toast-error");
+        toast.textContent =
+          (isSuccess ? "✔ " : isWarn ? "⚠ " : "✖ ") + t;
+        var ms = isSuccess ? 3200 : Math.min(9000, Math.max(4500, 800 + t.length * 40));
         toastTimer = setTimeout(() => {
           toast.className = "toast";
           toast.textContent = "";
-        }, 3000);
+        }, ms);
+      }
+
+      /** 将 FastAPI / HTTP JSON 里的 detail 转成可读字符串 */
+      function formatApiDetail(payload) {
+        if (!payload || payload.detail == null) return "";
+        var d = payload.detail;
+        if (typeof d === "string") return d;
+        if (Array.isArray(d)) {
+          return d
+            .map(function (x) {
+              if (x == null) return "";
+              if (typeof x === "string") return x;
+              if (typeof x.msg === "string") return x.msg;
+              try {
+                return JSON.stringify(x);
+              } catch (e) {
+                return "";
+              }
+            })
+            .filter(Boolean)
+            .join("；");
+        }
+        try {
+          return JSON.stringify(d);
+        } catch (e) {
+          return String(d);
+        }
+      }
+
+      function clearAuthFeedback() {
+        if (!authFeedback) return;
+        authFeedback.textContent = "";
+        authFeedback.className = "auth-feedback hidden";
+      }
+
+      /** 登录表单内可见反馈（statusBox 在工作区内，登录页隐藏时用户看不到） */
+      function setAuthFeedback(kind, text) {
+        if (!authFeedback) return;
+        var t = String(text || "").trim();
+        if (!t) {
+          clearAuthFeedback();
+          return;
+        }
+        authFeedback.textContent = t;
+        authFeedback.className =
+          "auth-feedback " +
+          (kind === "success" ? "auth-feedback-success" : "auth-feedback-error");
       }
 
       /**
@@ -3826,7 +3950,16 @@ function removeSelectedFileAt(index) {
       function setAuthState(user, opts) {
         opts = opts || {};
         if (user) {
-          currentUser = user;
+          clearAuthFeedback();
+          if (user.access_token) {
+            localStorage.setItem(STORAGE_KEYS.accessToken, user.access_token);
+            const ttl = Number(user.expires_in);
+            localStorage.setItem(
+              STORAGE_KEYS.tokenExpiresAt,
+              String(Date.now() + (Number.isFinite(ttl) && ttl > 0 ? ttl : 86400) * 1000)
+            );
+          }
+          currentUser = { username: user.username, role: user.role };
           document.body.classList.add("task-page");
           document.body.classList.toggle("role-admin", user.role === "admin");
           mainShell.classList.remove("login-shell");
@@ -3871,6 +4004,8 @@ function removeSelectedFileAt(index) {
         }
         stopTaskPolling();
         currentUser = null;
+        clearStoredAuthToken();
+        clearAuthFeedback();
         document.body.classList.remove("task-page");
         document.body.classList.remove("role-admin");
         if (sessionBoot) sessionBoot.classList.add("hidden");
@@ -4028,7 +4163,11 @@ if (selectedList) selectedList.innerHTML = "";
       async function loadAdminUserFilters() {
         if (!currentUser || currentUser.role !== "admin") return;
         try {
-          const resp = await fetch("/auth/users");
+          const resp = await fetch("/auth/users", {
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: mergeAuthHeaders({}),
+          });
           if (!resp.ok) return;
           const data = await resp.json();
           const names = data.usernames || [];
@@ -4453,6 +4592,7 @@ if (selectedList) selectedList.innerHTML = "";
           const resp = await fetch("/jobs?" + params.toString(), {
             credentials: "same-origin",
             cache: "no-store",
+            headers: mergeAuthHeaders({}),
           });
           if (resp.status === 401) {
             setAuthState(null);
@@ -4500,6 +4640,7 @@ if (selectedList) selectedList.innerHTML = "";
             const resp = await fetch("/jobs/" + encodeURIComponent(jobId), {
               credentials: "same-origin",
               cache: "no-store",
+              headers: mergeAuthHeaders({}),
             });
             if (resp.status === 401) {
               setAuthState(null);
@@ -4653,7 +4794,7 @@ if (selectedList) selectedList.innerHTML = "";
             const resp = await fetch("/jobs/batch-download", {
               method: "POST",
               credentials: "same-origin",
-              headers: { "Content-Type": "application/json" },
+              headers: mergeAuthHeaders({ "Content-Type": "application/json" }),
               body: JSON.stringify({ job_ids: ids }),
             });
             if (resp.status === 401) {
@@ -4788,6 +4929,7 @@ if (selectedList) selectedList.innerHTML = "";
               method: "DELETE",
               credentials: "same-origin",
               cache: "no-store",
+              headers: mergeAuthHeaders({}),
             });
             const data = await resp.json().catch(() => ({}));
             if (resp.status === 401) {
@@ -4828,6 +4970,7 @@ if (selectedList) selectedList.innerHTML = "";
                 method: "POST",
                 credentials: "same-origin",
                 cache: "no-store",
+                headers: mergeAuthHeaders({}),
               }
             );
             const data = await resp.json().catch(() => ({}));
@@ -4867,6 +5010,7 @@ if (selectedList) selectedList.innerHTML = "";
             method: "POST",
             credentials: "same-origin",
             cache: "no-store",
+            headers: mergeAuthHeaders({}),
           });
           const data = await resp.json().catch(() => ({}));
           if (resp.status === 401) {
@@ -4913,21 +5057,40 @@ if (selectedList) selectedList.innerHTML = "";
         const username = usernameInput.value.trim();
         const password = passwordInput.value;
         if (!username || !password) {
-          setStatus("error", "请输入用户名和密码");
+          const msg = "请输入用户名和密码";
+          setAuthFeedback("error", msg);
+          showToast("error", msg);
           return;
         }
         const oldText = loginBtn.textContent;
+        let loginOkScheduled = false;
+        clearAuthFeedback();
         loginBtn.disabled = true;
         loginBtn.textContent = "登录中...";
         try {
           const resp = await fetch("/auth/login", {
             method: "POST",
+            credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username, password }),
           });
-          const payload = await resp.json();
+          let payload = {};
+          try {
+            const ct = (resp.headers.get("content-type") || "").toLowerCase();
+            if (ct.indexOf("application/json") !== -1) {
+              payload = await resp.json();
+            } else {
+              const t = await resp.text();
+              if (t) payload = { detail: t.slice(0, 200) };
+            }
+          } catch (e) {
+            payload = {};
+          }
           if (!resp.ok) {
-            setStatus("error", payload.detail || "登录失败");
+            const errMsg =
+              formatApiDetail(payload) || "登录失败（HTTP " + resp.status + "）";
+            setAuthFeedback("error", errMsg);
+            showToast("error", errMsg);
             return;
           }
           if (rememberMeInput.checked) {
@@ -4936,13 +5099,33 @@ if (selectedList) selectedList.innerHTML = "";
             localStorage.removeItem(STORAGE_KEYS.rememberedUser);
           }
           passwordInput.value = "";
-          setAuthState(payload);
-          setStatus("success", "登录成功");
+          const okMsg =
+            (typeof payload.message === "string" && payload.message.trim()
+              ? payload.message.trim()
+              : "登录成功，欢迎 " + (payload.username || username)) +
+            (payload.role === "admin" ? "（管理员）" : "");
+          setAuthFeedback("success", okMsg);
+          showToast("success", okMsg);
+          loginOkScheduled = true;
+          window.setTimeout(function () {
+            setAuthState({
+              username: payload.username,
+              role: payload.role,
+              access_token: payload.access_token,
+              expires_in: payload.expires_in,
+            });
+            loginBtn.disabled = false;
+            loginBtn.textContent = oldText;
+          }, 400);
         } catch (error) {
-          setStatus("error", "登录请求失败");
+          const netMsg = "登录请求失败，请检查网络或稍后重试";
+          setAuthFeedback("error", netMsg);
+          showToast("error", netMsg);
         } finally {
-          loginBtn.disabled = false;
-          loginBtn.textContent = oldText;
+          if (!loginOkScheduled) {
+            loginBtn.disabled = false;
+            loginBtn.textContent = oldText;
+          }
         }
       });
 
@@ -4964,11 +5147,17 @@ if (selectedList) selectedList.innerHTML = "";
 
       forgotPasswordLink.addEventListener("click", (event) => {
         event.preventDefault();
-        setStatus("error", "请联系管理员重置密码");
+        const msg = "请联系管理员重置密码";
+        setStatus("error", msg);
+        showToast("warn", msg);
       });
 
       logoutBtn.addEventListener("click", async () => {
-        await fetch("/auth/logout", { method: "POST" });
+        await fetch("/auth/logout", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: mergeAuthHeaders({}),
+        });
         setAuthState(null);
         setStatus("success", "已退出登录");
       });
@@ -5186,6 +5375,10 @@ folderInput.addEventListener("change", () => {
           const xhr = new XMLHttpRequest();
           xhr.open("POST", "/jobs");
           xhr.withCredentials = true;
+          const ah = authHeaderObject();
+          if (ah.Authorization) {
+            xhr.setRequestHeader("Authorization", ah.Authorization);
+          }
           uploadXhr = xhr;
           let uploadT0 = 0;
           xhr.upload.addEventListener("progress", function (e) {
@@ -5501,9 +5694,11 @@ setStatus("error", "请求失败：" + (error && error.message ? error.message :
 
       (async function initAuth() {
         try {
+          const hadStoredToken = !!getStoredAccessToken();
           const resp = await fetch("/auth/bootstrap", {
             credentials: "same-origin",
             cache: "no-store",
+            headers: mergeAuthHeaders({}),
           });
           let payload = null;
           if (resp.ok) {
@@ -5512,6 +5707,9 @@ setStatus("error", "请求失败：" + (error && error.message ? error.message :
           if (sessionBoot) sessionBoot.classList.add("hidden");
           if (!resp.ok) {
             setAuthState(null);
+            if (resp.status === 401 && hadStoredToken) {
+              showToast("error", "登录已过期或凭证无效，请重新登录");
+            }
             return;
           }
           setAuthState(
@@ -5521,6 +5719,9 @@ setStatus("error", "请求失败：" + (error && error.message ? error.message :
         } catch (error) {
           if (sessionBoot) sessionBoot.classList.add("hidden");
           setAuthState(null);
+          if (hadStoredToken) {
+            showToast("error", "无法验证登录状态，请检查网络后刷新页面");
+          }
         }
       })();
     </script>

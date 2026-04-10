@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import shutil
-import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -144,22 +143,3 @@ class ConversionService:
                 continue
             if self.is_supported_file(path):
                 yield path
-
-    def cleanup_old_jobs(self) -> None:
-        if not self.app_config.auto_cleanup:
-            return
-        max_age_seconds = self.app_config.cleanup_max_age_hours * 3600
-        now = time.time()
-        self._cleanup_base_dir(self.app_config.input_dir, now, max_age_seconds)
-        self._cleanup_base_dir(self.app_config.output_dir, now, max_age_seconds)
-
-    @staticmethod
-    def _cleanup_base_dir(base_dir: Path, now: float, max_age_seconds: int) -> None:
-        if not base_dir.exists():
-            return
-        for entry in base_dir.iterdir():
-            if not entry.is_dir():
-                continue
-            age = now - entry.stat().st_mtime
-            if age > max_age_seconds:
-                shutil.rmtree(entry, ignore_errors=True)
