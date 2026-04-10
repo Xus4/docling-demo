@@ -18,3 +18,5 @@ python-multipart>=0.0.9
 python-dotenv>=1.0.1
 itsdangerous>=2.2.0
 PyJWT>=2.8.0
+sqlalchemy>=2.0.0
+pymysql>=1.1.0

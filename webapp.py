@@ -44,7 +44,7 @@ STATIC_DIR = ROOT / "static"
 config = AppConfig.from_env()
 config.ensure_dirs()
 service = ConversionService(config)
-auth_store = AuthStore(config.auth_db_path)
+auth_store = AuthStore(config.database_url)
 if config.oa_auth_enabled:
     auth_store.ensure_env_admin_user(
         config.auth_admin_username,

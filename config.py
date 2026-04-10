@@ -149,6 +149,8 @@ class AppConfig:
     llm_allow_rerun: bool
     llm_rerun_max_attempts: int
     pdf_vl_table_second_pass: bool
+    db_type: str
+    database_url: str
     auth_db_path: Path
     session_secret: str
     access_token_secret: str
@@ -202,6 +204,28 @@ class AppConfig:
             oa_tenant_name = "    "
         else:
             oa_tenant_name = str(_oa_tenant_name_raw).rstrip("\r\n")
+        auth_db_path = Path(os.getenv("AUTH_DB_PATH", str(data_dir / "auth.db"))).resolve()
+        db_type = os.getenv("DB_TYPE", "sqlite").strip().lower()
+        database_url = os.getenv("DATABASE_URL", "").strip()
+        if not database_url:
+            if db_type == "mysql":
+                mysql_user = env_str("MYSQL_USER", "root")
+                mysql_password = os.getenv("MYSQL_PASSWORD", "")
+                mysql_host = env_str("MYSQL_HOST", "127.0.0.1")
+                mysql_port = env_int("MYSQL_PORT", 3306)
+                mysql_db = env_str("MYSQL_DATABASE", "docling_demo")
+                if mysql_password:
+                    database_url = (
+                        f"mysql+pymysql://{mysql_user}:{mysql_password}"
+                        f"@{mysql_host}:{mysql_port}/{mysql_db}?charset=utf8mb4"
+                    )
+                else:
+                    database_url = (
+                        f"mysql+pymysql://{mysql_user}"
+                        f"@{mysql_host}:{mysql_port}/{mysql_db}?charset=utf8mb4"
+                    )
+            else:
+                database_url = "sqlite:///" + auth_db_path.as_posix()
         return cls(
             max_file_size_bytes=max_file_size_bytes,
             allowed_types=_parse_allowed_types(os.getenv("ALLOWED_TYPES")),
@@ -266,9 +290,9 @@ class AppConfig:
             llm_allow_rerun=env_bool("LLM_ALLOW_RERUN", False),
             llm_rerun_max_attempts=max(0, env_int("LLM_RERUN_MAX_ATTEMPTS", 1)),
             pdf_vl_table_second_pass=env_bool("PDF_VL_TABLE_SECOND_PASS", True),
-            auth_db_path=Path(
-                os.getenv("AUTH_DB_PATH", str(data_dir / "auth.db"))
-            ).resolve(),
+            db_type=db_type,
+            database_url=database_url,
+            auth_db_path=auth_db_path,
             session_secret=os.getenv("SESSION_SECRET", "change-me-in-production"),
             access_token_secret=(
                 os.getenv("ACCESS_TOKEN_SECRET", "").strip()
