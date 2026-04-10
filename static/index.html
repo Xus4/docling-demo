@@ -693,13 +693,33 @@
 
       .auth-tip {
         margin: 10px 0 0;
-        padding: 10px 12px;
+        padding: 8px 10px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
         border-radius: 10px;
-        border: 1px solid color-mix(in srgb, var(--brand) 36%, transparent);
-        background: color-mix(in srgb, var(--brand) 12%, transparent);
-        color: color-mix(in srgb, var(--text-main) 88%, var(--brand) 12%);
-        font-size: 13px;
+        border: 1px solid rgba(250, 204, 21, 0.22);
+        background: rgba(250, 204, 21, 0.08);
+        color: rgba(254, 240, 138, 0.88);
+        font-size: 12px;
         line-height: 1.5;
+      }
+
+      .auth-tip-icon {
+        width: 14px;
+        height: 14px;
+        flex: 0 0 14px;
+        color: rgba(250, 204, 21, 0.78);
+      }
+
+      body[data-theme="light"] .auth-tip {
+        border-color: rgba(202, 138, 4, 0.24);
+        background: rgba(254, 240, 138, 0.22);
+        color: rgba(146, 64, 14, 0.86);
+      }
+
+      body[data-theme="light"] .auth-tip-icon {
+        color: rgba(202, 138, 4, 0.82);
       }
 
       .auth-grid {
@@ -3524,7 +3544,6 @@
         </div>
         <section id="authBox" class="auth-view hidden">
           <h2 class="auth-title">账号登录</h2>
-          <p class="auth-sub">已支持云脑账号，请使用云脑账号登录</p>
 
           <div class="auth-grid">
             <label class="field">
@@ -3564,6 +3583,14 @@
               aria-atomic="true"
             ></p>
           </div>
+          <p class="auth-tip">
+            <svg class="auth-tip-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 2.75L21.25 19.25C21.57 19.82 21.16 20.5 20.5 20.5H3.5C2.84 20.5 2.43 19.82 2.75 19.25L12 2.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path>
+              <path d="M12 8.5V13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+              <circle cx="12" cy="16.9" r="1.1" fill="currentColor"></circle>
+            </svg>
+            <span>已支持云脑账号，请使用云脑账号登录</span>
+          </p>
         </section>
 
         <section id="workArea" class="workspace hidden">
