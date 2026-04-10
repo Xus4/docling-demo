@@ -1,341 +1,380 @@
-# docling-demo（工业级多格式 → Markdown）
+# 智枢文档（docling-demo）
 
-使用 [Docling](https://github.com/docling-project/docling) 将 **PDF / DOCX / PPTX / HTML / 常见图片** 转为 **Markdown**（表格结构识别、可选公式/LaTeX 富集、OCR、图片外链）；**XLSX** 使用 **pandas** 按 **Sheet** 导出为 Markdown 表格。
+基于 [Docling](https://github.com/docling-project/docling) 的工业文档转换：**批量 CLI** 与 **FastAPI Web** 共用同一套转换配置（`.env` / `AppConfig`）。支持 PDF、Word、PPT、HTML、常见图片、Excel 等格式输出 **Markdown**，并可选 **PDF 按页多模态（VL）转写**、表格/图片语义说明、表格块纠错等（通过 OpenAI 兼容接口，默认对接阿里云百炼，也可指向本地 Ollama 等）。
 
-**默认配置偏内存安全**：`images_scale=1.0`、不生成整页高清 PNG、**不加载公式 VLM**；需要公式或高分辨率配图时请显式传入 `--formula` / `--rich-images`。
+---
 
-## 目录约定
+## 目录
 
-| 路径 | 用途 |
+- [能力与技术栈](#能力与技术栈)
+- [架构与数据流](#架构与数据流)
+- [环境要求](#环境要求)
+- [安装](#安装)
+- [配置说明（环境变量）](#配置说明环境变量)
+- [认证：本地用户与 OA](#认证本地用户与-oa)
+- [运行 Web 服务](#运行-web-服务)
+- [HTTP API 参考](#http-api-参考)
+- [任务状态与权限](#任务状态与权限)
+- [批量转换 CLI（main.py）](#批量转换-climainpy)
+- [GPU / PyTorch 提示](#gpu--pytorch-提示)
+- [日志与排错](#日志与排错)
+- [测试](#测试)
+- [目录结构](#目录结构)
+- [许可证与第三方](#许可证与第三方)
+
+---
+
+## 能力与技术栈
+
+| 模块 | 说明 |
 |------|------|
-| `data/input/pdf/` | PDF |
-| `data/input/word/` | DOCX |
-| `data/input/excel/` | XLSX（pandas 按 Sheet 转表） |
-| `data/input/ppt/` | PPTX |
-| `data/input/html/` | HTML / HTM |
-| `data/input/images/` | PNG / JPEG / TIFF / BMP / WEBP |
-| `data/output/` | 输出的 `.md` 及 Docling 抽取的图片（与 `save_as_markdown` 行为一致） |
+| **Docling** | 版式分析、PDF/Office/HTML/图片等管线；可配 OCR（EasyOCR / Tesseract）、表格结构、可选公式模型等。 |
+| **Excel** | `.xlsx` 由 **pandas** 按工作表导出为 Markdown 表格（见 `src/converter.py`）。 |
+| **MinerU（magic-pdf）** | 可选；PDF 配图裁剪时优先用其布局检测 bbox，未安装则回退 PyMuPDF（见 `requirements.txt` 注释）。 |
+| **VL / LLM** | `src/pdf_vl_transcribe.py`、`src/dashscope_client.py` 等；兼容 OpenAI 风格的 `/chat/completions`。 |
+| **Web** | **FastAPI** + `SessionMiddleware` + **JWT**（`access_token.py`）；静态页 `static/index.html`。 |
+| **任务与账号** | **SQLAlchemy**；**SQLite** 或 **MySQL**；进程内队列 `JobQueueWorker`（`job_worker.py`）。 |
 
-## 项目结构（代码）
+**默认支持的扩展名**（可通过 `ALLOWED_TYPES` 收窄）：`pdf, docx, pptx, html, htm, png, jpg, jpeg, tif, tiff, bmp, webp, xlsx`。
 
-| 路径 | 说明 |
-|------|------|
-| `main.py` | 命令行入口：批量扫描输入目录、日志、单文件失败不阻断整批 |
-| `webapp.py` | FastAPI 应用（静态页、认证、任务与下载） |
-| `service.py` | `ConversionService`：校验扩展名、落盘上传、调用转换器 |
-| `job_worker.py` | 单进程后台线程：内存队列 + SQLite 任务状态 |
-| `auth.py` | SQLite 用户与任务表、会话侧配合 `SessionMiddleware` |
-| `config.py` | `AppConfig.from_env()`，供 Web 与 `build_converter_config()` 使用 |
-| `src/converter.py` | `IndustrialDocConverter`：Docling 管线、XLSX/pandas、可选 LLM/VL 后处理 |
-| `src/pdf_vl_transcribe.py` 等 | PDF 按页 Qwen-VL、Markdown 精修等子能力 |
+---
 
-依赖安装见根目录 `requirements.txt`（版本为下界约束；若需可复现构建，建议在生产或 CI 中锁定具体版本）。
+## 架构与数据流
 
-## 环境（Windows / PowerShell）
+```mermaid
+flowchart LR
+  subgraph Web
+    UI[浏览器 / 静态前端]
+    API[FastAPI webapp.py]
+    W[JobQueueWorker]
+  end
+  subgraph Data
+    DB[(用户与任务表)]
+    IN[input_dir / job_id]
+    OUT[output_dir / job_id]
+  end
+  subgraph Convert
+    SVC[ConversionService]
+    CV[IndustrialDocConverter]
+  end
+  UI --> API
+  API --> DB
+  API --> IN
+  W --> DB
+  W --> SVC
+  SVC --> CV
+  CV --> OUT
+  API --> OUT
+```
 
-```powershell
-py -m venv .venv
-.venv\Scripts\Activate.ps1
-python -m pip install -U pip
+- **上传**：鉴权通过后，文件写入 `INPUT_DIR/<job_id>/...`，产出写入 `OUTPUT_DIR/<job_id>/...`。
+- **队列**：单进程 worker 从数据库取 `queued` 任务执行；进程重启时会在 lifespan 中把异常中断的 `running` 置回队列并重新调度（见 `webapp.py` 中 `_lifespan`）。
+- **下载**：成功任务通过将**整个产出目录**打成 **ZIP** 返回（单任务与批量下载均如此）。
+
+---
+
+## 环境要求
+
+- **Python 3.10+**（建议与当前 Docling 版本说明一致）。
+- **内存与磁盘**：Docling + EasyOCR + 可选 VL 较重；大 PDF 建议 CLI 使用 `--low-memory`、`--scan` 或限制 `--max-num-pages`。
+- **调用 VL/LLM 时**：在环境中配置 API Key。默认读取 **`DASHSCOPE_API_KEY`**，或通过 **`LLM_API_KEY_ENV`** 指定其他环境变量名。若使用 **Ollama** 等无密钥服务，仍需保证 `LLM_BASE_URL` 与模型名与对端一致。
+- **可选 GPU**：Docling 侧可通过 CLI `--device` 使用 CUDA；与 PyTorch 轮子是否带 CUDA 有关（见下文 [GPU / PyTorch](#gpu--pytorch-提示)）。
+
+---
+
+## 安装
+
+```bash
+cd docling-demo
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-说明：
+在项目根目录维护 **`.env`**（`config.py` 与 `main.py` 均会通过 `python-dotenv` 加载，**override=false**：已存在的环境变量不会被 `.env` 覆盖）。
 
-- **GPU（NVIDIA）**：默认 **`python main.py` 使用 `--device cuda`**。若日志出现 **`torch.cuda.is_available()=False`** 或 **`torch x.x.x+cpu`**，说明当前是 **CPU 版 PyTorch**（从 PyPI 默认装 `docling` 时很容易被 `torch` 依赖拉成 `+cpu`），**不会**用显卡。
+**生产环境务必修改**：`SESSION_SECRET`、`ACCESS_TOKEN_SECRET`（可留空则回退为 `SESSION_SECRET`）、`INITIAL_PASSWORD`，并根据部署方式关闭 `DEBUG`。
 
-先自检：
+---
 
-```powershell
-python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
-```
+## 配置说明（环境变量）
 
-应看到 **`+cu124` / `+cu128` 等**且 **`True`**。若是 **`+cpu`**，请**先卸载再装**（二选一，**RTX 50 系 / Blackwell 优先 cu128**）：
+下列默认值以 `config.py` 中 `AppConfig.from_env()` 为准；单位大小写不敏感（如 `20MB`、`1GB`）。
 
-```powershell
-python -m pip uninstall -y torch torchvision torchaudio
-python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-```
+### 数据目录与 Web 上传
 
-若仍提示 **sm_120 / Blackwell 与当前 PyTorch 不兼容**，请升级到 **PyTorch 2.7+** 且 **CUDA 12.8（cu128）** 的官方轮子，版本以 [PyTorch 安装页](https://pytorch.org/get-started/locally/) 为准。
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `DATA_DIR` | `项目根/data` | 数据根目录。 |
+| `INPUT_DIR` | `DATA_DIR/input` | Web 上传与任务输入根路径。 |
+| `OUTPUT_DIR` | `DATA_DIR/output` | 转换产出根路径。 |
+| `MAX_FILE_SIZE` | `20MB` | 单文件上传上限（支持 `B`/`KB`/`MB`/`GB`）。 |
+| `ALLOWED_TYPES` | 见上文集合 | 逗号分隔扩展名，不带点。 |
+| `DEBUG` | `false` | FastAPI `debug`。 |
 
-无独显或只想用 CPU 时：`python main.py --device cpu` 或 `--cpu`。
+### PDF 按页 VL 与 Docling 相关（Web 与 `build_converter_config` 一致）
 
-- **EasyOCR** 会拉取 **torch** 等依赖，首次运行会下载模型。
-- 若使用 **`--ocr-engine tesseract`**，需本机安装 [Tesseract](https://github.com/tesseract-ocr/tesseract) 及语言数据，并执行 `pip install -r requirements-ocr-tesseract.txt`（Windows 上 `tesserocr` 轮子/编译环境需自行准备）。
-- `requirements.txt` 请保持 **纯 ASCII**（或 UTF-8 带 BOM），否则在部分 Windows 区域设置下 `pip install -r` 可能因编码报错。
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `PDF_VL_PRIMARY` | `true` | 是否以「PDF 按页 VL 转写」为主流程（关闭则走 Docling 为主，取决于转换器内部逻辑）。 |
+| `PDF_VL_DPI` | `180` | 按页渲染 DPI。 |
+| `PDF_VL_WORKERS` | `10` | 页级并发；本地单卡可适当调低避免排队或显存抖动。 |
+| `MAX_NUM_PAGES` | 空=不限制 | 每个文档最大处理页数。 |
+| `PDF_VL_TABLE_SECOND_PASS` | `true` | 是否对可疑表格做二次 LLM 校对。 |
+| `PDF_VL_TABLE_SECOND_PASS_MAX_TABLES` | `0` | 每页二次校对表格数上限；`0` 表示不限制。 |
 
-## 一键批量转换（验证）
+### 大模型（OpenAI 兼容接口）
 
-将待转文件放入 `data/input/` 下对应子目录后：
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `LLM_MODEL` | `qwen3.5-35b-a3b` | 模型名（百炼 / Ollama 等各自命名）。 |
+| `LLM_BASE_URL` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | API 根地址；CLI 可用 `--llm-base-url` 覆盖说明见 `main.py -h`。 |
+| `LLM_API_KEY_ENV` | `DASHSCOPE_API_KEY` | 从哪个**环境变量名**读取 API Key。 |
+| `LLM_MAX_TOKENS` | `16384` | 单次 completion 上限；未单独配置时，表格/图片说明的字符上限会与此对齐。 |
+| `LLM_TEMPERATURE` | `0.0` | 采样温度。 |
+| `LLM_MAX_RETRIES` | `3` | 失败重试次数。 |
+| `LLM_RETRY_BACKOFF_SEC` | `1.5` | 重试退避（秒）。 |
+| `LLM_MAX_REASONING_TOKENS` | `256` | 思考模式相关 token 上限（依提供商语义）。 |
+| `LLM_ENABLE_THINKING` | `true` | 是否启用思考链类能力；本地推理卡顿时可关。 |
+| `LLM_TIMEOUT_SEC` | `300` | 单次请求超时（秒），实际会取与连接超时相关的下限。 |
+| `LLM_EMPTY_CONTENT_MAX_ATTEMPTS` | `3` | `assistant.content` 为空时的重试次数。 |
+| `LLM_LOG_STREAM_RESPONSE` | `false` | 是否流式请求并在日志打印片段。 |
+| `LLM_VL_IMAGE_MODE` | `local_abs` | 多模态图片引用方式：`local_abs` 或 `url`。 |
+| `LLM_CLEANUP_MAX_IMAGES` | `6` | 多模态消息里最多附带几张图（清洗/纠错）。 |
 
-```powershell
-python main.py --input-dir ./data/input --output-dir ./data/output
-```
+### 表格 / 图片增强
 
-参数写法约定：命令行示例统一使用 **`--opt value`** 形式；仓库内“是否显式传参”的判断也按该形式设计。
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `LLM_TABLE_CAPTION` | `true` | 是否为表格生成说明文字。 |
+| `LLM_TABLE_CAPTION_MAX_CHARS` | 默认同 `LLM_MAX_TOKENS` | 每个表格说明最大字符数。 |
+| `LLM_TABLE_CAPTION_MAX_TABLES` | `0` | 每文档最多处理表格数；`0` 不限制。 |
+| `LLM_TABLE_CAPTION_CONTEXT_LINES` | `3` | 表格前后上下文行数。 |
+| `LLM_IMAGE_CAPTION` | `true` | 是否对插图做语义补充。 |
+| `LLM_IMAGE_CAPTION_MAX_IMAGES` | `0` | 每文档最多处理图片数；`0` 不限制。 |
+| `LLM_IMAGE_CAPTION_MAX_CHARS` | 默认同 `LLM_MAX_TOKENS` | 每张图说明长度上限。 |
+| `LLM_IMAGE_CAPTION_CONTEXT_LINES` | `3` | 图片前后上下文行数。 |
+| `PDF_CAPTION_CROP_FIGURES` | `true` | 是否按图题从页面渲染图中裁切局部插图。 |
+| `PDF_CAPTION_CROP_MAX_PER_PAGE` | `4` | 每页最多裁切插图数。 |
 
-## Web 服务（MVP）
+### LLM 精修与表格纠错（进阶）
 
-本项目支持以轻量 Web 服务方式运行（FastAPI + Uvicorn），用于内网多人上传文件并下载 Markdown。
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `LLM_ENABLE_REFINE` | `false` | Docling 结果后是否走 LLM 精修路径。 |
+| `LLM_TABLE_REFINE` | `false` | 是否按 table 块调用模型纠错。 |
+| `LLM_TABLE_CLEANUP_MAX_TABLES` | `10` | 最多处理多少个 table 块。 |
+| `LLM_TABLE_CLEANUP_MAX_IMAGES_PER_TABLE` | `6` | 每个 table 最多附带图片数。 |
+| `LLM_TABLE_CONTEXT_LINES` | `2` | table 块附加上下文行数。 |
+| `LLM_ALLOW_RERUN` | `false` | 是否允许质量检查触发 Docling rerun。 |
+| `LLM_RERUN_MAX_ATTEMPTS` | `1` | rerun 次数上限。 |
 
-### 1) 安装依赖
+### 数据库与登录（本地账号）
 
-```powershell
-pip install -r requirements.txt
-```
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `DB_TYPE` | `sqlite` | `sqlite` 或 `mysql`（未设置 `DATABASE_URL` 时用于拼接）。 |
+| `DATABASE_URL` | 空 | 若设置则**优先**使用（如 `mysql+pymysql://user:pass@host:3306/db?charset=utf8mb4`）。 |
+| `AUTH_DB_PATH` | `DATA_DIR/auth.db` | SQLite 文件路径（仅当使用 sqlite URL 时有效）。 |
+| `MYSQL_USER` / `MYSQL_PASSWORD` / `MYSQL_HOST` / `MYSQL_PORT` / `MYSQL_DATABASE` | `root` / 空 / `127.0.0.1` / `3306` / `docling_demo` | 未设 `DATABASE_URL` 且 `DB_TYPE=mysql` 时拼装连接串。 |
+| `SESSION_SECRET` | `change-me-in-production` | Cookie 会话签名密钥。 |
+| `ACCESS_TOKEN_SECRET` | 空则同 `SESSION_SECRET` | JWT 签名密钥。 |
+| `ACCESS_TOKEN_TTL_SEC` | `86400` | JWT 有效期（秒），下限 60。 |
+| `INITIAL_PASSWORD` | `ChangeMe123!` | 首次初始化写入用户库的密码（存 PBKDF2 哈希）。 |
+| `AUTH_ADMIN_USERNAME` | `admin` | 管理员用户名；OA 模式下同名账号可走「环境管理员」特例（见下节）。 |
+| `AUTH_USERS` | `user1,user2,...` | 非 OA 模式下引导创建的用户列表。 |
 
-### 2) 配置管理员参数（环境变量）
+### OA 登录（可选）
 
-推荐使用仓库根目录下的 **`.env`** 保存本地配置（`main.py` 与 `webapp.py` 启动时均会加载）。在仓库根目录**新建** `.env` 并按需填写变量（下表与示例）；不要将含 **API 密钥、会话密钥、初始密码** 的 `.env` **提交到 Git**。
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `OA_AUTH_ENABLED` | `false` | 为 `true` 时，普通用户登录走 OA 接口，不在本地 `users` 表校验密码。 |
+| `OA_AUTH_LOGIN_URL` | 空 | OA 登录 POST 地址（需可访问）。 |
+| `OA_AUTH_TENANT_ID` | `1` | 请求头 `tenant-id`。 |
+| `OA_AUTH_TENANT_NAME` | 未设置时为四个空格 | JSON 体 `tenantName`；若需真正空字符串可设为 `OA_AUTH_TENANT_NAME=`。 |
+| `OA_AUTH_REMEMBER_ME` | `true` | 请求体 `rememberMe`。 |
+| `OA_AUTH_VERIFY_SSL` | `false` | HTTPS 是否校验证书。 |
+| `OA_AUTH_TIMEOUT_SEC` | `15` | 请求超时（秒），下限 3。 |
+| `OA_AUTH_ORIGIN` / `OA_AUTH_REFERER` / `OA_AUTH_USER_AGENT` | 空 | 未设置时由登录 URL 推导 Origin，Referer 默认为 `{origin}/login?redirect=/index`，UA 为内置浏览器串。 |
+| `OA_AUTH_COOKIE` | 空 | 需要时可附加 `Cookie` 头。 |
+| `OA_AUTH_TRUST_ENV` | `false` | 为 `false` 时**不使用**系统环境代理（避免内网 OA 被 `HTTP_PROXY` 拐走）；与 `oa_auth.py` 中说明一致。 |
 
-**优先级**：**系统环境变量** > **`.env` 文件** > **代码默认值**。
+### 日志（Web）
 
-**CLI 与 Web**：批量转换使用 `python main.py` 及**命令行参数**（可用环境变量辅助部分开关）；Web 服务主要读取 **`AppConfig` 对应的环境变量**（见下）。二者默认值并非逐参一一对应——例如 `main.py` 在**未**使用 `--pdf-vl-primary` 时，部分 LLM 相关 CLI 默认值与 Web 侧不同；若需行为对齐，请在 CLI 中**显式传入**与线上一致的参数，或对照 `config.py` / `main.py` 中的解析逻辑。
+| 变量 | 说明 |
+|------|------|
+| `RUN_LOG_FILE` | 若设置，日志写入该文件；否则在 `LOG_DIR` 下按时间戳与 PID 生成。 |
+| `LOG_DIR` | 默认 `DATA_DIR/logs`。 |
+| `LOG_MAX_BYTES` | 单文件滚动上限，默认 `52428800`（50MB）。 |
+| `LOG_BACKUP_COUNT` | 保留备份数，默认 `10`。 |
 
-```powershell
-$env:MAX_FILE_SIZE="20MB"
-$env:ALLOWED_TYPES="pdf,docx,pptx,html,png,jpg,jpeg"
-$env:DATA_DIR="./data"
-$env:DEBUG="false"
-```
+---
 
-说明：
+## 认证：本地用户与 OA
 
-- `MAX_FILE_SIZE`：最大上传文件大小（支持 `B/KB/MB/GB`，例如 `20MB`）
-- `ALLOWED_TYPES`：允许上传的扩展名白名单（逗号分隔）
-- `DATA_DIR`：数据根目录（默认 `./data`）
+### 鉴权方式
 
-可选转换参数（将你原 CLI 常用参数映射为环境变量）：
+受保护接口接受：
 
-- `PDF_VL_PRIMARY`（默认 `true`）
-- `PDF_VL_DPI`（默认 `180`）
-- `PDF_VL_WORKERS`（默认 `10`）
-- `LLM_MODEL`（默认 `qwen3.5-35b-a3b`）
-- `PDF_VL_TABLE_SECOND_PASS_MAX_TABLES`：每页可疑表格二次校对上限；`0` 或不设表示**不限制**（默认 `0`）
-- `MAX_NUM_PAGES`（默认不限制）
-- `LLM_MAX_TOKENS`（默认 `16384`）
-- `LLM_TEMPERATURE`（默认 `0`）
-- `LLM_ENABLE_THINKING`（默认 `true`）
-- `LLM_TABLE_CAPTION`（默认 `true`）
-- `LLM_TABLE_CAPTION_MAX_CHARS`（未设置时与 `LLM_MAX_TOKENS` 相同）
-- `LLM_IMAGE_CAPTION_MAX_CHARS`（未设置时与 `LLM_MAX_TOKENS` 相同）
-- `PDF_CAPTION_CROP_FIGURES`（默认 `true`）
-- `DASHSCOPE_API_KEY`（启用 Qwen/DashScope 时必填）
-- `AUTH_DB_PATH`（默认 `./data/auth.db`）
-- `SESSION_SECRET`（会话签名密钥）
-- `INITIAL_PASSWORD`（初始化新用户统一密码，入库为哈希）
-- `AUTH_ADMIN_USERNAME`（默认 `admin`）
-- `AUTH_USERS`（普通用户列表，逗号分隔）
+1. **`Authorization: Bearer <access_token>`**（登录接口返回的 JWT）；或  
+2. **会话 Cookie**（登录成功后由 `SessionMiddleware` 下发）。
 
-**安全（部署前必读）**：
+令牌校验失败会返回 `401`（过期、无效等文案见 `webapp._require_auth_user`）。
 
-- 生产环境务必修改 **`SESSION_SECRET`**、**`INITIAL_PASSWORD`**，并为管理员设置强密码策略（首次用户由 `bootstrap_users` 按 `INITIAL_PASSWORD` 入库）。
-- 公网访问请使用 **HTTPS**，并在反向代理后评估 Cookie 的 `Secure` / `SameSite` 策略（当前应用侧 `https_only` 需与部署方式一致）。
-- **`DASHSCOPE_API_KEY`** 等密钥仅通过环境变量或 `.env` 注入，勿写入业务代码或截图。
+### 本地模式（`OA_AUTH_ENABLED=false`）
 
-示例（接近你原来的 CLI 设定）：
+- 用户在 **`AUTH_USERS`** 列表中初始化；密码为 **`INITIAL_PASSWORD`**（哈希存入数据库）。
+- **`/auth/users`** 仅 **admin** 可列出全部用户名。
 
-```powershell
-$env:PDF_VL_PRIMARY="true"
-$env:PDF_VL_DPI="180"
-$env:PDF_VL_WORKERS="10"
-$env:LLM_MODEL="qwen3.5-35b-a3b"
-# $env:PDF_VL_TABLE_SECOND_PASS_MAX_TABLES="3"  # 可选：限制每页最多校对几张可疑表；不设则为不限制
-$env:MAX_NUM_PAGES="5"
-$env:LLM_MAX_TOKENS="16384"
-$env:LLM_TEMPERATURE="0"
-$env:LLM_ENABLE_THINKING="true"
-$env:LLM_TABLE_CAPTION="true"
-$env:PDF_CAPTION_CROP_FIGURES="true"
-```
+### OA 模式（`OA_AUTH_ENABLED=true`）
 
-目录结构（运行后自动创建）：
+- **普通用户**：用户名/密码由 **`authenticate_with_oa`**（`oa_auth.py`）POST 到 `OA_AUTH_LOGIN_URL`；成功则根据返回 JSON 解析用户名与是否 admin（`user.admin`、`roles` 等启发式），**不写本地 users 表**。
+- **环境管理员特例**：用户名等于 **`AUTH_ADMIN_USERNAME`**（默认 `admin`）时，**不请求 OA**，仅在本地库校验密码（通过 `ensure_env_admin_user` 与 `INITIAL_PASSWORD` 同步的哈希）。用于运维兜底。
 
-```text
-data/
-  input/
-  output/
-```
+### 登录响应示例字段
 
-每次请求都会生成唯一 `job_id`，并在 `input/<job_id>/` 与 `output/<job_id>/` 下隔离输入输出，避免文件冲突。
+`POST /auth/login` 返回：`username`、`role`、`access_token`、`token_type`（`bearer`）、`expires_in`（秒）等。
 
-### 3) 启动服务
+---
 
-```powershell
+## 运行 Web 服务
+
+```bash
 python -m uvicorn webapp:app --host 0.0.0.0 --port 8000
 ```
 
-Linux 上同样使用：
+- 首页：`GET /`（内嵌 `static/index.html` 内容）。
+- 静态资源：`/static/...`。
+- 健康检查：`GET /health`。
+
+仓库中 **`start.sh`** / **`restart.sh`** 提供了 `nohup` 后台示例，可按路径与端口调整。
+
+---
+
+## HTTP API 参考
+
+**说明**：除 `/`、`/static/*`、`/health`、`/app/config` 外，下列接口均需登录（Bearer 或 Session）。`job_id` 为 32 位十六进制小写字符串。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/` | 返回前端 HTML。 |
+| `GET` | `/health` | `{"status":"ok"}`。 |
+| `GET` | `/app/config` | 公开：允许上传类型、最大字节数等。 |
+| `POST` | `/auth/login` | JSON：`username`, `password`。 |
+| `POST` | `/auth/logout` | 清除会话。 |
+| `GET` | `/auth/me` | 当前用户与角色。 |
+| `GET` | `/auth/bootstrap` | 当前用户 + 首页任务列表（分页参数固定实现内为第 1 页、100 条）。 |
+| `GET` | `/auth/users` | **admin**：用户名列表。 |
+| `POST` | `/jobs` | `multipart/form-data`：支持单文件、多文件、文件夹（`upload_kind=file|folder`，文件夹需 `files` + `relative_paths` 对齐）。 |
+| `GET` | `/jobs` | 分页列表；query：`owner`（仅 admin）、`status`、`q`、`page`、`page_size`。 |
+| `GET` | `/jobs/{job_id}` | 任务详情（含进度、队列位置、`pdf_vl_failed_pages` 等）。 |
+| `POST` | `/jobs/{job_id}/cancel` | 取消排队中或运行中任务。 |
+| `POST` | `/jobs/{job_id}/retry` | 失败/取消等终态后可重试；会清空产出目录并入队。 |
+| `DELETE` | `/jobs/{job_id}` | 删除记录并清理工作区；**运行中**需先取消。 |
+| `GET` | `/jobs/{job_id}/download` | 成功任务：ZIP 下载整个产出目录。 |
+| `POST` | `/jobs/batch-download` | JSON：`{"job_ids":["..."]}`，最多 500 个，打包为 `jobs.zip`。 |
+| `POST` | `/convert` | **兼容旧客户端**：单文件上传，内部创建任务并**阻塞轮询**直到终态，返回 `job_id`、`filename`、`download_url`（旧式 `/download/{job_id}`）。 |
+| `GET` | `/download/{job_id}` | 同单任务下载逻辑（`FileResponse` ZIP）。 |
+
+**任务 JSON 常见字段**（详见 `_job_to_api_dict`）：`job_id`、`owner_username`、`original_filename`、`status`、`created_at`、`started_at`、`finished_at`、`error_message`、`is_directory`、目录批处理的 `total_files` / `processed_files` / `succeeded_files` / `failed_files`、运行中 `progress_*`、成功时 `download_url`，以及可选的 `pdf_vl_failed_pages`、`failed_files_preview`。
+
+---
+
+## 任务状态与权限
+
+- **状态**：`queued` → `running` → `succeeded` | `failed` | `cancelled`。
+- **权限**：普通用户只能查看/操作/下载**自己**的任务；**admin** 可看全部，并可用 `owner` 筛选。
+- **队列信息**：列表接口对 `queued` 任务返回 `queue_position`、`queue_total`（实现见 `auth_store.get_queue_positions`）。
+
+---
+
+## 批量转换 CLI（main.py）
+
+入口会加载项目根目录 **`.env`**。完整参数以 **`python main.py -h`** 为准。下面按主题归纳。
+
+### 输入输出
+
+- `--input-dir` / `--output-dir`：默认 `data/input`、`data/output`。
+- `--output-by-model`：在输出根下按模型名分子目录（纯 Docling 时为 `docling/`）。
+- `--max-files`、`--skip-existing`、`--max-file-size`、`--max-num-pages`：批量控制。
+
+### Docling 与资源
+
+- `--no-ocr`、`--ocr-engine`、`--ocr-quality`、`--scan`、`--low-memory`、`--formula`、`--no-tables`、`--rich-images`、`--images-scale`。
+- `--device` / `--cpu`、`--pipeline-concurrency`。
+- `--keep-page-header-footer`、`--no-escape-dimension-asterisks`。
+
+### LLM / PDF-VL
+
+- `--pdf-vl-primary`：PDF 按页 VL 主路径。
+- `--pdf-vl-dpi`、`--pdf-vl-workers`、`--no-pdf-vl-table-second-pass`、`--pdf-vl-table-second-pass-max-tables`。
+- `--enable-llm`：对 Docling 产出做清洗/纠错。
+- `--llm-model`、`--llm-base-url`、`--llm-temperature`、`--llm-max-tokens`、`--llm-enable-thinking` / `--llm-disable-thinking`。
+- `--llm-table-caption` / `--no-llm-table-caption` 及表格说明数量、上下文行数。
+- `--pdf-caption-crop-figures`、`--pdf-caption-crop-max-per-page`。
+- `--llm-image-caption` 及图片数量/长度/上下文。
+- `--llm-table-refine`、`--llm-table-max-tables` 等。
+- `--llm-vl-image-mode`、`--llm-allow-rerun` 等。
+
+### 示例
 
 ```bash
-export MAX_FILE_SIZE=20MB
-export ALLOWED_TYPES=pdf,docx,pptx
-export DATA_DIR=./data
-uvicorn webapp:app --host 0.0.0.0 --port 8000
-```
-
-### 4) 使用方式
-
-- 打开浏览器访问 `http://<服务器IP>:8000/`
-- 登录后上传文件：任务进入**异步队列**，页面可查看**任务列表**与状态；完成后可下载 Markdown
-- 任务记录在 SQLite 中**持久化**：**退出登录或关闭浏览器后再次登录**，仍可看到历史任务；可对排队/已结束任务**删除记录**（并清理对应输入输出目录）；**执行中**的任务需先**取消**再删除
-- **管理员**可在任务列表中按**用户**、**状态**筛选；**普通用户**仅能看到自己的任务
-- 服务**重启**后，库中仍为 `queued` 的任务会自动重新进入内存队列继续排队执行
-- **并发模型**：当前为**单进程、单后台 Worker 线程**顺序执行任务；适合内网 MVP。长任务会阻塞队列中后续任务；多实例部署需自行避免重复消费同一队列（本仓库未内置分布式队列）。
-
-接口说明：
-
-- `POST /auth/login`：登录
-- `POST /auth/logout`：退出登录
-- `GET /auth/me`：查看当前登录态（`username`、`role`）
-- `GET /auth/users`：**仅管理员**，返回系统用户列表（用于筛选等）
-- `POST /jobs`：上传文件并**创建异步任务**（立即返回 `job_id`、`status`、`created_at`）
-- `GET /jobs`：分页任务列表（`page`、`page_size`）；管理员可选 `owner`、`status` 筛选
-- `GET /jobs/{job_id}`：任务详情（含 `download_url`，仅成功时有值）
-- `POST /jobs/{job_id}/cancel`：取消任务（排队中立即取消；运行中为**软取消**，当前转换步骤结束后不再提供下载）
-- `DELETE /jobs/{job_id}`：**删除任务记录**（所有者或管理员；**进行中**的任务返回 409，需先取消）；并尝试删除 `data/input/<job_id>/` 与 `data/output/<job_id>/`
-- `GET /jobs/{job_id}/download`：下载该任务的 Markdown（**仅任务所有者或管理员**，且状态为 `succeeded`）
-- `POST /convert`：**兼容旧客户端**——内部创建异步任务并**阻塞直到结束**，响应仍为 `job_id`、`filename`、`download_url`（`download_url` 形态仍为 `/download/{job_id}`，与新版校验一致）
-- `GET /download/{job_id}`：兼容旧下载链接，权限与 `GET /jobs/{job_id}/download` 相同
-- `GET /health`：健康检查
-
-任务状态：`queued`（排队）→ `running`（转换中）→ `succeeded` | `failed` | `cancelled`。任务元数据持久化在 SQLite（默认与认证库同库：`AUTH_DB_PATH`），输入输出仍在 `data/input/<job_id>/`、`data/output/<job_id>/`。会话（登录 Cookie）与任务数据无关，**登出不会删除任务**。
-
-**管线并发（大页/扫描 PDF 防 OOM）**：`StandardPdfPipeline` 在 OCR / 版面 / 表格阶段之间用 **队列** 流水线处理多页；并发过高会让大页同时在内存里排队。可用 **`--pipeline-concurrency`**：`low`（batch≤2、队列≤16）或 **`minimal`**（batch=1、队列≤2，最省内存）。使用 **`--scan`** 或 **`--low-memory`** 且**未传** `--pipeline-concurrency` 时，**自动为 `minimal`**。需要略高吞吐可传 **`--pipeline-concurrency low`**；强行使用 Docling 默认并发可传 **`--pipeline-concurrency default`**（大扫描件易 OOM）。
-
-**扫描件（Docling 管线）**：若希望「更稳 + 中文表格 OCR」，请**自行组合**开关，例如 **`--scan`**、**`--pipeline-concurrency minimal`**、**`--ocr-quality high`**、**`--ocr-bitmap-threshold 0.03`**，或按下文「识别精度」一节微调。仍 OOM 或内存不足时加 **`--low-memory`**（会强制 OCR 为 `fast`，表格精度可能下降）或 **`--no-tables`**。
-若需对 Docling 输出的表格块做 **Qwen-VL 二次纠错**，可加 **`--enable-llm`** 与 **`--llm-table-refine`**（需 **`DASHSCOPE_API_KEY`**）。
-
-**PDF 方案 A（按页 Qwen-VL，不经过 Docling）**：仅对 **`.pdf`** 生效。用 **PyMuPDF** 逐页渲染为 PNG，**每页一次**多模态 API 转写为 Markdown；需 **`DASHSCOPE_API_KEY`**（与 `--llm-base-url` 地域一致）。成本与 **页数** 成正比，试跑请配合 **`--max-num-pages`** / **`--max-files`**。
-
-**最简常用命令**（你当前工作流）：
-
-```powershell
+# 试跑：单文件、少量页、按模型分目录、按页 VL + 图题裁图
 python main.py --pdf-vl-primary --output-by-model --pdf-caption-crop-figures --max-files 1 --max-num-pages 5
 ```
 
-在 **`--pdf-vl-primary`** 下，若命令行**未显式传入**同名参数，程序会采用与仓库常用配置一致的默认值（**显式传参始终优先**）：
+---
 
-| 参数 | 默认 |
-|------|------|
-| `--llm-model` | `qwen3.5-35b-a3b` |
-| `--pdf-vl-dpi` | `180` |
-| `--pdf-vl-workers` | `10` |
-| `--pdf-vl-table-second-pass-max-tables` | `5` |
-| `--llm-temperature` | `0` |
-| `--llm-max-tokens` | `16384` |
+## GPU / PyTorch 提示
 
-注：上表中 **`--llm-temperature` / `--llm-max-tokens`** 的自动默认仅在 **`--pdf-vl-primary`** 时生效；不走 pdf-vl 时 CLI 解析默认分别为 **`0.2`** 与 **`8192`**（可自行覆盖）。**`--llm-model`** 的默认值对整条 `main.py` 生效（当前为 `qwen3.5-35b-a3b`）。
+`main.py` 在请求 CUDA 时会检测 PyTorch 是否为 `+cpu` 构建、`torch.cuda.is_available()` 等，并打印升级建议（如 CUDA 12.8 轮子、RTX 50 系与 PyTorch 2.7+）。**无 NVIDIA 或仅用 CPU 版 PyTorch 时请使用 `--device auto` 或 `--cpu`**，避免 Docling 侧误选 CUDA。
 
-你也可以随时显式指定这些参数覆盖默认（例如 `--pdf-vl-dpi 220`、`--llm-max-tokens 24576`、`--llm-temperature 0.1`）。
+---
 
-默认启用“可疑表格二次 LLM 校对（带验收回退）”，可用 `--no-pdf-vl-table-second-pass` 关闭。PDF-VL 每页渲染图仅用于模型输入，不写入输出 Markdown。
+## 日志与排错
 
-**常用示例**（按模型名分子目录输出、按图题裁局部插图；其余见上表默认值）：
+- **Web**：默认日志在 `data/logs/webapp_*.log`（或 `RUN_LOG_FILE`）；uvicorn access 对任务轮询做了过滤，减少噪音。
+- **OA 登录失败**：检查 `OA_AUTH_LOGIN_URL` 是否内网可达、是否需 `OA_AUTH_COOKIE`；若 Postman 正常而程序超时，注意 **`OA_AUTH_TRUST_ENV=false`** 时不走系统代理，反之若需走公司代理可设为 `true`。
+- **本地 LLM**：适当增大 `LLM_TIMEOUT_SEC`，`LLM_ENABLE_THINKING=false` 往往可降低延迟；`LLM_MAX_TOKENS` 过大易导致单次生成过久。
+- **Markdown 图片链接**：可使用 `scripts/smoke_check_md_images.py` 做本地路径检查（见脚本内说明）。
 
-```powershell
-$env:DASHSCOPE_API_KEY="..."
-python main.py --pdf-vl-primary --output-by-model --pdf-caption-crop-figures `
-  --input-dir ./data/input --output-dir ./data/output --max-files 1 --max-num-pages 5
-```
-
-若还需对整篇 VL 结果做二次清洗，可加 **`--enable-llm`**（会额外调用 API）。
-
-**识别精度（`--ocr-quality`）**：此前为防 OOM 把扫描件 **`images_scale` 压得很低**（`fast` 档），会明显拖垮 OCR/表格。若已能跑通，建议对扫描规范类 PDF 使用 **`--scan --ocr-quality high`**（更高渲染分辨率、TableFormer **ACCURATE**、EasyOCR 阈值与中文优先语言顺序、扫描页整页 OCR）。**不启用** EasyOCR 的 `craft` 识别网络（默认安装常缺 `craft.yaml` 会报错）。更省内存用 **`fast`**。**`--low-memory`** 会强制等价于 **`fast`**。
-
-扫描件优先尝试（精度优先，若 OOM 再改回 `balanced` 或加 `--pipeline-concurrency low`）：
-
-```powershell
-python main.py --input-dir ./data/input --output-dir ./data/output --scan --ocr-quality high
-```
-
-在 **`high`** 仍不够时，可微调（显存/内存充足时）：**`--scan-max-scale 1.25`** 提高渲染上限；**`--ocr-confidence 0.28`** 略降阈值减少漏字（可能多噪）；**`--ocr-bitmap-threshold 0.025`** 让更小的位图区域参与 OCR。源 PDF 若模糊、倾斜，可先用外部工具做去噪、纠偏、提高 DPI 再转换，效果往往优于单纯调参。
-
-大 PDF / 内存紧张（推荐）：
-
-```powershell
-python main.py --low-memory --max-files 1 --no-log-file
-```
-
-需要公式识别时再打开（会下载 CodeFormula 模型，CPU 上很慢且占内存）：
-
-```powershell
-python main.py --formula
-```
-
-需要高分辨率整页图时再打开（**很吃内存**）：
-
-```powershell
-python main.py --rich-images
-```
-
-仅处理前 1 个文件试跑：
-
-```powershell
-python main.py --max-files 1 --no-log-file
-```
-
-仅控制台日志、不写 `convert.log`：
-
-```powershell
-python main.py --no-log-file
-```
-
-## 故障排查
-
-| 现象 | 可能原因与处理 |
-|------|----------------|
-| `PdfiumError: Data format error` / `Input document ... is not valid` | PDF 损坏、加密、或非标准封装；换阅读器另存为 PDF、或尝试解除密码后再转。 |
-| `std::bad_alloc`（预处理/某页失败） | **内存不足**：Docling 预处理会先 **`get_image(scale=1.0)`** 再按 `images_scale` 缩放，超大扫描页在 **管线队列** 里堆积时尤其容易 OOM。请 **`--scan`**（已收紧 `images_scale≤0.25`、各阶段 `batch_size=1`、`queue_max_size≤4`、全局 `page_batch_size=1`），仍失败则 **`--scan --low-memory --no-tables`**，或把 **`--images-scale`** 再降到 **`0.15`**；勿用 **`--rich-images`**，勿开 **`--formula`**。 |
-| 扫描件「几乎没字」 | 扫描件无文字层，必须 **开启 OCR**（不要 `--no-ocr`）。 |
-| HuggingFace 下载超时 | 网络问题；可重试，或预先 `docling-tools models download`，或设置代理/`HF_ENDPOINT`。 |
-| `Cannot close object; pdfium library is destroyed` | 多见于 **上一文件转换失败** 后 pypdfium2 与 Docling 清理顺序；本仓库在失败后会 **丢弃转换器缓存** 以减轻。若仅出现在失败批次末尾，一般可忽略；持续出现可升级 `docling` / `pypdfium2` 或单文件重试。 |
-
-## 核心模块
-
-- `src/converter.py`：`IndustrialDocConverter`（Docling 管道配置 + XLSX/pandas）
-- `main.py`：批量扫描、日志、单文件失败不影响整体
+---
 
 ## 测试
 
-```powershell
-python -m pytest tests -q
+```bash
+pip install pytest
+pytest
 ```
 
-## 百炼千问接入（可选）
+---
 
-本项目在 Docling 输出 Markdown 之后，可通过阿里百炼（DashScope）上的千问（Qwen-VL）做一次“清洗/纠错 + 质量检查”，必要时触发最多 1 次 Docling rerun（提升 OCR/表格精度）。
+## 目录结构
 
-### 前置条件
-
-- 设置环境变量：`DASHSCOPE_API_KEY`（与控制台地域一致：国内控制台密钥走国内端点）
-- 机器可访问 DashScope 接口（用于 HTTP 调用）
-- 默认使用 **OpenAI 兼容** 地址：`--llm-base-url https://dashscope.aliyuncs.com/compatible-mode/v1`（请求走 `/chat/completions`）。若需原生 DashScope HTTP，可改为 `https://dashscope.aliyuncs.com/api/v1`；**国际版**兼容模式为 `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`。
-
-### 使用示例
-
-启用 LLM 清洗（默认会尽量保留 Docling 的图片引用路径；若图片引用缺失会自动回退到原始 Docling md）。`main.py` 默认 **`--llm-model`** 为 **`qwen3.5-35b-a3b`**，可按控制台可用模型改写。
-
-```powershell
-python main.py --input-dir ./data/input --output-dir ./data/output `
-  --enable-llm `
-  --llm-vl-image-mode local_abs `
-  --llm-allow-rerun
+```
+├── main.py                 # 批量转换 CLI
+├── webapp.py               # FastAPI 应用与路由
+├── config.py               # AppConfig / 环境变量
+├── service.py              # ConversionService、上传落盘
+├── job_worker.py           # 异步任务 worker
+├── auth.py                 # 用户、任务、队列位置（SQLAlchemy）
+├── oa_auth.py              # OA 登录客户端
+├── access_token.py         # JWT 创建与校验
+├── static/                 # 前端资源
+├── src/
+│   ├── converter.py        # Docling + Excel 等主转换逻辑
+│   ├── pdf_vl_transcribe.py
+│   ├── dashscope_client.py
+│   ├── llm_markdown_refiner.py
+│   └── ...
+├── tests/
+├── scripts/
+└── requirements.txt
 ```
 
-说明：
+---
 
-- LLM 只处理 Docling 产物的 `.md`（不处理 `XLSX`，XLSX 仍走 pandas 导出）。
-- 由于 Qwen-VL 会读取图片上下文，Docling 输出中需要有 `![](<path>)` 图片引用；本项目默认最多把前 `6` 张图片喂给模型。
-- **Qwen3.5 思考模式**：HTTP 请求体顶层发送 **`enable_thinking: false`**（与 OpenAI Python SDK 的 `extra_body={"enable_thinking": false}` 等价展开），避免只出 `reasoning_content` 而 `content` 为空。若需深度思考，可加 **`--llm-enable-thinking`**（会额外消耗 completion token）。
-- **输出长度**：`--llm-max-tokens` 控制单次 **completion** 上限（与「最大输入/上下文」不同）；多数 Qwen3.5 模型单路约可到 **64K**，页级转写若仍截断可再调高。
+## 许可证与第三方
 
-### 成本与安全
-
-- 成本：每个文件至少 1 次 LLM 调用（cleanup），若触发 rerun 则会多一次 Docling + LLM 流程。
-- 安全：程序侧会校验 LLM 输出中的图片引用是否与原始 Markdown 保持一致；不通过会回退到原始 Docling Markdown，避免“路径被改写导致图片丢失”的问题。
-
-## 旧脚本
-
-原根目录下的 `convert.py` / `batch_convert.py` 已移除，请使用 `main.py`。
+本项目依赖 **Docling**、**MinerU（magic-pdf）**、**DashScope** 或其它兼容 API 提供商，各软件包与 API 受其各自协议与计费条款约束；部署前请确认合规与费用。

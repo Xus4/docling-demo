@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>智枢文档 · 多模态智能转写</title>
+    <title>智枢文档</title>
     <style>
       :root {
         --bg-0: #141923;
@@ -207,6 +207,13 @@
         margin-bottom: 34px;
       }
 
+      .brand-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+
       .brand h1 {
         margin: 0;
         font-size: clamp(32px, 4vw, 44px);
@@ -216,18 +223,68 @@
         text-shadow: var(--title-shadow);
       }
 
-      .brand p {
-        margin: 14px 0 0;
-        color: var(--text-sub);
-        font-size: 15px;
+      .brand-slogan {
+        margin: 0;
+        font-size: clamp(15px, 1.85vw, 17px);
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        line-height: 1.55;
       }
 
-      .brand .brand-tagline {
-        margin: 10px 0 0;
+      body.task-page .brand-slogan {
+        display: none !important;
+      }
+
+      body:not(.task-page) .brand .product-tagline {
+        display: none !important;
+      }
+
+      .brand .product-tagline {
+        margin: 0;
+        max-width: min(36rem, 92vw);
+        font-size: clamp(15px, 1.9vw, 17px);
+        font-weight: 520;
+        letter-spacing: 0.04em;
+        line-height: 1.45;
+        color: color-mix(in srgb, var(--text-main) 82%, var(--brand) 18%);
+      }
+
+      body.task-page .brand {
+        text-align: left;
+        margin-bottom: 18px;
+      }
+
+      body.task-page .brand-inner {
+        flex-direction: row;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 10px 14px;
+      }
+
+      body.task-page .brand h1 {
+        font-size: clamp(20px, 2.4vw, 24px);
+        line-height: 1.2;
+        letter-spacing: 0.12px;
+      }
+
+      body.task-page .brand .product-tagline {
+        max-width: none;
         font-size: 13px;
-        letter-spacing: 0.14em;
         font-weight: 500;
-        color: color-mix(in srgb, var(--text-sub) 92%, transparent);
+        letter-spacing: 0.02em;
+        color: var(--text-sub);
+      }
+
+      body.task-page .brand .product-tagline::before {
+        content: "";
+        display: inline-block;
+        width: 4px;
+        height: 4px;
+        margin: 0 10px 0 2px;
+        border-radius: 50%;
+        vertical-align: 0.2em;
+        background: color-mix(in srgb, var(--brand) 55%, var(--text-sub) 45%);
+        opacity: 0.85;
       }
 
       /* 右上角统一工具栏（主题 / 用户 / 退出） */
@@ -2984,6 +3041,21 @@
         text-shadow: 0 0 18px rgba(37, 99, 235, 0.24) !important;
       }
 
+      .brand-slogan,
+      body[data-theme="dark"] .brand-slogan {
+        background: linear-gradient(98deg, #38bdf8 0%, #60a5fa 38%, #818cf8 78%, #a78bfa 100%) !important;
+        color: transparent !important;
+        -webkit-background-clip: text !important;
+        background-clip: text !important;
+      }
+
+      body[data-theme="light"] .brand-slogan {
+        background: linear-gradient(98deg, #0e7490 0%, #2563eb 42%, #4f46e5 88%) !important;
+        color: transparent !important;
+        -webkit-background-clip: text !important;
+        background-clip: text !important;
+      }
+
       .shell,
       .dropzone,
       .task-board,
@@ -3084,9 +3156,11 @@
   <body data-theme="dark">
     <main class="page">
       <header class="brand">
-        <h1>智枢文档</h1>
-        <p class="brand-tagline">多模态工业文档 · 结构保真 · 智能转写 Markdown</p>
-        <p id="supportedFormatsLine">支持加载中…</p>
+        <div class="brand-inner">
+          <h1>智枢文档</h1>
+          <p class="brand-slogan">智能文档中枢 · 结构化知识引擎</p>
+          <p id="productTagline" class="product-tagline">多格式文档智能转 Markdown</p>
+        </div>
       </header>
 
       <div class="top-actions">
@@ -3119,7 +3193,7 @@
         </div>
         <section id="authBox" class="auth-view hidden">
           <h2 class="auth-title">账号登录</h2>
-          <p class="auth-sub">输入账号后进入转换工作台</p>
+          <p class="auth-sub">登录后上传并转换为 Markdown</p>
 
           <div class="auth-grid">
             <label class="field">
@@ -3437,7 +3511,7 @@ const selectedList = document.getElementById("selectedList");
       const rememberMeInput = document.getElementById("rememberMe");
       const forgotPasswordLink = document.getElementById("forgotPasswordLink");
       const authFeedback = document.getElementById("authFeedback");
-      const supportedFormatsLine = document.getElementById("supportedFormatsLine");
+      const productTagline = document.getElementById("productTagline");
       const topActions = document.querySelector(".top-actions");
       if (refreshTasksBtn) {
         refreshTasksBtn.style.whiteSpace = "nowrap";
@@ -3510,7 +3584,7 @@ const selectedList = document.getElementById("selectedList");
         if (taskSelectedLabel) taskSelectedLabel.textContent = "已选择 " + n + " 项";
       }
 
-      function formatSupportedFormatsLine(allowedTypes) {
+      function formatProductTagline(allowedTypes) {
         const types = new Set(
           (Array.isArray(allowedTypes) ? allowedTypes : [])
             .map((x) => String(x || "").trim().toLowerCase())
@@ -3522,28 +3596,30 @@ const selectedList = document.getElementById("selectedList");
         if (types.has("doc") || types.has("docx")) parts.push("Word");
         if (types.has("ppt") || types.has("pptx")) parts.push("PPT");
         if (types.has("xls") || types.has("xlsx")) parts.push("Excel");
-        if (types.has("html") || types.has("htm")) parts.push("HTML");
+        if (types.has("html") || types.has("htm")) parts.push("网页");
         const imgExts = ["png", "jpg", "jpeg", "tif", "tiff", "bmp", "webp"];
         if (imgExts.some((x) => types.has(x))) parts.push("图片");
-        if (!parts.length) return "支持多格式智能解析";
-        return "支持 " + parts.join(" / ") + " 智能解析";
+        if (!parts.length) {
+          return "多格式文档智能转 Markdown";
+        }
+        return parts.join("、") + " 智能转 Markdown";
       }
 
-      async function initSupportedFormatsLine() {
-        if (!supportedFormatsLine) return;
+      async function initProductTagline() {
+        if (!productTagline) return;
         try {
           const resp = await fetch("/app/config", {
             credentials: "same-origin",
             cache: "no-store",
           });
           if (!resp.ok) {
-            supportedFormatsLine.textContent = formatSupportedFormatsLine(null);
+            productTagline.textContent = formatProductTagline(null);
             return;
           }
           const data = await resp.json();
-          supportedFormatsLine.textContent = formatSupportedFormatsLine(data.allowed_types);
+          productTagline.textContent = formatProductTagline(data.allowed_types);
         } catch (e) {
-          supportedFormatsLine.textContent = formatSupportedFormatsLine(null);
+          productTagline.textContent = formatProductTagline(null);
         }
       }
 
@@ -5683,7 +5759,7 @@ setStatus("error", "请求失败：" + (error && error.message ? error.message :
           }
         });
       }
-      initSupportedFormatsLine();
+      initProductTagline();
       applyTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
       const rememberedUser = localStorage.getItem(STORAGE_KEYS.rememberedUser) || "";
       if (rememberedUser) {
