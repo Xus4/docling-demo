@@ -151,9 +151,24 @@ class AppConfig:
     pdf_vl_table_second_pass: bool
     auth_db_path: Path
     session_secret: str
+    access_token_secret: str
+    access_token_ttl_sec: int
     initial_password: str
     auth_admin_username: str
     auth_users: list[str]
+    # 公司 OA 登录（启用后仅走 OA + 会话，不读写本地 users 表，见 OA_AUTH_*）
+    oa_auth_enabled: bool
+    oa_auth_login_url: str
+    oa_auth_tenant_id: str
+    oa_auth_tenant_name: str
+    oa_auth_remember_me: bool
+    oa_auth_verify_ssl: bool
+    oa_auth_timeout_sec: float
+    oa_auth_origin: str
+    oa_auth_referer: str
+    oa_auth_user_agent: str
+    oa_auth_cookie: str
+    oa_auth_trust_env: bool
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -181,6 +196,12 @@ class AppConfig:
         llm_image_caption_max_chars = (
             max(0, int(_img_cap_chars)) if _img_cap_chars else max(0, llm_max_tokens)
         )
+        _oa_tenant_name_raw = os.getenv("OA_AUTH_TENANT_NAME")
+        # 未配置时与常见管理端前端一致（四个空格）；要真正空串请设 OA_AUTH_TENANT_NAME=
+        if _oa_tenant_name_raw is None:
+            oa_tenant_name = "    "
+        else:
+            oa_tenant_name = str(_oa_tenant_name_raw).rstrip("\r\n")
         return cls(
             max_file_size_bytes=max_file_size_bytes,
             allowed_types=_parse_allowed_types(os.getenv("ALLOWED_TYPES")),
@@ -249,6 +270,14 @@ class AppConfig:
                 os.getenv("AUTH_DB_PATH", str(data_dir / "auth.db"))
             ).resolve(),
             session_secret=os.getenv("SESSION_SECRET", "change-me-in-production"),
+            access_token_secret=(
+                os.getenv("ACCESS_TOKEN_SECRET", "").strip()
+                or os.getenv("SESSION_SECRET", "change-me-in-production")
+            ),
+            access_token_ttl_sec=max(
+                60,
+                env_int("ACCESS_TOKEN_TTL_SEC", 86400),
+            ),
             initial_password=os.getenv("INITIAL_PASSWORD", "ChangeMe123!"),
             auth_admin_username=os.getenv("AUTH_ADMIN_USERNAME", "admin"),
             auth_users=[
@@ -259,6 +288,18 @@ class AppConfig:
                 ).split(",")
                 if x.strip()
             ],
+            oa_auth_enabled=env_bool("OA_AUTH_ENABLED", False),
+            oa_auth_login_url=os.getenv("OA_AUTH_LOGIN_URL", "").strip(),
+            oa_auth_tenant_id=os.getenv("OA_AUTH_TENANT_ID", "1").strip() or "1",
+            oa_auth_tenant_name=oa_tenant_name,
+            oa_auth_remember_me=env_bool("OA_AUTH_REMEMBER_ME", True),
+            oa_auth_verify_ssl=env_bool("OA_AUTH_VERIFY_SSL", False),
+            oa_auth_timeout_sec=max(3.0, env_float("OA_AUTH_TIMEOUT_SEC", 15.0)),
+            oa_auth_origin=os.getenv("OA_AUTH_ORIGIN", "").strip(),
+            oa_auth_referer=os.getenv("OA_AUTH_REFERER", "").strip(),
+            oa_auth_user_agent=os.getenv("OA_AUTH_USER_AGENT", "").strip(),
+            oa_auth_cookie=os.getenv("OA_AUTH_COOKIE", "").strip(),
+            oa_auth_trust_env=env_bool("OA_AUTH_TRUST_ENV", False),
         )
 
     def ensure_dirs(self) -> None:

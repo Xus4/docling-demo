@@ -25,8 +25,15 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
+from access_token import (
+    ExpiredSignatureError,
+    InvalidTokenError,
+    create_access_token,
+    decode_access_token,
+)
 from auth import AuthStore, AuthUser, JobRecord
 from config import AppConfig
+from oa_auth import authenticate_with_oa
 from job_worker import JobQueueWorker
 from service import ConversionError, ConversionService
 from src.logging_utils import configure_logging, log_event, short_job_id
@@ -38,11 +45,17 @@ config = AppConfig.from_env()
 config.ensure_dirs()
 service = ConversionService(config)
 auth_store = AuthStore(config.auth_db_path)
-auth_store.bootstrap_users(
-    users=config.auth_users,
-    initial_password=config.initial_password,
-    admin_username=config.auth_admin_username,
-)
+if config.oa_auth_enabled:
+    auth_store.ensure_env_admin_user(
+        config.auth_admin_username,
+        config.initial_password,
+    )
+else:
+    auth_store.bootstrap_users(
+        users=config.auth_users,
+        initial_password=config.initial_password,
+        admin_username=config.auth_admin_username,
+    )
 job_worker = JobQueueWorker(auth_store, service)
 
 run_log_file_env = (os.getenv("RUN_LOG_FILE") or "").strip()
@@ -116,6 +129,7 @@ app.add_middleware(
     secret_key=config.session_secret,
     same_site="lax",
     https_only=False,
+    max_age=config.access_token_ttl_sec,
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -126,9 +140,30 @@ class LoginRequest(BaseModel):
 
 
 def _require_auth_user(request: Request) -> AuthUser:
+    auth_hdr = request.headers.get("Authorization")
+    if auth_hdr and auth_hdr.startswith("Bearer "):
+        raw = auth_hdr[7:].strip()
+        if raw:
+            try:
+                return decode_access_token(raw, config.access_token_secret)
+            except ExpiredSignatureError:
+                raise HTTPException(
+                    status_code=401, detail="登录已过期，请重新登录"
+                ) from None
+            except InvalidTokenError:
+                raise HTTPException(
+                    status_code=401, detail="无效或已失效的凭证"
+                ) from None
+
     username = request.session.get("username")
     if not username:
         raise HTTPException(status_code=401, detail="请先登录")
+    if config.oa_auth_enabled:
+        role = request.session.get("role")
+        if role not in ("admin", "user"):
+            request.session.clear()
+            raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
+        return AuthUser(username=str(username).strip(), role=str(role))
     user = auth_store.get_user(str(username))
     if not user:
         request.session.clear()
@@ -455,13 +490,38 @@ def app_config_public() -> dict[str, object]:
 
 
 @app.post("/auth/login")
-def login(payload: LoginRequest, request: Request) -> dict[str, str]:
-    user = auth_store.authenticate(payload.username, payload.password)
+def login(payload: LoginRequest, request: Request) -> dict[str, object]:
+    user: AuthUser | None = None
+    if config.oa_auth_enabled:
+        admin_name = config.auth_admin_username.strip()
+        is_env_admin = bool(
+            admin_name and payload.username.strip().lower() == admin_name.lower()
+        )
+        if is_env_admin:
+            # 仅 env 管理员：只校验 SQLite 中由 INITIAL_PASSWORD 同步的哈希，绝不请求 OA
+            user = auth_store.authenticate(admin_name, payload.password)
+        else:
+            user = authenticate_with_oa(config, payload.username, payload.password)
+    else:
+        user = auth_store.authenticate(payload.username, payload.password)
     if not user:
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     request.session["username"] = user.username
     request.session["role"] = user.role
-    return {"username": user.username, "role": user.role}
+    token = create_access_token(
+        username=user.username,
+        role=user.role,
+        secret=config.access_token_secret,
+        ttl_seconds=config.access_token_ttl_sec,
+    )
+    return {
+        "username": user.username,
+        "role": user.role,
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in": config.access_token_ttl_sec,
+        "message": f"登录成功，欢迎 {user.username}",
+    }
 
 
 @app.post("/auth/logout")
