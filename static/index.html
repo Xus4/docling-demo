@@ -1111,19 +1111,14 @@ if (selectedList) selectedList.innerHTML = "";
         return h + "小时" + rm + "分";
       }
 
-      /** 已完成任务：总耗时（提交→结束）+ 若有开始时间则附加处理耗时 */
+      /** 已完成任务：仅展示处理用时（开始处理→结束），不包含排队等待 */
       function totalDurationMetaLine(job) {
         const term = { succeeded: 1, failed: 1, cancelled: 1 };
-        if (!term[job.status] || !job.finished_at || !job.created_at) return "";
-        const c = parseIsoMs(job.created_at);
-        const f = parseIsoMs(job.finished_at);
-        if (c == null || f == null || f < c) return "";
-        let out = " · 总耗时 " + formatDurationZh(f - c);
+        if (!term[job.status] || !job.finished_at || !job.started_at) return "";
         const st = parseIsoMs(job.started_at);
-        if (st != null && f >= st) {
-          out += " · 处理 " + formatDurationZh(f - st);
-        }
-        return out;
+        const f = parseIsoMs(job.finished_at);
+        if (st == null || f == null || f < st) return "";
+        return " · 处理用时 " + formatDurationZh(f - st);
       }
 
       function escapeAttr(s) {
@@ -1135,21 +1130,15 @@ if (selectedList) selectedList.innerHTML = "";
 
       function updateLiveElapsedSpans() {
         document.querySelectorAll(".task-live-elapsed").forEach(function (el) {
-          const c = el.getAttribute("data-created-at");
           const s = el.getAttribute("data-started-at");
           const st = el.getAttribute("data-st");
           const pctStr = el.getAttribute("data-progress-percent");
-          const t0 = parseIsoMs(c);
-          if (t0 == null) {
-            el.textContent = "";
-            return;
-          }
-          const now = Date.now();
-          let txt = "耗时 " + formatDurationZh(now - t0);
           const t1 = parseIsoMs(s);
-          if (t1 != null && st === "running") {
+          const now = Date.now();
+          let txt = "处理用时 0秒";
+          if (t1 != null && st === "running" && now >= t1) {
             const processingMs = now - t1;
-            txt += " · 处理 " + formatDurationZh(processingMs);
+            txt = "处理用时 " + formatDurationZh(processingMs);
 
             const pct = parseFloat(pctStr);
             if (Number.isFinite(pct) && pct > 1 && pct < 100) {
@@ -1159,6 +1148,8 @@ if (selectedList) selectedList.innerHTML = "";
                 txt += " · 预计剩余 " + formatDurationZh(remaining);
               }
             }
+          } else if (st !== "queued") {
+            txt = "";
           }
           el.textContent = txt;
         });
@@ -1462,12 +1453,12 @@ if (selectedList) selectedList.innerHTML = "";
                   "</span></span>"
                 );
               }
-              const c = parseIsoMs(job.created_at);
+              const st = parseIsoMs(job.started_at);
               const f = parseIsoMs(job.finished_at);
-              if (c != null && f != null && f >= c) {
+              if (st != null && f != null && f >= st) {
                 return (
-                  '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 7V12L15 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="1.8"></path></svg><span>耗时 ' +
-                  formatDurationZh(f - c) +
+                  '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 7V12L15 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="1.8"></path></svg><span>处理用时 ' +
+                  formatDurationZh(f - st) +
                   "</span></span>"
                 );
               }
@@ -1709,10 +1700,10 @@ if (selectedList) selectedList.innerHTML = "";
               }
               if (job.status === "succeeded") {
     let msg = "转换完成";
-    const c = parseIsoMs(job.created_at);
+    const st = parseIsoMs(job.started_at);
     const f = parseIsoMs(job.finished_at);
-    if (c != null && f != null && f >= c) {
-      msg += "，总耗时 " + formatDurationZh(f - c);
+    if (st != null && f != null && f >= st) {
+      msg += "，处理用时 " + formatDurationZh(f - st);
     }
 
     if (Array.isArray(job.pdf_vl_failed_pages) && job.pdf_vl_failed_pages.length) {
