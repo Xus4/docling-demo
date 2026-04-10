@@ -1564,7 +1564,7 @@
 
       .task-filters {
         display: inline-flex;
-        flex-wrap: nowrap;
+        flex-wrap: wrap;
         gap: 10px;
         align-items: center;
         margin: 0;
@@ -1621,6 +1621,10 @@
         background:
           radial-gradient(120% 120% at 0% 0%, color-mix(in srgb, var(--brand) 14%, transparent), transparent 46%),
           var(--glass);
+      }
+
+      .task-toolbar-stack {
+        display: block;
       }
 
       .task-toolbar-row {
@@ -1763,23 +1767,161 @@
         height: 16px;
       }
 
-      #refreshTasksBtn {
-        min-width: 84px;
+      .task-status-tabs {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-left: 0;
       }
 
-      .task-batch-row {
-        margin-top: 10px;
+      .task-status-tab {
+        height: 32px !important;
+        min-height: 32px !important;
+        padding: 0 10px !important;
+        border-radius: 8px !important;
+        border: 1px solid var(--panel-border);
+        background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+        color: var(--text-sub);
+        font-size: 12px !important;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition:
+          filter 0.18s ease,
+          transform 0.08s ease,
+          border-color 0.18s ease,
+          background 0.18s ease,
+          color 0.18s ease;
+      }
+
+      .task-status-tab:hover {
+        filter: brightness(1.05);
+        border-color: var(--stroke);
+      }
+
+      .task-status-tab:active {
+        transform: scale(0.98);
+      }
+
+      .task-status-tab.is-active {
+        color: var(--text-main);
+        box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent) inset;
+      }
+
+      .task-status-tab[data-status="all"] {
+        color: color-mix(in srgb, var(--text-main) 76%, var(--text-sub) 24%);
+      }
+
+      .task-status-tab[data-status="queued"] {
+        color: rgba(188, 196, 255, 0.96);
+        border-color: rgba(99, 102, 241, 0.32);
+        background: rgba(99, 102, 241, 0.08);
+      }
+
+      .task-status-tab[data-status="running"] {
+        color: rgba(164, 198, 255, 0.98);
+        border-color: rgba(59, 130, 246, 0.34);
+        background: rgba(59, 130, 246, 0.08);
+      }
+
+      .task-status-tab[data-status="succeeded"] {
+        color: rgba(152, 255, 218, 0.94);
+        border-color: rgba(16, 185, 129, 0.34);
+        background: rgba(16, 185, 129, 0.08);
+      }
+
+      .task-status-tab[data-status="failed"] {
+        color: rgba(255, 190, 190, 0.98);
+        border-color: rgba(239, 68, 68, 0.34);
+        background: rgba(239, 68, 68, 0.08);
+      }
+
+      .task-status-tab[data-status="cancelled"] {
+        color: var(--text-sub);
+        border-color: color-mix(in srgb, var(--panel-border) 92%, transparent);
+        background: color-mix(in srgb, var(--panel-border) 16%, transparent);
+      }
+
+      .task-status-tab[data-status="all"].is-active {
+        border-color: color-mix(in srgb, var(--brand) 42%, var(--panel-border));
+        background: color-mix(in srgb, var(--brand) 12%, var(--panel-bg));
+      }
+
+      .task-status-tab[data-status="queued"].is-active {
+        border-color: rgba(129, 140, 248, 0.72);
+        background: rgba(99, 102, 241, 0.18);
+      }
+
+      .task-status-tab[data-status="running"].is-active {
+        border-color: rgba(96, 165, 250, 0.78);
+        background: rgba(59, 130, 246, 0.18);
+      }
+
+      .task-status-tab[data-status="succeeded"].is-active {
+        border-color: rgba(52, 211, 153, 0.72);
+        background: rgba(16, 185, 129, 0.18);
+      }
+
+      .task-status-tab[data-status="failed"].is-active {
+        border-color: rgba(248, 113, 113, 0.72);
+        background: rgba(239, 68, 68, 0.18);
+      }
+
+      .task-status-tab[data-status="cancelled"].is-active {
+        border-color: color-mix(in srgb, var(--text-sub) 44%, var(--panel-border));
+        background: color-mix(in srgb, var(--panel-border) 22%, transparent);
+      }
+
+      .task-section-head {
+        padding: 12px 14px;
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
+        border-bottom: 1px solid var(--section-divider);
+        background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
       }
 
-      .task-batch-left,
-      .task-batch-right {
+      .task-section-meta {
+        min-width: 0;
+      }
+
+      .task-section-title {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 760;
+        color: var(--text-main);
+      }
+
+      .task-section-desc {
+        margin: 4px 0 0;
+        font-size: 12px;
+        color: var(--text-sub);
+      }
+
+      .task-completed-actions {
         display: inline-flex;
         align-items: center;
         gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .task-completed-actions.hidden {
+        display: none !important;
+      }
+
+      .task-select-all-wrap {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--text-sub);
+        white-space: nowrap;
       }
 
       .task-selected-label {
@@ -1794,7 +1936,7 @@
         align-items: center;
         gap: 12px;
         justify-content: space-between;
-        border-bottom: 1px solid var(--section-divider);
+        border-top: 1px solid var(--section-divider);
         background: var(--glass);
         flex-wrap: wrap;
       }
@@ -1902,7 +2044,7 @@
         display: grid;
         gap: 10px;
         padding: 12px 14px 14px;
-        max-height: calc(100vh - 260px);
+        max-height: calc(100vh - 360px);
         overflow-y: auto;
         align-content: start;
       }
@@ -1961,6 +2103,10 @@
 
       .task-file-icon.docx {
         background: linear-gradient(145deg, rgba(37, 99, 235, 0.9), rgba(29, 78, 216, 0.92));
+      }
+
+      .task-file-icon.image {
+        background: linear-gradient(145deg, rgba(14, 165, 233, 0.88), rgba(6, 182, 212, 0.9));
       }
 
       .task-file-icon.other {
@@ -2085,6 +2231,69 @@
         border-color: rgba(148, 163, 184, 0.7);
         color: #64748b;
         background: rgba(241, 245, 249, 1);
+      }
+
+      body[data-theme="light"] .task-status-tab[data-status="all"] {
+        color: #334155;
+      }
+
+      body[data-theme="light"] .task-status-tab[data-status="queued"] {
+        color: #4f46e5;
+        border-color: rgba(99, 102, 241, 0.28);
+        background: rgba(238, 242, 255, 0.96);
+      }
+
+      body[data-theme="light"] .task-status-tab[data-status="running"] {
+        color: #2563eb;
+        border-color: rgba(37, 99, 235, 0.24);
+        background: rgba(239, 246, 255, 0.96);
+      }
+
+      body[data-theme="light"] .task-status-tab[data-status="succeeded"] {
+        color: #059669;
+        border-color: rgba(5, 150, 105, 0.24);
+        background: rgba(236, 253, 245, 0.96);
+      }
+
+      body[data-theme="light"] .task-status-tab[data-status="failed"] {
+        color: #dc2626;
+        border-color: rgba(220, 38, 38, 0.24);
+        background: rgba(254, 242, 242, 0.98);
+      }
+
+      body[data-theme="light"] .task-status-tab[data-status="cancelled"] {
+        color: #64748b;
+        border-color: rgba(148, 163, 184, 0.34);
+        background: rgba(241, 245, 249, 0.98);
+      }
+
+      body[data-theme="light"] .task-status-tab[data-status="all"].is-active {
+        background: rgba(219, 234, 254, 0.92);
+      }
+
+      body[data-theme="light"] .task-status-tab[data-status="queued"].is-active {
+        border-color: rgba(99, 102, 241, 0.5);
+        background: rgba(224, 231, 255, 1);
+      }
+
+      body[data-theme="light"] .task-status-tab[data-status="running"].is-active {
+        border-color: rgba(37, 99, 235, 0.46);
+        background: rgba(219, 234, 254, 1);
+      }
+
+      body[data-theme="light"] .task-status-tab[data-status="succeeded"].is-active {
+        border-color: rgba(5, 150, 105, 0.44);
+        background: rgba(209, 250, 229, 1);
+      }
+
+      body[data-theme="light"] .task-status-tab[data-status="failed"].is-active {
+        border-color: rgba(220, 38, 38, 0.44);
+        background: rgba(254, 226, 226, 1);
+      }
+
+      body[data-theme="light"] .task-status-tab[data-status="cancelled"].is-active {
+        border-color: rgba(148, 163, 184, 0.46);
+        background: rgba(226, 232, 240, 1);
       }
 
       .task-row-meta {
@@ -2689,44 +2898,48 @@
         font-weight: 400 !important;
       }
 
-      /* 统一下拉框样式：去原生感，使用定制箭头 */
+      /* 统一下拉框样式：接近 Ant 风格 */
       .filter-field select,
       .task-page-size {
         -webkit-appearance: none;
         appearance: none;
-        min-width: 120px;
-        height: 38px;
-        padding: 0 34px 0 12px;
-        border-radius: 10px;
-        border: 1px solid #9ca3af;
-        background-color: #f3f4f6;
+        min-width: 126px;
+        height: 32px;
+        padding: 0 30px 0 11px;
+        border-radius: 8px;
+        border: 1px solid #d9d9d9;
+        background-color: #ffffff;
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M3 5.5L7 9.5L11 5.5' fill='none' stroke='%236b7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
         background-repeat: no-repeat;
         background-position: right 10px center;
         background-size: 14px 14px;
-        color: #374151;
-        font-size: 13px;
+        color: #111827;
+        font-size: 12px;
         line-height: 1;
         cursor: pointer;
+        transition:
+          border-color 0.18s ease,
+          box-shadow 0.18s ease,
+          background-color 0.18s ease;
       }
 
       .filter-field select:hover,
       .task-page-size:hover {
-        border-color: #6b7280;
-        background-color: #e5e7eb;
+        border-color: #69b1ff;
+        background-color: #ffffff;
       }
 
       .filter-field select:focus,
       .task-page-size:focus {
         outline: none;
-        border-color: #4b5563;
-        box-shadow: 0 0 0 2px rgba(156, 163, 175, 0.35);
+        border-color: #1677ff;
+        box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.2);
       }
 
       .filter-field select option,
       .task-page-size option {
-        color: #0f172a;
-        background: #f3f4f6;
+        color: #111827;
+        background: #ffffff;
       }
 
       /* 暗色主题优化：极简黑灰风（参考工作日志风格） */
@@ -2819,22 +3032,22 @@
 
       body[data-theme="dark"] .filter-field select,
       body[data-theme="dark"] .task-page-size {
-        background-color: #202733 !important;
-        border-color: #4b5563 !important;
-        color: #e5e7eb !important;
+        background-color: #141414 !important;
+        border-color: #434343 !important;
+        color: #f5f5f5 !important;
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M3 5.5L7 9.5L11 5.5' fill='none' stroke='%239ca3af' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
       }
 
       body[data-theme="dark"] .filter-field select:hover,
       body[data-theme="dark"] .task-page-size:hover {
-        background-color: #2a3342 !important;
-        border-color: #6b7280 !important;
+        background-color: #1f1f1f !important;
+        border-color: #1668dc !important;
       }
 
       body[data-theme="dark"] .filter-field select option,
       body[data-theme="dark"] .task-page-size option {
-        color: #f3f4f6 !important;
-        background: #202733 !important;
+        color: #f5f5f5 !important;
+        background: #141414 !important;
       }
 
       body[data-theme="dark"] button.dropzone-pick {
@@ -3030,6 +3243,7 @@
       .task-file-icon.xlsx { background: linear-gradient(145deg, #0f766e, #0f766e) !important; }
       .task-file-icon.pdf { background: linear-gradient(145deg, #b91c1c, #991b1b) !important; }
       .task-file-icon.docx { background: linear-gradient(145deg, #1d4ed8, #1e40af) !important; }
+      .task-file-icon.image { background: linear-gradient(145deg, #0891b2, #0e7490) !important; }
       .task-file-icon.other { background: linear-gradient(145deg, #334155, #1f2937) !important; }
 
       .brand h1,
@@ -3123,6 +3337,100 @@
         box-shadow:
           0 0 0 1px rgba(59, 130, 246, 0.12) inset,
           0 10px 20px rgba(37, 99, 235, 0.08) !important;
+      }
+
+      #refreshTasksBtn,
+      #resetTaskFiltersBtn {
+        min-width: 0 !important;
+        height: 32px !important;
+        padding: 0 10px !important;
+        border-radius: 8px !important;
+        font-size: 12px !important;
+      }
+
+      #refreshTasksBtn {
+        background: rgba(59, 130, 246, 0.16) !important;
+        border-color: rgba(96, 165, 250, 0.56) !important;
+        color: #dbeafe !important;
+      }
+
+      #refreshTasksBtn:hover {
+        background: rgba(59, 130, 246, 0.24) !important;
+        border-color: rgba(147, 197, 253, 0.78) !important;
+        color: #eff6ff !important;
+      }
+
+      #resetTaskFiltersBtn {
+        background: rgba(245, 158, 11, 0.15) !important;
+        border-color: rgba(251, 191, 36, 0.56) !important;
+        color: #fde68a !important;
+      }
+
+      #resetTaskFiltersBtn:hover {
+        background: rgba(245, 158, 11, 0.24) !important;
+        border-color: rgba(252, 211, 77, 0.8) !important;
+        color: #fef3c7 !important;
+      }
+
+      body[data-theme="light"] #refreshTasksBtn {
+        background: rgba(219, 234, 254, 0.95) !important;
+        border-color: rgba(37, 99, 235, 0.42) !important;
+        color: #1d4ed8 !important;
+      }
+
+      body[data-theme="light"] #refreshTasksBtn:hover {
+        background: rgba(191, 219, 254, 1) !important;
+        border-color: rgba(37, 99, 235, 0.6) !important;
+        color: #1e40af !important;
+      }
+
+      body[data-theme="light"] #resetTaskFiltersBtn {
+        background: rgba(255, 237, 213, 0.96) !important;
+        border-color: rgba(217, 119, 6, 0.42) !important;
+        color: #b45309 !important;
+      }
+
+      body[data-theme="light"] #resetTaskFiltersBtn:hover {
+        background: rgba(254, 215, 170, 1) !important;
+        border-color: rgba(180, 83, 9, 0.58) !important;
+        color: #92400e !important;
+      }
+
+      .task-retry-btn {
+        min-width: 0 !important;
+        height: 32px !important;
+        padding: 0 10px !important;
+        border-radius: 8px !important;
+        font-size: 12px !important;
+        background: rgba(245, 158, 11, 0.15) !important;
+        border-color: rgba(251, 191, 36, 0.56) !important;
+        color: #fde68a !important;
+      }
+
+      .task-retry-btn:hover {
+        background: rgba(245, 158, 11, 0.24) !important;
+        border-color: rgba(252, 211, 77, 0.8) !important;
+        color: #fef3c7 !important;
+      }
+
+      body[data-theme="light"] .task-retry-btn {
+        background: rgba(255, 237, 213, 0.96) !important;
+        border-color: rgba(217, 119, 6, 0.42) !important;
+        color: #b45309 !important;
+      }
+
+      body[data-theme="light"] .task-retry-btn:hover {
+        background: rgba(254, 215, 170, 1) !important;
+        border-color: rgba(180, 83, 9, 0.58) !important;
+        color: #92400e !important;
+      }
+
+      .task-status-tabs .task-status-tab {
+        border-radius: 8px !important;
+        height: 32px !important;
+        min-height: 32px !important;
+        padding: 0 10px !important;
+        font-size: 12px !important;
       }
 
       @media (max-width: 680px) {
@@ -3322,43 +3630,45 @@
           <div id="history" class="history">
             <div class="task-board">
               <div class="task-board-toolbar">
-                <div class="task-toolbar-row">
-                  <div class="task-toolbar-left">
-                    <div class="task-search-shell">
-                      <svg class="task-search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M10.5 18.5C14.6421 18.5 18 15.1421 18 11C18 6.85786 14.6421 3.5 10.5 3.5C6.35786 3.5 3 6.85786 3 11C3 15.1421 6.35786 18.5 10.5 18.5Z" stroke="currentColor" stroke-width="1.8"></path>
-                        <path d="M16.3 16.3L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
-                      </svg>
-                      <input
-                        id="taskSearchInput"
-                        class="task-search-input"
-                        type="search"
-                        placeholder="搜索文件名..."
-                        aria-label="按文件名搜索任务"
-                        autocomplete="off"
-                      />
-                    </div>
-                    <div id="taskFilters" class="task-filters hidden">
-                      <label id="taskOwnerFilterField" class="filter-field">
-                        <span>用户</span>
-                        <select id="taskOwnerFilter" aria-label="按用户筛选"></select>
-                      </label>
-                      <label class="filter-field">
-                        <span>状态</span>
-                        <select id="taskStatusFilter" aria-label="按状态筛选">
-                          <option value="">全部状态</option>
-                          <option value="queued">排队中</option>
-                          <option value="running">处理中</option>
-                          <option value="succeeded">已完成</option>
-                          <option value="failed">失败</option>
-                          <option value="cancelled">已取消</option>
-                        </select>
-                      </label>
-                      <button id="applyTaskFiltersBtn" type="button" class="task-muted-btn">
-                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <path d="M4 5H20L14 12V19L10 21V12L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+                <div class="task-toolbar-stack">
+                  <div class="task-toolbar-row">
+                    <div class="task-toolbar-left">
+                      <div class="task-search-shell">
+                        <svg class="task-search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M10.5 18.5C14.6421 18.5 18 15.1421 18 11C18 6.85786 14.6421 3.5 10.5 3.5C6.35786 3.5 3 6.85786 3 11C3 15.1421 6.35786 18.5 10.5 18.5Z" stroke="currentColor" stroke-width="1.8"></path>
+                          <path d="M16.3 16.3L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
                         </svg>
-                        <span>应用筛选</span>
+                        <input
+                          id="taskSearchInput"
+                          class="task-search-input"
+                          type="search"
+                          placeholder="搜索文件名..."
+                          aria-label="按文件名搜索任务"
+                          autocomplete="off"
+                        />
+                      </div>
+                      <div id="taskFilters" class="task-filters hidden">
+                        <label id="taskOwnerFilterField" class="filter-field">
+                          <span>用户</span>
+                          <select id="taskOwnerFilter" aria-label="按用户筛选"></select>
+                        </label>
+                      </div>
+                      <div id="taskStatusTabs" class="task-status-tabs" aria-label="按任务状态快捷筛选">
+                        <button type="button" class="task-status-tab is-active" data-task-status="all" data-status="all">全部</button>
+                        <button type="button" class="task-status-tab" data-task-status="running" data-status="running">处理中</button>
+                        <button type="button" class="task-status-tab" data-task-status="queued" data-status="queued">排队中</button>
+                        <button type="button" class="task-status-tab" data-task-status="succeeded" data-status="succeeded">已完成</button>
+                        <button type="button" class="task-status-tab" data-task-status="failed" data-status="failed">失败</button>
+                        <button type="button" class="task-status-tab" data-task-status="cancelled" data-status="cancelled">已取消</button>
+                      </div>
+                    </div>
+                    <div class="task-toolbar-right">
+                      <button id="refreshTasksBtn" class="task-muted-btn" type="button">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M20 12A8 8 0 1 1 17.66 6.34" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                          <path d="M20 4V10H14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                        <span>刷新</span>
                       </button>
                       <button id="resetTaskFiltersBtn" type="button" class="task-muted-btn">
                         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -3369,32 +3679,32 @@
                       </button>
                     </div>
                   </div>
-                  <div class="task-toolbar-right">
-                    <span id="taskTotalLabel" class="task-total-label">共 0 条</span>
-                    <button id="refreshTasksBtn" class="task-muted-btn" type="button">
-                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M20 12A8 8 0 1 1 17.66 6.34" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
-                        <path d="M20 4V10H14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-                      </svg>
-                      <span>刷新</span>
-                    </button>
-                    <button id="batchDownloadBtn" class="task-primary-btn" type="button" disabled>
-                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M12 3V14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-                        <path d="M8 10L12 14L16 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                        <path d="M4 17.5C4 18.8807 5.11929 20 6.5 20H17.5C18.8807 20 20 18.8807 20 17.5V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-                      </svg>
-                      <span>批量下载</span>
-                    </button>
-                  </div>
-                </div>
-                <div class="task-batch-row">
-                  <div class="task-batch-left">
-                    <input id="taskSelectAllCb" type="checkbox" class="task-select-cb" aria-label="全选当前页可下载任务" />
-                    <span id="taskSelectedLabel" class="task-selected-label">已选择 0 项</span>
-                  </div>
+
                 </div>
               </div>
+
+              <div id="taskSectionHead" class="task-section-head" aria-label="当前任务分区">
+                <div class="task-section-meta">
+                  <p id="taskSectionTitle" class="task-section-title">全部任务：0条</p>
+                </div>
+                <div id="taskCompletedActions" class="task-completed-actions hidden" aria-label="已完成任务操作">
+                  <label class="task-select-all-wrap" for="taskSelectAllCb">
+                    <input id="taskSelectAllCb" type="checkbox" class="task-select-cb" aria-label="全选当前页可下载任务" />
+                    <span>全选当前页</span>
+                  </label>
+                  <span id="taskSelectedLabel" class="task-selected-label">已选择 0 项</span>
+                  <button id="batchDownloadBtn" class="task-primary-btn" type="button" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M12 3V14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                      <path d="M8 10L12 14L16 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                      <path d="M4 17.5C4 18.8807 5.11929 20 6.5 20H17.5C18.8807 20 20 18.8807 20 17.5V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                    </svg>
+                    <span>批量下载</span>
+                  </button>
+                </div>
+              </div>
+
+              <div id="historyList" class="task-list"></div>
 
               <div class="task-board-pager" aria-label="任务列表翻页">
                 <div class="task-pager-left">
@@ -3416,8 +3726,6 @@
                   <input id="taskJumpInput" class="task-jump-input" type="number" min="1" step="1" aria-label="跳转到页码" />
                 </div>
               </div>
-
-              <div id="historyList" class="task-list"></div>
             </div>
           </div>
         </section>
@@ -3489,11 +3797,11 @@ const selectedList = document.getElementById("selectedList");
       const taskSearchInput = document.getElementById("taskSearchInput");
       const taskSearchClearBtn = document.getElementById("taskSearchClearBtn");
       const taskFilters = document.getElementById("taskFilters");
+      const taskStatusTabs = document.getElementById("taskStatusTabs");
       const taskOwnerFilter = document.getElementById("taskOwnerFilter");
-      const taskStatusFilter = document.getElementById("taskStatusFilter");
-      const applyTaskFiltersBtn = document.getElementById("applyTaskFiltersBtn");
       const resetTaskFiltersBtn = document.getElementById("resetTaskFiltersBtn");
-      const taskTotalLabel = document.getElementById("taskTotalLabel");
+      const taskSectionTitle = document.getElementById("taskSectionTitle");
+      const taskCompletedActions = document.getElementById("taskCompletedActions");
       const taskSelectedLabel = document.getElementById("taskSelectedLabel");
       const taskSelectAllCb = document.getElementById("taskSelectAllCb");
       const taskPageNumbers = document.getElementById("taskPageNumbers");
@@ -3515,7 +3823,6 @@ const selectedList = document.getElementById("selectedList");
       const topActions = document.querySelector(".top-actions");
       if (refreshTasksBtn) {
         refreshTasksBtn.style.whiteSpace = "nowrap";
-        refreshTasksBtn.style.minWidth = "84px";
       }
       if (batchDownloadBtn) {
         batchDownloadBtn.style.whiteSpace = "nowrap";
@@ -3562,11 +3869,19 @@ const selectedList = document.getElementById("selectedList");
       let taskPollTimer = null;
       let taskListRequestSeq = 0;
       let taskListAbortController = null;
-      let taskPage = 1;
       let taskPageSize = 10;
       let taskTotal = 0;
       let taskSearchQuery = "";
       let taskSearchTimer = 0;
+      let activeTaskStatus = "all";
+      const taskPageByStatus = {
+        all: 1,
+        queued: 1,
+        running: 1,
+        succeeded: 1,
+        failed: 1,
+        cancelled: 1,
+      };
       const selectedJobIds = new Set();
       let lastRenderableSelectableJobIds = [];
       /** 任务列表中排队/进行中项的「已用时」每秒刷新 */
@@ -3579,10 +3894,23 @@ const selectedList = document.getElementById("selectedList");
       let toastTimer = null;
       let windowDragDepth = 0;
 
+      const TASK_STATUS_META = {
+        all: { queryValue: "", label: "全部任务" },
+        running: { queryValue: "running", label: "处理中任务" },
+        queued: { queryValue: "queued", label: "排队中任务" },
+        succeeded: { queryValue: "succeeded", label: "已完成任务" },
+        failed: { queryValue: "failed", label: "失败任务" },
+        cancelled: { queryValue: "cancelled", label: "已取消任务" },
+      };
+
       function syncBatchDownloadButton() {
         if (!batchDownloadBtn) return;
         const n = selectedJobIds.size;
-        batchDownloadBtn.disabled = n <= 0;
+        const enabled = activeTaskStatus === "succeeded";
+        if (taskCompletedActions) {
+          taskCompletedActions.classList.toggle("hidden", !enabled);
+        }
+        batchDownloadBtn.disabled = !enabled || n <= 0;
         if (taskSelectedLabel) taskSelectedLabel.textContent = "已选择 " + n + " 项";
       }
 
@@ -3591,6 +3919,49 @@ const selectedList = document.getElementById("selectedList");
         if (taskSelectAllCb) {
           taskSelectAllCb.checked = false;
           taskSelectAllCb.indeterminate = false;
+        }
+        syncBatchDownloadButton();
+      }
+
+      function normalizeTaskStatusKey(value) {
+        const raw = String(value || "").trim();
+        return Object.prototype.hasOwnProperty.call(TASK_STATUS_META, raw) ? raw : "all";
+      }
+
+      function getActiveTaskStatusQueryValue() {
+        const meta = TASK_STATUS_META[normalizeTaskStatusKey(activeTaskStatus)];
+        return meta ? meta.queryValue : "";
+      }
+
+      function getActiveTaskStatusLabel() {
+        const meta = TASK_STATUS_META[normalizeTaskStatusKey(activeTaskStatus)];
+        return meta ? meta.label : "全部任务";
+      }
+
+      function getCurrentTaskPage() {
+        const key = normalizeTaskStatusKey(activeTaskStatus);
+        const current = Number(taskPageByStatus[key]);
+        return Number.isFinite(current) && current > 0 ? Math.max(1, Math.floor(current)) : 1;
+      }
+
+      function setCurrentTaskPage(value) {
+        const key = normalizeTaskStatusKey(activeTaskStatus);
+        const p = Number(value);
+        taskPageByStatus[key] = Number.isFinite(p) && p > 0 ? Math.max(1, Math.floor(p)) : 1;
+      }
+
+      function syncTaskStatusTabs() {
+        if (!taskStatusTabs) return;
+        const key = normalizeTaskStatusKey(activeTaskStatus);
+        taskStatusTabs.querySelectorAll("[data-task-status]").forEach((btn) => {
+          btn.classList.toggle("is-active", btn.getAttribute("data-task-status") === key);
+        });
+      }
+
+      function updateTaskSectionHeader() {
+        const label = getActiveTaskStatusLabel();
+        if (taskSectionTitle) {
+          taskSectionTitle.textContent = label + "：" + taskTotal + "条";
         }
         syncBatchDownloadButton();
       }
@@ -3624,13 +3995,13 @@ const selectedList = document.getElementById("selectedList");
             cache: "no-store",
           });
           if (!resp.ok) {
-            productTagline.textContent = formatProductTagline(null);
+            productTagline.textContent = formatSupportedFormatsLine(null);
             return;
           }
           const data = await resp.json();
-          productTagline.textContent = formatProductTagline(data.allowed_types);
+          productTagline.textContent = formatSupportedFormatsLine(data.allowed_types);
         } catch (e) {
-          productTagline.textContent = formatProductTagline(null);
+          productTagline.textContent = formatSupportedFormatsLine(null);
         }
       }
 
@@ -4077,10 +4448,12 @@ function removeSelectedFileAt(index) {
             if (taskOwnerFilter) taskOwnerFilter.value = "";
           }
           updateConvertButtonState();
+          syncTaskStatusTabs();
           if (opts.initialJobs && Array.isArray(opts.initialJobs.items)) {
-            taskPage = Number(opts.initialJobs.page) || 1;
+            setCurrentTaskPage(Number(opts.initialJobs.page) || 1);
             taskPageSize = Number(opts.initialJobs.page_size) || taskPageSize;
             taskTotal = Number(opts.initialJobs.total) || 0;
+            updateTaskSectionHeader();
             renderTaskItems(opts.initialJobs.items);
             updateTaskPollingFromItems(opts.initialJobs.items);
             syncTaskPager();
@@ -4116,6 +4489,13 @@ if (selectedList) selectedList.innerHTML = "";
         progressWrap.classList.remove("show");
         historyWrap.classList.remove("show");
         historyList.innerHTML = "";
+        activeTaskStatus = "all";
+        Object.keys(taskPageByStatus).forEach((key) => {
+          taskPageByStatus[key] = 1;
+        });
+        taskTotal = 0;
+        syncTaskStatusTabs();
+        updateTaskSectionHeader();
         updateConvertButtonState();
       }
 
@@ -4125,11 +4505,11 @@ if (selectedList) selectedList.innerHTML = "";
           themeToggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 12.8A8.8 8.8 0 1 1 11.2 3a6.9 6.9 0 0 0 9.8 9.8Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
           themeToggle.setAttribute("aria-label", "切换亮色模式");
           themeToggle.setAttribute("title", "切换亮色模式");
-          return;
+        } else {
+          themeToggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 2.5V5M12 19V21.5M21.5 12H19M5 12H2.5M18.7 5.3L17 7M7 17L5.3 18.7M18.7 18.7L17 17M7 7L5.3 5.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>';
+          themeToggle.setAttribute("aria-label", "切换暗色模式");
+          themeToggle.setAttribute("title", "切换暗色模式");
         }
-        themeToggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 2.5V5M12 19V21.5M21.5 12H19M5 12H2.5M18.7 5.3L17 7M7 17L5.3 18.7M18.7 18.7L17 17M7 7L5.3 5.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>';
-        themeToggle.setAttribute("aria-label", "切换暗色模式");
-        themeToggle.setAttribute("title", "切换暗色模式");
       }
 
       function saveTheme(theme) {
@@ -4288,10 +4668,13 @@ if (selectedList) selectedList.innerHTML = "";
       }
 
       function renderTaskItems(items) {
+        const selectionEnabled = activeTaskStatus === "succeeded";
         if (!items || !items.length) {
           historyWrap.classList.add("show");
           historyList.innerHTML =
-            '<p class="history-meta" style="margin:0">暂无任务。任务会保存在服务器，重新登录后仍可在此查看与管理。</p>';
+            '<p class="history-meta" style="margin:0">' +
+            getActiveTaskStatusLabel() +
+            ' 暂无记录。任务会保存在服务器，重新登录后仍可在此查看与管理。</p>';
           ensureLiveElapsedTicker([]);
           lastRenderableSelectableJobIds = [];
           if (taskSelectAllCb) {
@@ -4374,6 +4757,7 @@ if (selectedList) selectedList.innerHTML = "";
           let progressNote = note;
           const pdfPageMatch = noteRaw.match(/PDF 已完成\s+(\d+)\/(\d+)\s*页/);
           if (pdfPageMatch) {
+            pageHint = "";
             if (job.current_file_name) {
               const currentName = String(job.current_file_name).split('/').pop().split('\\').pop();
               progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
@@ -4430,9 +4814,9 @@ if (selectedList) selectedList.innerHTML = "";
               job.download_url && job.status === "succeeded"
                 ? '<a class="task-inline-btn primary" href="' +
                   job.download_url +
-                  '" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3V14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M8 10L12 14L16 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 17.5C4 18.8807 5.11929 20 6.5 20H17.5C18.8807 20 20 18.8807 20 17.5V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span>下载 ZIP</span></a>'
+                  '" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3V14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M8 10L12 14L16 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 17.5C4 18.8807 5.11929 20 6.5 20H17.5C18.8807 20 20 18.8807 20 17.5V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span>下载 md</span></a>'
                 : "";
-            const canSelect = job.status === "succeeded" && job.download_url;
+            const canSelect = selectionEnabled && job.status === "succeeded" && job.download_url;
             const checked = canSelect && selectedJobIds.has(job.job_id) ? " checked" : "";
             const disabled = canSelect ? "" : " disabled";
             const cb =
@@ -4443,6 +4827,7 @@ if (selectedList) selectedList.innerHTML = "";
               disabled +
               ' aria-label="选择该任务用于批量下载" />';
             if (canSelect) lastRenderableSelectableJobIds.push(job.job_id);
+            const selectorHtml = selectionEnabled ? cb : "";
             const nameForExt = job.original_filename || job.current_file_name || job.current_filename || "";
             const ext = String(nameForExt).split(".").pop().toLowerCase();
             const iconKind =
@@ -4452,6 +4837,8 @@ if (selectedList) selectedList.innerHTML = "";
                   ? "pdf"
                   : ext === "docx" || ext === "doc"
                     ? "docx"
+                    : ext === "png" || ext === "jpg" || ext === "jpeg" || ext === "gif" || ext === "webp" || ext === "bmp" || ext === "tif" || ext === "tiff" || ext === "svg"
+                      ? "image"
                     : "other";
             const iconHtml =
               iconKind === "xlsx"
@@ -4460,6 +4847,8 @@ if (selectedList) selectedList.innerHTML = "";
                   ? '<div class="task-file-icon pdf" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 3H14L19 8V21H7V3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M14 3V8H19" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M8.5 13.5H15.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><path d="M8.5 17H13.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg></div>'
                   : iconKind === "docx"
                     ? '<div class="task-file-icon docx" aria-hidden="true">W</div>'
+                    : iconKind === "image"
+                      ? '<div class="task-file-icon image" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" rx="2.4" stroke="currentColor" stroke-width="1.8"></rect><circle cx="9" cy="10" r="1.6" fill="currentColor"></circle><path d="M6.5 16L10.2 12.5L13.2 15.2L15.6 13.1L18 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>'
                     : '<div class="task-file-icon other" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M6 12H6.01M12 12H12.01M18 12H18.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path></svg></div>';
             const baseName = (function() {
               let displayName = job.current_file_name || job.current_filename || job.original_filename || "";
@@ -4475,7 +4864,7 @@ if (selectedList) selectedList.innerHTML = "";
                   : "";
             const messageLine =
               job.status === "succeeded"
-                ? '<div class="task-row-message success">输出文件已生成，可下载压缩包</div>'
+                ? '<div class="task-row-message success">输出文件已生成，可点击右侧按钮下载</div>'
                 : job.status === "cancelled"
                   ? '<div class="task-row-message error">取消原因：' +
                     (job.error_message ? String(job.error_message).replace(/</g, "&lt;") : "用户主动取消") +
@@ -4540,7 +4929,7 @@ if (selectedList) selectedList.innerHTML = "";
               '<div class="task-item-main">' +
               '<div class="task-row-top">' +
               '<div class="task-row-left">' +
-              cb +
+              selectorHtml +
               iconHtml +
               '<div class="task-title-text" title="' +
               escapeAttr(baseName) +
@@ -4595,14 +4984,14 @@ if (selectedList) selectedList.innerHTML = "";
           }
           taskPageSizeSelect.value = String(taskPageSize);
         }
-        taskPage = Math.max(1, Math.floor(Number(taskPage) || 1));
+        let taskPage = getCurrentTaskPage();
         taskTotal = Math.max(0, Math.floor(Number(taskTotal) || 0));
         const totalPages = taskPageSize > 0 ? Math.max(1, Math.ceil(taskTotal / taskPageSize)) : 1;
         if (taskPage > totalPages) taskPage = totalPages;
+        setCurrentTaskPage(taskPage);
         if (taskPrevBtn) taskPrevBtn.disabled = taskPage <= 1;
         if (taskNextBtn) taskNextBtn.disabled = taskPage >= totalPages;
         if (taskPageLabel) taskPageLabel.textContent = "第 " + taskPage + " / " + totalPages + " 页";
-        if (taskTotalLabel) taskTotalLabel.textContent = "共 " + taskTotal + " 条";
         if (taskJumpInput) taskJumpInput.value = "";
         if (taskPageNumbers) {
           const pages = [];
@@ -4662,11 +5051,11 @@ if (selectedList) selectedList.innerHTML = "";
         if (opts.page != null) {
           const p = Number(opts.page);
           if (Number.isFinite(p) && p > 0) {
-            taskPage = Math.max(1, Math.floor(p));
+            setCurrentTaskPage(Math.max(1, Math.floor(p)));
           }
         }
         if (opts.resetPage) {
-          taskPage = 1;
+          setCurrentTaskPage(1);
         }
         syncTaskPager();
         if (!opts.silent) {
@@ -4676,7 +5065,7 @@ if (selectedList) selectedList.innerHTML = "";
         }
         try {
           const params = new URLSearchParams();
-          params.set("page", String(taskPage));
+          params.set("page", String(getCurrentTaskPage()));
           params.set("page_size", String(taskPageSize));
           if (taskSearchQuery) {
             params.set("q", taskSearchQuery);
@@ -4684,7 +5073,8 @@ if (selectedList) selectedList.innerHTML = "";
           if (currentUser.role === "admin") {
             if (taskOwnerFilter.value) params.set("owner", taskOwnerFilter.value);
           }
-          if (taskStatusFilter.value) params.set("status", taskStatusFilter.value);
+          const activeStatusValue = getActiveTaskStatusQueryValue();
+          if (activeStatusValue) params.set("status", activeStatusValue);
           const resp = await fetch("/jobs?" + params.toString(), {
             credentials: "same-origin",
             cache: "no-store",
@@ -4708,9 +5098,10 @@ if (selectedList) selectedList.innerHTML = "";
           }
           renderTaskItems(data.items || []);
           updateTaskPollingFromItems(data.items || []);
-          taskPage = Number(data.page) || taskPage;
+          setCurrentTaskPage(Number(data.page) || getCurrentTaskPage());
           taskPageSize = normalizeTaskPageSize(data.page_size);
           taskTotal = Number(data.total) || 0;
+          updateTaskSectionHeader();
           syncTaskPager();
         } catch (e) {
           if (e && e.name === "AbortError") return;
@@ -4827,15 +5218,16 @@ if (selectedList) selectedList.innerHTML = "";
 
       if (taskPrevBtn) {
         taskPrevBtn.addEventListener("click", () => {
-          if (taskPage <= 1) return;
-          taskPage -= 1;
+          const currentPage = getCurrentTaskPage();
+          if (currentPage <= 1) return;
+          setCurrentTaskPage(currentPage - 1);
           refreshTaskList({ silent: true });
         });
       }
 
       if (taskNextBtn) {
         taskNextBtn.addEventListener("click", () => {
-          taskPage += 1;
+          setCurrentTaskPage(getCurrentTaskPage() + 1);
           refreshTaskList({ silent: true });
         });
       }
@@ -4930,18 +5322,15 @@ if (selectedList) selectedList.innerHTML = "";
         });
       }
 
-      applyTaskFiltersBtn.addEventListener("click", () => {
-        clearTaskSelections();
-        refreshTaskList({ resetPage: true });
-      });
-
       if (resetTaskFiltersBtn) {
         resetTaskFiltersBtn.addEventListener("click", () => {
           if (taskOwnerFilter) taskOwnerFilter.value = "";
-          if (taskStatusFilter) taskStatusFilter.value = "";
+          activeTaskStatus = "all";
           taskSearchQuery = "";
           if (taskSearchInput) taskSearchInput.value = "";
           clearTaskSelections();
+          syncTaskStatusTabs();
+          updateTaskSectionHeader();
           refreshTaskList({ resetPage: true });
         });
       }
@@ -4953,10 +5342,16 @@ if (selectedList) selectedList.innerHTML = "";
         });
       }
 
-      if (taskStatusFilter) {
-        taskStatusFilter.addEventListener("change", () => {
-          clearTaskSelections();
-          refreshTaskList({ resetPage: true });
+      if (taskStatusTabs) {
+        taskStatusTabs.addEventListener("click", (event) => {
+          const btn = event.target.closest("[data-task-status]");
+          if (!btn) return;
+          const nextStatus = normalizeTaskStatusKey(btn.getAttribute("data-task-status"));
+          if (nextStatus === activeTaskStatus) return;
+          activeTaskStatus = nextStatus;
+          syncTaskStatusTabs();
+          updateTaskSectionHeader();
+          refreshTaskList({ silent: true });
         });
       }
 

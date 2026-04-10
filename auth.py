@@ -714,6 +714,25 @@ class AuthStore:
             )
         return [str(r["username"]) for r in rows]
 
+    def list_job_owner_usernames(self) -> list[str]:
+        with self.engine.connect() as conn:
+            rows = (
+                conn.execute(
+                    text(
+                        """
+                        SELECT DISTINCT owner_username
+                        FROM jobs
+                        WHERE owner_username IS NOT NULL
+                          AND owner_username <> ''
+                        ORDER BY owner_username
+                        """
+                    )
+                )
+                .mappings()
+                .fetchall()
+            )
+        return [str(r["owner_username"]) for r in rows if r.get("owner_username")]
+
     def list_jobs(
         self,
         *,

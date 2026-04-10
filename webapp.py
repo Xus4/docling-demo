@@ -599,7 +599,7 @@ def list_auth_users(request: Request) -> dict[str, list[str]]:
     user = _require_auth_user(request)
     if not _is_admin(user):
         raise HTTPException(status_code=403, detail="需要管理员权限")
-    return {"usernames": auth_store.list_usernames()}
+    return {"usernames": auth_store.list_job_owner_usernames()}
 
 
 @app.post("/jobs")
