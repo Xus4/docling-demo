@@ -4806,7 +4806,7 @@ if (selectedList) selectedList.innerHTML = "";
               : "";
             const canRetry = job.status === "failed" || job.status === "cancelled" || job.status === "succeeded";
             const retryBtn = canRetry
-              ? '<button type="button" class="task-inline-btn" data-job-retry="' +
+              ? '<button type="button" class="task-retry-btn" data-job-retry="' +
                 job.job_id +
                 '"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 12A9 9 0 1 1 18.4 5.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path><path d="M21 4V10H15" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></svg><span>重试</span></button>'
               : "";
