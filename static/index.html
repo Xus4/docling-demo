@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>文档转 Markdown</title>
+    <title>智枢文档</title>
     <style>
       :root {
         --bg-0: #141923;
@@ -207,6 +207,13 @@
         margin-bottom: 34px;
       }
 
+      .brand-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+
       .brand h1 {
         margin: 0;
         font-size: clamp(32px, 4vw, 44px);
@@ -216,10 +223,68 @@
         text-shadow: var(--title-shadow);
       }
 
-      .brand p {
-        margin: 14px 0 0;
+      .brand-slogan {
+        margin: 0;
+        font-size: clamp(15px, 1.85vw, 17px);
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        line-height: 1.55;
+      }
+
+      body.task-page .brand-slogan {
+        display: none !important;
+      }
+
+      body:not(.task-page) .brand .product-tagline {
+        display: none !important;
+      }
+
+      .brand .product-tagline {
+        margin: 0;
+        max-width: min(36rem, 92vw);
+        font-size: clamp(15px, 1.9vw, 17px);
+        font-weight: 520;
+        letter-spacing: 0.04em;
+        line-height: 1.45;
+        color: color-mix(in srgb, var(--text-main) 82%, var(--brand) 18%);
+      }
+
+      body.task-page .brand {
+        text-align: left;
+        margin-bottom: 18px;
+      }
+
+      body.task-page .brand-inner {
+        flex-direction: row;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 10px 14px;
+      }
+
+      body.task-page .brand h1 {
+        font-size: clamp(20px, 2.4vw, 24px);
+        line-height: 1.2;
+        letter-spacing: 0.12px;
+      }
+
+      body.task-page .brand .product-tagline {
+        max-width: none;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.02em;
         color: var(--text-sub);
-        font-size: 15px;
+      }
+
+      body.task-page .brand .product-tagline::before {
+        content: "";
+        display: inline-block;
+        width: 4px;
+        height: 4px;
+        margin: 0 10px 0 2px;
+        border-radius: 50%;
+        vertical-align: 0.2em;
+        background: color-mix(in srgb, var(--brand) 55%, var(--text-sub) 45%);
+        opacity: 0.85;
       }
 
       /* 右上角统一工具栏（主题 / 用户 / 退出） */
@@ -630,6 +695,27 @@
         margin-top: 22px;
         display: grid;
         gap: 12px;
+      }
+
+      .auth-feedback {
+        margin: 0;
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-size: 14px;
+        line-height: 1.5;
+        text-align: center;
+      }
+
+      .auth-feedback.auth-feedback-success {
+        background: var(--success-bg);
+        color: var(--success-text);
+        border: 1px solid color-mix(in srgb, var(--success-text) 28%, transparent);
+      }
+
+      .auth-feedback.auth-feedback-error {
+        background: var(--error-bg);
+        color: var(--error-text);
+        border: 1px solid color-mix(in srgb, var(--error-text) 28%, transparent);
       }
 
       .field {
@@ -1170,6 +1256,10 @@
 
       .toast-error {
         border-color: color-mix(in srgb, var(--error-text) 32%, transparent);
+      }
+
+      .toast-warn {
+        border-color: color-mix(in srgb, var(--warning-text, #d4a017) 35%, transparent);
       }
 
       .status-loading {
@@ -2951,6 +3041,21 @@
         text-shadow: 0 0 18px rgba(37, 99, 235, 0.24) !important;
       }
 
+      .brand-slogan,
+      body[data-theme="dark"] .brand-slogan {
+        background: linear-gradient(98deg, #38bdf8 0%, #60a5fa 38%, #818cf8 78%, #a78bfa 100%) !important;
+        color: transparent !important;
+        -webkit-background-clip: text !important;
+        background-clip: text !important;
+      }
+
+      body[data-theme="light"] .brand-slogan {
+        background: linear-gradient(98deg, #0e7490 0%, #2563eb 42%, #4f46e5 88%) !important;
+        color: transparent !important;
+        -webkit-background-clip: text !important;
+        background-clip: text !important;
+      }
+
       .shell,
       .dropzone,
       .task-board,
@@ -3051,8 +3156,11 @@
   <body data-theme="dark">
     <main class="page">
       <header class="brand">
-        <h1>文档转 Markdown</h1>
-        <p id="supportedFormatsLine">支持加载中…</p>
+        <div class="brand-inner">
+          <h1>智枢文档</h1>
+          <p class="brand-slogan">智能文档中枢 · 结构化知识引擎</p>
+          <p id="productTagline" class="product-tagline">多格式文档智能转 Markdown</p>
+        </div>
       </header>
 
       <div class="top-actions">
@@ -3085,7 +3193,7 @@
         </div>
         <section id="authBox" class="auth-view hidden">
           <h2 class="auth-title">账号登录</h2>
-          <p class="auth-sub">输入账号后进入转换工作台</p>
+          <p class="auth-sub">登录后上传并转换为 Markdown</p>
 
           <div class="auth-grid">
             <label class="field">
@@ -3117,6 +3225,13 @@
               <a id="forgotPasswordLink" class="forgot-link" href="#" role="button">忘记密码？</a>
             </div>
             <button id="loginBtn" class="primary-btn" type="button">登录</button>
+            <p
+              id="authFeedback"
+              class="auth-feedback hidden"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            ></p>
           </div>
         </section>
 
@@ -3395,7 +3510,8 @@ const selectedList = document.getElementById("selectedList");
       const passwordToggle = document.getElementById("passwordToggle");
       const rememberMeInput = document.getElementById("rememberMe");
       const forgotPasswordLink = document.getElementById("forgotPasswordLink");
-      const supportedFormatsLine = document.getElementById("supportedFormatsLine");
+      const authFeedback = document.getElementById("authFeedback");
+      const productTagline = document.getElementById("productTagline");
       const topActions = document.querySelector(".top-actions");
       if (refreshTasksBtn) {
         refreshTasksBtn.style.whiteSpace = "nowrap";
@@ -3410,7 +3526,35 @@ const selectedList = document.getElementById("selectedList");
         theme: "docling_theme",
         history: "docling_history",
         rememberedUser: "docling_remembered_user",
+        accessToken: "docling_access_token",
+        tokenExpiresAt: "docling_token_expires_at",
       };
+
+      function getStoredAccessToken() {
+        const exp = localStorage.getItem(STORAGE_KEYS.tokenExpiresAt);
+        if (exp && Number(exp) < Date.now()) {
+          localStorage.removeItem(STORAGE_KEYS.accessToken);
+          localStorage.removeItem(STORAGE_KEYS.tokenExpiresAt);
+          return null;
+        }
+        return localStorage.getItem(STORAGE_KEYS.accessToken);
+      }
+
+      function authHeaderObject() {
+        const t = getStoredAccessToken();
+        return t ? { Authorization: "Bearer " + t } : {};
+      }
+
+      function mergeAuthHeaders(headers) {
+        const h = headers ? Object.assign({}, headers) : {};
+        Object.assign(h, authHeaderObject());
+        return h;
+      }
+
+      function clearStoredAuthToken() {
+        localStorage.removeItem(STORAGE_KEYS.accessToken);
+        localStorage.removeItem(STORAGE_KEYS.tokenExpiresAt);
+      }
       let currentUploadMode = null; // "file" | "folder"
       let currentFiles = [];
       let currentRootName = ""; 
@@ -3463,28 +3607,30 @@ const selectedList = document.getElementById("selectedList");
         if (types.has("doc") || types.has("docx")) parts.push("Word");
         if (types.has("ppt") || types.has("pptx")) parts.push("PPT");
         if (types.has("xls") || types.has("xlsx")) parts.push("Excel");
-        if (types.has("html") || types.has("htm")) parts.push("HTML");
+        if (types.has("html") || types.has("htm")) parts.push("网页");
         const imgExts = ["png", "jpg", "jpeg", "tif", "tiff", "bmp", "webp"];
         if (imgExts.some((x) => types.has(x))) parts.push("图片");
-        if (!parts.length) return "支持多格式智能解析";
-        return "支持 " + parts.join(" / ") + " 智能解析";
+        if (!parts.length) {
+          return "多格式文档智能转 Markdown";
+        }
+        return parts.join("、") + " 智能转 Markdown";
       }
 
-      async function initSupportedFormatsLine() {
-        if (!supportedFormatsLine) return;
+      async function initProductTagline() {
+        if (!productTagline) return;
         try {
           const resp = await fetch("/app/config", {
             credentials: "same-origin",
             cache: "no-store",
           });
           if (!resp.ok) {
-            supportedFormatsLine.textContent = formatSupportedFormatsLine(null);
+            productTagline.textContent = formatProductTagline(null);
             return;
           }
           const data = await resp.json();
-          supportedFormatsLine.textContent = formatSupportedFormatsLine(data.allowed_types);
+          productTagline.textContent = formatProductTagline(data.allowed_types);
         } catch (e) {
-          supportedFormatsLine.textContent = formatSupportedFormatsLine(null);
+          productTagline.textContent = formatProductTagline(null);
         }
       }
 
@@ -3606,12 +3752,66 @@ const selectedList = document.getElementById("selectedList");
           clearTimeout(toastTimer);
           toastTimer = null;
         }
-        toast.className = "toast show " + (type === "success" ? "toast-success" : "toast-error");
-        toast.textContent = (type === "success" ? "✔ " : "✖ ") + text;
+        var t = String(text || "");
+        var isSuccess = type === "success";
+        var isWarn = type === "warn";
+        toast.className =
+          "toast show " +
+          (isSuccess ? "toast-success" : isWarn ? "toast-warn" : "toast-error");
+        toast.textContent =
+          (isSuccess ? "✔ " : isWarn ? "⚠ " : "✖ ") + t;
+        var ms = isSuccess ? 3200 : Math.min(9000, Math.max(4500, 800 + t.length * 40));
         toastTimer = setTimeout(() => {
           toast.className = "toast";
           toast.textContent = "";
-        }, 3000);
+        }, ms);
+      }
+
+      /** 将 FastAPI / HTTP JSON 里的 detail 转成可读字符串 */
+      function formatApiDetail(payload) {
+        if (!payload || payload.detail == null) return "";
+        var d = payload.detail;
+        if (typeof d === "string") return d;
+        if (Array.isArray(d)) {
+          return d
+            .map(function (x) {
+              if (x == null) return "";
+              if (typeof x === "string") return x;
+              if (typeof x.msg === "string") return x.msg;
+              try {
+                return JSON.stringify(x);
+              } catch (e) {
+                return "";
+              }
+            })
+            .filter(Boolean)
+            .join("；");
+        }
+        try {
+          return JSON.stringify(d);
+        } catch (e) {
+          return String(d);
+        }
+      }
+
+      function clearAuthFeedback() {
+        if (!authFeedback) return;
+        authFeedback.textContent = "";
+        authFeedback.className = "auth-feedback hidden";
+      }
+
+      /** 登录表单内可见反馈（statusBox 在工作区内，登录页隐藏时用户看不到） */
+      function setAuthFeedback(kind, text) {
+        if (!authFeedback) return;
+        var t = String(text || "").trim();
+        if (!t) {
+          clearAuthFeedback();
+          return;
+        }
+        authFeedback.textContent = t;
+        authFeedback.className =
+          "auth-feedback " +
+          (kind === "success" ? "auth-feedback-success" : "auth-feedback-error");
       }
 
       /**
@@ -3837,7 +4037,16 @@ function removeSelectedFileAt(index) {
       function setAuthState(user, opts) {
         opts = opts || {};
         if (user) {
-          currentUser = user;
+          clearAuthFeedback();
+          if (user.access_token) {
+            localStorage.setItem(STORAGE_KEYS.accessToken, user.access_token);
+            const ttl = Number(user.expires_in);
+            localStorage.setItem(
+              STORAGE_KEYS.tokenExpiresAt,
+              String(Date.now() + (Number.isFinite(ttl) && ttl > 0 ? ttl : 86400) * 1000)
+            );
+          }
+          currentUser = { username: user.username, role: user.role };
           document.body.classList.add("task-page");
           document.body.classList.toggle("role-admin", user.role === "admin");
           mainShell.classList.remove("login-shell");
@@ -3882,6 +4091,8 @@ function removeSelectedFileAt(index) {
         }
         stopTaskPolling();
         currentUser = null;
+        clearStoredAuthToken();
+        clearAuthFeedback();
         document.body.classList.remove("task-page");
         document.body.classList.remove("role-admin");
         if (sessionBoot) sessionBoot.classList.add("hidden");
@@ -4039,7 +4250,11 @@ if (selectedList) selectedList.innerHTML = "";
       async function loadAdminUserFilters() {
         if (!currentUser || currentUser.role !== "admin") return;
         try {
-          const resp = await fetch("/auth/users");
+          const resp = await fetch("/auth/users", {
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: mergeAuthHeaders({}),
+          });
           if (!resp.ok) return;
           const data = await resp.json();
           const names = data.usernames || [];
@@ -4525,6 +4740,7 @@ if (selectedList) selectedList.innerHTML = "";
             const resp = await fetch("/jobs/" + encodeURIComponent(jobId), {
               credentials: "same-origin",
               cache: "no-store",
+              headers: mergeAuthHeaders({}),
             });
             if (resp.status === 401) {
               setAuthState(null);
@@ -4678,7 +4894,7 @@ if (selectedList) selectedList.innerHTML = "";
             const resp = await fetch("/jobs/batch-download", {
               method: "POST",
               credentials: "same-origin",
-              headers: { "Content-Type": "application/json" },
+              headers: mergeAuthHeaders({ "Content-Type": "application/json" }),
               body: JSON.stringify({ job_ids: ids }),
             });
             if (resp.status === 401) {
@@ -4827,6 +5043,7 @@ if (selectedList) selectedList.innerHTML = "";
               method: "DELETE",
               credentials: "same-origin",
               cache: "no-store",
+              headers: mergeAuthHeaders({}),
             });
             const data = await resp.json().catch(() => ({}));
             if (resp.status === 401) {
@@ -4867,6 +5084,7 @@ if (selectedList) selectedList.innerHTML = "";
                 method: "POST",
                 credentials: "same-origin",
                 cache: "no-store",
+                headers: mergeAuthHeaders({}),
               }
             );
             const data = await resp.json().catch(() => ({}));
@@ -4906,6 +5124,7 @@ if (selectedList) selectedList.innerHTML = "";
             method: "POST",
             credentials: "same-origin",
             cache: "no-store",
+            headers: mergeAuthHeaders({}),
           });
           const data = await resp.json().catch(() => ({}));
           if (resp.status === 401) {
@@ -4952,21 +5171,40 @@ if (selectedList) selectedList.innerHTML = "";
         const username = usernameInput.value.trim();
         const password = passwordInput.value;
         if (!username || !password) {
-          setStatus("error", "请输入用户名和密码");
+          const msg = "请输入用户名和密码";
+          setAuthFeedback("error", msg);
+          showToast("error", msg);
           return;
         }
         const oldText = loginBtn.textContent;
+        let loginOkScheduled = false;
+        clearAuthFeedback();
         loginBtn.disabled = true;
         loginBtn.textContent = "登录中...";
         try {
           const resp = await fetch("/auth/login", {
             method: "POST",
+            credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username, password }),
           });
-          const payload = await resp.json();
+          let payload = {};
+          try {
+            const ct = (resp.headers.get("content-type") || "").toLowerCase();
+            if (ct.indexOf("application/json") !== -1) {
+              payload = await resp.json();
+            } else {
+              const t = await resp.text();
+              if (t) payload = { detail: t.slice(0, 200) };
+            }
+          } catch (e) {
+            payload = {};
+          }
           if (!resp.ok) {
-            setStatus("error", payload.detail || "登录失败");
+            const errMsg =
+              formatApiDetail(payload) || "登录失败（HTTP " + resp.status + "）";
+            setAuthFeedback("error", errMsg);
+            showToast("error", errMsg);
             return;
           }
           if (rememberMeInput.checked) {
@@ -4975,13 +5213,33 @@ if (selectedList) selectedList.innerHTML = "";
             localStorage.removeItem(STORAGE_KEYS.rememberedUser);
           }
           passwordInput.value = "";
-          setAuthState(payload);
-          setStatus("success", "登录成功");
+          const okMsg =
+            (typeof payload.message === "string" && payload.message.trim()
+              ? payload.message.trim()
+              : "登录成功，欢迎 " + (payload.username || username)) +
+            (payload.role === "admin" ? "（管理员）" : "");
+          setAuthFeedback("success", okMsg);
+          showToast("success", okMsg);
+          loginOkScheduled = true;
+          window.setTimeout(function () {
+            setAuthState({
+              username: payload.username,
+              role: payload.role,
+              access_token: payload.access_token,
+              expires_in: payload.expires_in,
+            });
+            loginBtn.disabled = false;
+            loginBtn.textContent = oldText;
+          }, 400);
         } catch (error) {
-          setStatus("error", "登录请求失败");
+          const netMsg = "登录请求失败，请检查网络或稍后重试";
+          setAuthFeedback("error", netMsg);
+          showToast("error", netMsg);
         } finally {
-          loginBtn.disabled = false;
-          loginBtn.textContent = oldText;
+          if (!loginOkScheduled) {
+            loginBtn.disabled = false;
+            loginBtn.textContent = oldText;
+          }
         }
       });
 
@@ -5003,11 +5261,17 @@ if (selectedList) selectedList.innerHTML = "";
 
       forgotPasswordLink.addEventListener("click", (event) => {
         event.preventDefault();
-        setStatus("error", "请联系管理员重置密码");
+        const msg = "请联系管理员重置密码";
+        setStatus("error", msg);
+        showToast("warn", msg);
       });
 
       logoutBtn.addEventListener("click", async () => {
-        await fetch("/auth/logout", { method: "POST" });
+        await fetch("/auth/logout", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: mergeAuthHeaders({}),
+        });
         setAuthState(null);
         setStatus("success", "已退出登录");
       });
@@ -5225,6 +5489,10 @@ folderInput.addEventListener("change", () => {
           const xhr = new XMLHttpRequest();
           xhr.open("POST", "/jobs");
           xhr.withCredentials = true;
+          const ah = authHeaderObject();
+          if (ah.Authorization) {
+            xhr.setRequestHeader("Authorization", ah.Authorization);
+          }
           uploadXhr = xhr;
           let uploadT0 = 0;
           xhr.upload.addEventListener("progress", function (e) {
@@ -5529,7 +5797,7 @@ setStatus("error", "请求失败：" + (error && error.message ? error.message :
           }
         });
       }
-      initSupportedFormatsLine();
+      initProductTagline();
       applyTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
       const rememberedUser = localStorage.getItem(STORAGE_KEYS.rememberedUser) || "";
       if (rememberedUser) {
@@ -5540,9 +5808,11 @@ setStatus("error", "请求失败：" + (error && error.message ? error.message :
 
       (async function initAuth() {
         try {
+          const hadStoredToken = !!getStoredAccessToken();
           const resp = await fetch("/auth/bootstrap", {
             credentials: "same-origin",
             cache: "no-store",
+            headers: mergeAuthHeaders({}),
           });
           let payload = null;
           if (resp.ok) {
@@ -5551,6 +5821,9 @@ setStatus("error", "请求失败：" + (error && error.message ? error.message :
           if (sessionBoot) sessionBoot.classList.add("hidden");
           if (!resp.ok) {
             setAuthState(null);
+            if (resp.status === 401 && hadStoredToken) {
+              showToast("error", "登录已过期或凭证无效，请重新登录");
+            }
             return;
           }
           setAuthState(
@@ -5560,6 +5833,9 @@ setStatus("error", "请求失败：" + (error && error.message ? error.message :
         } catch (error) {
           if (sessionBoot) sessionBoot.classList.add("hidden");
           setAuthState(null);
+          if (hadStoredToken) {
+            showToast("error", "无法验证登录状态，请检查网络后刷新页面");
+          }
         }
       })();
     </script>

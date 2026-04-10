@@ -12,8 +12,6 @@ class TestAppConfig(unittest.TestCase):
             "ALLOWED_TYPES": "pdf,docx,pptx",
             "DATA_DIR": "./data-test",
             "DEBUG": "true",
-            "AUTO_CLEANUP": "yes",
-            "CLEANUP_MAX_AGE_HOURS": "12",
         }
         with patch.dict(os.environ, env, clear=True):
             cfg = AppConfig.from_env()
@@ -21,8 +19,6 @@ class TestAppConfig(unittest.TestCase):
         self.assertEqual(cfg.max_file_size_bytes, 20 * 1024 * 1024)
         self.assertEqual(cfg.allowed_types, {"pdf", "docx", "pptx"})
         self.assertTrue(cfg.debug)
-        self.assertTrue(cfg.auto_cleanup)
-        self.assertEqual(cfg.cleanup_max_age_hours, 12)
         self.assertTrue(cfg.llm_enable_thinking)
 
 

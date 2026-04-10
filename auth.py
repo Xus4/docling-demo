@@ -288,6 +288,34 @@ class AuthStore:
                     {"u": username, "ph": _hash_password(initial_password), "r": role},
                 )
 
+    def ensure_env_admin_user(self, admin_username: str, initial_password: str) -> None:
+        """OA 模式下仅维护一条本地管理员账号（密码来自 INITIAL_PASSWORD，与 bootstrap 哈希方式一致）。"""
+        uname = admin_username.strip()
+        if not uname:
+            return
+        h = _hash_password(initial_password)
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                text("SELECT 1 FROM users WHERE username = :u"),
+                {"u": uname},
+            ).fetchone()
+            if row:
+                conn.execute(
+                    text(
+                        "UPDATE users SET password_hash = :ph, role = 'admin' "
+                        "WHERE username = :u"
+                    ),
+                    {"ph": h, "u": uname},
+                )
+            else:
+                conn.execute(
+                    text(
+                        "INSERT INTO users (username, password_hash, role) "
+                        "VALUES (:u, :ph, 'admin')"
+                    ),
+                    {"u": uname, "ph": h},
+                )
+
     def authenticate(self, username: str, password: str) -> AuthUser | None:
         with self.engine.connect() as conn:
             row = (
