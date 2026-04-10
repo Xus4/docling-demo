@@ -203,9 +203,11 @@ class AppConfig:
             oa_tenant_name = str(_oa_tenant_name_raw).rstrip("\r\n")
         auth_db_path = Path(os.getenv("AUTH_DB_PATH", str(data_dir / "auth.db"))).resolve()
         db_type = os.getenv("DB_TYPE", "sqlite").strip().lower()
-        database_url = os.getenv("DATABASE_URL", "").strip()
-        if not database_url:
-            if db_type == "mysql":
+        if db_type == "sqlite":
+            database_url = "sqlite:///" + auth_db_path.as_posix()
+        elif db_type == "mysql":
+            database_url = os.getenv("DATABASE_URL", "").strip()
+            if not database_url:
                 mysql_user = env_str("MYSQL_USER", "root")
                 mysql_password = os.getenv("MYSQL_PASSWORD", "")
                 mysql_host = env_str("MYSQL_HOST", "127.0.0.1")
@@ -221,8 +223,10 @@ class AppConfig:
                         f"mysql+pymysql://{mysql_user}"
                         f"@{mysql_host}:{mysql_port}/{mysql_db}?charset=utf8mb4"
                     )
-            else:
-                database_url = "sqlite:///" + auth_db_path.as_posix()
+        else:
+            database_url = os.getenv("DATABASE_URL", "").strip() or (
+                "sqlite:///" + auth_db_path.as_posix()
+            )
         return cls(
             max_file_size_bytes=max_file_size_bytes,
             allowed_types=_parse_allowed_types(os.getenv("ALLOWED_TYPES")),
