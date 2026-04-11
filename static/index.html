@@ -1111,14 +1111,14 @@ if (selectedList) selectedList.innerHTML = "";
         return h + "小时" + rm + "分";
       }
 
-      /** 已完成任务：仅展示处理用时（开始处理→结束），不包含排队等待 */
+      /** 已完成任务：仅展示耗时（开始处理→结束），不包含排队等待 */
       function totalDurationMetaLine(job) {
         const term = { succeeded: 1, failed: 1, cancelled: 1 };
         if (!term[job.status] || !job.finished_at || !job.started_at) return "";
         const st = parseIsoMs(job.started_at);
         const f = parseIsoMs(job.finished_at);
         if (st == null || f == null || f < st) return "";
-        return " · 处理用时 " + formatDurationZh(f - st);
+        return " · 耗时 " + formatDurationZh(f - st);
       }
 
       function escapeAttr(s) {
@@ -1135,10 +1135,10 @@ if (selectedList) selectedList.innerHTML = "";
           const pctStr = el.getAttribute("data-progress-percent");
           const t1 = parseIsoMs(s);
           const now = Date.now();
-          let txt = "处理用时 0秒";
+          let txt = "耗时 0秒";
           if (t1 != null && st === "running" && now >= t1) {
             const processingMs = now - t1;
-            txt = "处理用时 " + formatDurationZh(processingMs);
+            txt = "耗时 " + formatDurationZh(processingMs);
 
             const pct = parseFloat(pctStr);
             if (Number.isFinite(pct) && pct > 1 && pct < 100) {
@@ -1457,7 +1457,7 @@ if (selectedList) selectedList.innerHTML = "";
               const f = parseIsoMs(job.finished_at);
               if (st != null && f != null && f >= st) {
                 return (
-                  '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 7V12L15 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="1.8"></path></svg><span>处理用时 ' +
+                  '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 7V12L15 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="1.8"></path></svg><span>耗时 ' +
                   formatDurationZh(f - st) +
                   "</span></span>"
                 );
@@ -1703,7 +1703,7 @@ if (selectedList) selectedList.innerHTML = "";
     const st = parseIsoMs(job.started_at);
     const f = parseIsoMs(job.finished_at);
     if (st != null && f != null && f >= st) {
-      msg += "，处理用时 " + formatDurationZh(f - st);
+      msg += "，耗时 " + formatDurationZh(f - st);
     }
 
     if (Array.isArray(job.pdf_vl_failed_pages) && job.pdf_vl_failed_pages.length) {
