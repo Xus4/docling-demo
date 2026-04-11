@@ -779,7 +779,17 @@ class AuthStore:
                     text(
                         f"""
                         SELECT * FROM jobs{where_sql}
-                        ORDER BY created_at DESC
+                        ORDER BY
+                            CASE
+                                WHEN status = 'succeeded' THEN COALESCE(finished_at, created_at)
+                                WHEN status = 'failed' THEN COALESCE(finished_at, started_at, created_at)
+                                WHEN status = 'cancelled' THEN COALESCE(finished_at, started_at, created_at)
+                                WHEN status = 'running' THEN COALESCE(started_at, created_at)
+                                WHEN status = 'queued' THEN created_at
+                                ELSE COALESCE(finished_at, started_at, created_at)
+                            END DESC,
+                            created_at DESC,
+                            job_id DESC
                         LIMIT :limit OFFSET :offset
                         """
                     ),
