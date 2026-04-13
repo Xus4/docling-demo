@@ -546,6 +546,22 @@ def _list_jobs_payload(
         limit=page_size,
         offset=offset,
     )
+    try:
+        status_counts = auth_store.count_jobs_by_status(
+            viewer_username=user.username,
+            viewer_role=user.role,
+            owner_filter=owner if _is_admin(user) else None,
+            query=q,
+        )
+        status_counts["all"] = sum(status_counts.values())
+    except Exception as e:  # noqa: BLE001
+        log_event(
+            log,
+            logging.WARNING,
+            "jobs.status_counts.failed",
+            err=repr(e),
+        )
+        status_counts = {"all": 0}
     queued_ids = [j.job_id for j in items if j.status == "queued"]
     q_map: dict[str, int] = {}
     q_total = 0
@@ -571,6 +587,7 @@ def _list_jobs_payload(
             )
             for j in items
         ],
+        "status_counts": status_counts,
         "total": total,
         "page": page,
         "page_size": page_size,

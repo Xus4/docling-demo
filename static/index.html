@@ -510,6 +510,25 @@ const selectedList = document.getElementById("selectedList");
         });
       }
 
+      function updateTaskStatusTabCounts(counts) {
+        if (!taskStatusTabs) return;
+        const src = counts && typeof counts === "object" ? counts : {};
+        taskStatusTabs.querySelectorAll("[data-task-status]").forEach((btn) => {
+          const key = btn.getAttribute("data-task-status") || "";
+          let base = btn.getAttribute("data-base-label");
+          if (!base) {
+            base = String(btn.textContent || "")
+              .replace(/\(\s*\d+\s*\)\s*$/, "")
+              .trim();
+            base = base || key;
+            btn.setAttribute("data-base-label", base);
+          }
+          const raw = Number(src[key]);
+          const n = Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 0;
+          btn.textContent = base + "(" + n + ")";
+        });
+      }
+
       function updateTaskSectionHeader() {
         const label = getActiveTaskStatusLabel();
         if (taskSectionTitle) {
@@ -1001,11 +1020,13 @@ function removeSelectedFileAt(index) {
           }
           updateConvertButtonState();
           syncTaskStatusTabs();
+          updateTaskStatusTabCounts({});
           if (opts.initialJobs && Array.isArray(opts.initialJobs.items)) {
             setCurrentTaskPage(Number(opts.initialJobs.page) || 1);
             taskPageSize = Number(opts.initialJobs.page_size) || taskPageSize;
             taskTotal = Number(opts.initialJobs.total) || 0;
             updateTaskSectionHeader();
+            updateTaskStatusTabCounts(opts.initialJobs.status_counts || {});
             renderTaskItems(opts.initialJobs.items);
             updateTaskPollingFromItems(opts.initialJobs.items);
             syncTaskPager();
@@ -1047,6 +1068,7 @@ if (selectedList) selectedList.innerHTML = "";
         });
         taskTotal = 0;
         syncTaskStatusTabs();
+        updateTaskStatusTabCounts({});
         updateTaskSectionHeader();
         updateConvertButtonState();
       }
@@ -1135,7 +1157,7 @@ if (selectedList) selectedList.innerHTML = "";
           const pctStr = el.getAttribute("data-progress-percent");
           const t1 = parseIsoMs(s);
           const now = Date.now();
-          let txt = "耗时 0秒";
+          let txt = "";
           if (t1 != null && st === "running" && now >= t1) {
             const processingMs = now - t1;
             txt = "耗时 " + formatDurationZh(processingMs);
@@ -1148,8 +1170,6 @@ if (selectedList) selectedList.innerHTML = "";
                 txt += " · 预计剩余 " + formatDurationZh(remaining);
               }
             }
-          } else if (st !== "queued") {
-            txt = "";
           }
           el.textContent = txt;
         });
@@ -1157,7 +1177,7 @@ if (selectedList) selectedList.innerHTML = "";
 
       function ensureLiveElapsedTicker(items) {
         const hasActive = (items || []).some(function (j) {
-          return j.status === "queued" || j.status === "running";
+          return j.status === "running";
         });
         if (hasActive) {
           updateLiveElapsedSpans();
@@ -1434,7 +1454,7 @@ if (selectedList) selectedList.innerHTML = "";
                   "</span></span>"
                 : "";
             const liveElapsedHtml =
-              job.status === "queued" || job.status === "running"
+              job.status === "running"
                 ? ' <span class="task-live-elapsed" data-created-at="' +
                   escapeAttr(job.created_at) +
                   '" data-started-at="' +
@@ -1446,7 +1466,7 @@ if (selectedList) selectedList.innerHTML = "";
                   '"></span>'
                 : "";
             const metaElapsed = (function () {
-              if (job.status === "queued" || job.status === "running") {
+              if (job.status === "running") {
                 return (
                   '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 7V12L15 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="1.8"></path></svg><span>' +
                   liveElapsedHtml +
@@ -1639,6 +1659,7 @@ if (selectedList) selectedList.innerHTML = "";
             }
             return;
           }
+          updateTaskStatusTabCounts(data.status_counts || {});
           renderTaskItems(data.items || []);
           updateTaskPollingFromItems(data.items || []);
           setCurrentTaskPage(Number(data.page) || getCurrentTaskPage());

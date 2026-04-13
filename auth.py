@@ -801,6 +801,55 @@ class AuthStore:
 
         return [self._row_to_job(r) for r in rows], total
 
+    def count_jobs_by_status(
+        self,
+        *,
+        viewer_username: str,
+        viewer_role: str,
+        owner_filter: str | None = None,
+        query: str | None = None,
+    ) -> dict[str, int]:
+        is_admin = viewer_role == "admin"
+        where: list[str] = []
+        params: dict[str, object] = {}
+
+        if not is_admin:
+            where.append("owner_username = :viewer_username")
+            params["viewer_username"] = viewer_username
+        elif owner_filter and owner_filter.strip():
+            where.append("owner_username = :owner_filter")
+            params["owner_filter"] = owner_filter.strip()
+
+        if query and query.strip():
+            where.append("LOWER(original_filename) LIKE :q")
+            params["q"] = "%" + query.strip().lower() + "%"
+
+        where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+
+        with self.engine.connect() as conn:
+            rows = (
+                conn.execute(
+                    text(
+                        f"""
+                        SELECT status, COUNT(*) AS c
+                        FROM jobs{where_sql}
+                        GROUP BY status
+                        """
+                    ),
+                    params,
+                )
+                .mappings()
+                .fetchall()
+            )
+
+        out: dict[str, int] = {}
+        for r in rows:
+            s = str(r.get("status") or "").strip()
+            if not s:
+                continue
+            out[s] = int(r.get("c") or 0)
+        return out
+
     def count_queued_jobs(self) -> int:
         with self.engine.connect() as conn:
             row = (
