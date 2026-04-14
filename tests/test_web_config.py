@@ -20,6 +20,16 @@ class TestAppConfig(unittest.TestCase):
         self.assertEqual(cfg.allowed_types, {"pdf", "docx", "pptx"})
         self.assertTrue(cfg.debug)
         self.assertTrue(cfg.llm_enable_thinking)
+        self.assertEqual(cfg.worker_max_parallel_jobs, 1)
+
+    def test_worker_parallel_jobs_from_env(self) -> None:
+        env = {
+            "WORKER_MAX_PARALLEL_JOBS": "3",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            cfg = AppConfig.from_env()
+
+        self.assertEqual(cfg.worker_max_parallel_jobs, 3)
 
 
 if __name__ == "__main__":

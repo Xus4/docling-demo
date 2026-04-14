@@ -110,6 +110,7 @@ class AppConfig:
     data_dir: Path
     input_dir: Path
     output_dir: Path
+    worker_max_parallel_jobs: int
     pdf_vl_primary: bool
     pdf_vl_dpi: float
     pdf_vl_workers: int
@@ -234,6 +235,10 @@ class AppConfig:
             data_dir=data_dir,
             input_dir=input_dir,
             output_dir=output_dir,
+            worker_max_parallel_jobs=max(
+                1,
+                env_int("WORKER_MAX_PARALLEL_JOBS", 1),
+            ),
             pdf_vl_primary=_parse_bool(os.getenv("PDF_VL_PRIMARY"), default=True),
             pdf_vl_dpi=float(os.getenv("PDF_VL_DPI", "180")),
             pdf_vl_workers=max(1, int(os.getenv("PDF_VL_WORKERS", "10"))),

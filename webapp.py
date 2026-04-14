@@ -56,7 +56,11 @@ else:
         initial_password=config.initial_password,
         admin_username=config.auth_admin_username,
     )
-job_worker = JobQueueWorker(auth_store, service)
+job_worker = JobQueueWorker(
+    auth_store,
+    service,
+    max_parallel_jobs=config.worker_max_parallel_jobs,
+)
 
 run_log_file_env = (os.getenv("RUN_LOG_FILE") or "").strip()
 if run_log_file_env:

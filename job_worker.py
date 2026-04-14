@@ -300,19 +300,21 @@ def _run_conversion_in_subprocess(
 
 
 class JobQueueWorker:
-    """单进程后台线程：从内存队列取 job_id，认领 DB 中 queued 任务并执行转换。"""
+    """后台调度线程：支持多个任务并发执行（每任务一个子进程）。"""
 
     def __init__(
         self,
         auth_store: AuthStore,
         conversion_service: ConversionService,
+        *,
+        max_parallel_jobs: int = 1,
     ) -> None:
         self.auth = auth_store
         self.service = conversion_service
+        self.max_parallel_jobs = max(1, int(max_parallel_jobs))
         self._q: queue.Queue[str] = queue.Queue()
         self._active_lock = threading.Lock()
-        self._active_job_id: str | None = None
-        self._active_proc: mp.Process | None = None
+        self._active_procs: dict[str, mp.Process] = {}
         self._thread = threading.Thread(
             target=self._loop, name="docling-job-worker", daemon=True
         )
@@ -329,9 +331,7 @@ class JobQueueWorker:
 
     def cancel(self, job_id: str) -> bool:
         with self._active_lock:
-            if self._active_job_id != job_id:
-                return False
-            p = self._active_proc
+            p = self._active_procs.get(job_id)
         if p and p.is_alive():
             try:
                 p.terminate()
@@ -340,17 +340,31 @@ class JobQueueWorker:
             return True
         return False
 
+    def _active_count(self) -> int:
+        with self._active_lock:
+            return len(self._active_procs)
+
     def _loop(self) -> None:
         while True:
-            job_id = self._q.get()
+            self._reap_finished_processes()
+
+            if self._active_count() >= self.max_parallel_jobs:
+                threading.Event().wait(0.1)
+                continue
+
             try:
-                self._process_one(job_id)
+                job_id = self._q.get(timeout=0.2)
+            except queue.Empty:
+                continue
+
+            try:
+                self._start_one(job_id)
             except Exception:  # noqa: BLE001
                 log.exception("event=worker.loop.error job=%s", short_job_id(job_id))
             finally:
                 self._q.task_done()
 
-    def _process_one(self, job_id: str) -> None:
+    def _start_one(self, job_id: str) -> None:
         if not self.auth.try_claim_job_running(job_id):
             return
 
@@ -390,28 +404,45 @@ class JobQueueWorker:
             name=f"docling-job-{job_id[:8]}",
             daemon=True,
         )
-        with self._active_lock:
-            self._active_job_id = job_id
-            self._active_proc = proc
-
-        proc.start()
         try:
-            while proc.is_alive():
+            proc.start()
+        except Exception:  # noqa: BLE001
+            self.auth.mark_job_failed(job_id, "启动转换进程失败")
+            raise
+
+        with self._active_lock:
+            self._active_procs[job_id] = proc
+
+    def _reap_finished_processes(self) -> None:
+        with self._active_lock:
+            items = list(self._active_procs.items())
+
+        finished: list[tuple[str, mp.Process]] = []
+        for job_id, proc in items:
+            if proc.is_alive():
                 latest = self.auth.get_job(job_id)
                 if not latest or latest.status != "running":
                     try:
                         proc.terminate()
                     except Exception:  # noqa: BLE001
                         pass
-                    break
-                proc.join(timeout=0.5)
-            proc.join(timeout=2.0)
-        finally:
-            with self._active_lock:
-                if self._active_job_id == job_id:
-                    self._active_job_id = None
-                    self._active_proc = None
+                continue
+            try:
+                proc.join(timeout=0.1)
+            except Exception:  # noqa: BLE001
+                pass
+            finished.append((job_id, proc))
 
-        latest = self.auth.get_job(job_id)
-        if latest and latest.status == "running" and proc.exitcode not in (0, None):
-            self.auth.mark_job_failed(job_id, "转换进程异常退出")
+        if not finished:
+            return
+
+        with self._active_lock:
+            for job_id, proc in finished:
+                cur = self._active_procs.get(job_id)
+                if cur is proc:
+                    self._active_procs.pop(job_id, None)
+
+        for job_id, proc in finished:
+            latest = self.auth.get_job(job_id)
+            if latest and latest.status == "running" and proc.exitcode not in (0, None):
+                self.auth.mark_job_failed(job_id, "转换进程异常退出")
