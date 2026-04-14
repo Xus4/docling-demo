@@ -122,6 +122,7 @@ class TableBlock:
     start_line: int  # inclusive, 0-based
     end_line: int  # inclusive, 0-based
     markdown: str
+    kind: Literal["pipe", "html"] = "pipe"
 
 
 def extract_markdown_table_blocks(markdown_text: str) -> list[TableBlock]:
@@ -129,9 +130,9 @@ def extract_markdown_table_blocks(markdown_text: str) -> list[TableBlock]:
     粗粒度提取 GitHub 风格的 pipe 表格块。
 
     规则（稳妥优先）：
-    - 遇到连续若干行满足：strip 后以 '|' 开头且包含至少 1 个 '|'
-    - 表格块至少 2 行（通常 header + separator）
-    - 不尝试解析对齐/宽度，仅用于表格局部纠错与列数校验
+    - HTML table：匹配 `<table ...>` 到 `</table>` 的连续块
+    - Pipe table：连续若干行满足 strip 后以 '|' 开头且包含至少 1 个 '|'
+    - 不尝试深度解析，仅用于表格局部纠错与质量校验
     """
     if not markdown_text:
         return []
@@ -139,7 +140,34 @@ def extract_markdown_table_blocks(markdown_text: str) -> list[TableBlock]:
     blocks: list[TableBlock] = []
     i = 0
     while i < len(lines):
-        line = lines[i].strip()
+        line_raw = lines[i]
+        line = line_raw.strip()
+        line_low = line.lower()
+
+        if "<table" in line_low:
+            start = i
+            j = i
+            found_close = False
+            while j < len(lines):
+                if "</table>" in lines[j].lower():
+                    found_close = True
+                    j += 1
+                    break
+                j += 1
+            if found_close:
+                end = j - 1
+                md = "\n".join(lines[start : end + 1])
+                blocks.append(
+                    TableBlock(
+                        start_line=start,
+                        end_line=end,
+                        markdown=md,
+                        kind="html",
+                    )
+                )
+                i = max(j, i + 1)
+                continue
+
         if not (line.startswith("|") and line.count("|") >= 2):
             i += 1
             continue
@@ -156,7 +184,14 @@ def extract_markdown_table_blocks(markdown_text: str) -> list[TableBlock]:
         end = j - 1
         if end - start + 1 >= 2:
             md = "\n".join(lines[start : end + 1])
-            blocks.append(TableBlock(start_line=start, end_line=end, markdown=md))
+            blocks.append(
+                TableBlock(
+                    start_line=start,
+                    end_line=end,
+                    markdown=md,
+                    kind="pipe",
+                )
+            )
         i = max(j, i + 1)
     return blocks
 
@@ -165,7 +200,14 @@ def table_column_count(table_markdown: str) -> int:
     """
     从第一行估算列数：按 '|' split 去掉两端空串。
     """
-    for line in (table_markdown or "").splitlines():
+    tm = table_markdown or ""
+    if _looks_like_html_table(tm):
+        first_row = _extract_first_html_table_row(tm)
+        if not first_row:
+            return 0
+        return _count_html_row_cells(first_row)
+
+    for line in tm.splitlines():
         t = line.strip()
         if t.startswith("|") and t.count("|") >= 2:
             parts = [p.strip() for p in t.split("|")]
@@ -190,6 +232,23 @@ def validate_table_output_invariants(
     """
     if not refined_table or not refined_table.strip():
         return False, {"reason": "empty_output"}
+
+    orig_html = _looks_like_html_table(original_table)
+    new_html = _looks_like_html_table(refined_table)
+    if orig_html or new_html:
+        if orig_html != new_html:
+            return False, {"reason": "table_format_changed"}
+        o_rows = _html_table_row_count(original_table)
+        r_rows = _html_table_row_count(refined_table)
+        if o_rows != r_rows:
+            return False, {"reason": "row_count_changed", "orig_rows": o_rows, "new_rows": r_rows}
+        o_cols = table_column_count(original_table)
+        r_cols = table_column_count(refined_table)
+        if o_cols <= 0 or r_cols <= 0:
+            return False, {"reason": "col_count_invalid", "orig_cols": o_cols, "new_cols": r_cols}
+        if o_cols != r_cols:
+            return False, {"reason": "column_count_changed", "orig_cols": o_cols, "new_cols": r_cols}
+        return True, {"orig_rows": o_rows, "new_rows": r_rows, "cols": o_cols}
 
     def _row_cols(line: str) -> int:
         t = line.strip()
@@ -317,10 +376,45 @@ def summarize_markdown_quality(markdown_text: str) -> dict[str, int]:
     if not markdown_text:
         return {"len_chars": 0, "image_refs": 0, "table_rows": 0}
     image_refs = extract_markdown_image_refs(markdown_text)
-    # 粗略统计：Markdown 表格行通常包含 '|'，且同时至少出现两列分隔。
+    # 粗略统计：支持 pipe 表与 HTML table。
     table_rows = 0
+    html_tr_rows = len(re.findall(r"<tr\b", markdown_text, flags=re.IGNORECASE))
+    if html_tr_rows > 0:
+        table_rows += html_tr_rows
     for line in markdown_text.splitlines():
         if "|" in line and line.count("|") >= 2:
             table_rows += 1
     return {"len_chars": len(markdown_text), "image_refs": len(image_refs), "table_rows": table_rows}
 
+
+def _looks_like_html_table(text: str) -> bool:
+    t = text or ""
+    tl = t.lower()
+    return "<table" in tl and "</table>" in tl
+
+
+def _extract_first_html_table_row(table_markdown: str) -> str:
+    m = re.search(
+        r"<tr\b[^>]*>(?P<row>[\s\S]*?)</tr>",
+        table_markdown or "",
+        flags=re.IGNORECASE,
+    )
+    if not m:
+        return ""
+    return m.group("row")
+
+
+def _count_html_row_cells(row_html: str) -> int:
+    count = 0
+    for m in re.finditer(r"<t[dh]\b(?P<attrs>[^>]*)>", row_html or "", flags=re.IGNORECASE):
+        attrs = m.group("attrs") or ""
+        cm = re.search(r'colspan\s*=\s*["\']?(?P<n>\d+)', attrs, flags=re.IGNORECASE)
+        if cm:
+            count += max(1, int(cm.group("n")))
+        else:
+            count += 1
+    return count
+
+
+def _html_table_row_count(table_markdown: str) -> int:
+    return len(re.findall(r"<tr\b", table_markdown or "", flags=re.IGNORECASE))

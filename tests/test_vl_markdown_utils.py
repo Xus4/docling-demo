@@ -7,6 +7,7 @@ from src.vl_markdown_utils import (
     extract_markdown_image_refs_with_line_index,
     resolve_image_refs,
     extract_markdown_table_blocks,
+    summarize_markdown_quality,
     table_column_count,
     validate_table_output_invariants,
     validate_image_refs_invariants,
@@ -92,7 +93,61 @@ class TestVlMarkdownUtils(unittest.TestCase):
         )
         self.assertFalse(ok2)
 
+    def test_extract_html_table_blocks(self) -> None:
+        md = (
+            "intro\n\n"
+            "<table>\n"
+            "  <thead><tr><th>A</th><th>B</th></tr></thead>\n"
+            "  <tbody><tr><td>1</td><td>2</td></tr></tbody>\n"
+            "</table>\n\n"
+            "tail\n"
+        )
+        blocks = extract_markdown_table_blocks(md)
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(blocks[0].kind, "html")
+        self.assertIn("<table>", blocks[0].markdown)
+
+    def test_html_table_column_count_and_validate(self) -> None:
+        original = (
+            "<table>\n"
+            "  <tr><th>A</th><th colspan=\"2\">B</th></tr>\n"
+            "  <tr><td>1</td><td>2</td><td>3</td></tr>\n"
+            "</table>\n"
+        )
+        refined_ok = (
+            "<table>\n"
+            "  <tr><th>A</th><th colspan=\"2\">B</th></tr>\n"
+            "  <tr><td>x</td><td>y</td><td>z</td></tr>\n"
+            "</table>\n"
+        )
+        refined_bad = (
+            "<table>\n"
+            "  <tr><th>A</th><th>B</th></tr>\n"
+            "  <tr><td>x</td><td>y</td></tr>\n"
+            "</table>\n"
+        )
+        self.assertEqual(table_column_count(original), 3)
+        ok, _ = validate_table_output_invariants(
+            original_table=original,
+            refined_table=refined_ok,
+        )
+        self.assertTrue(ok)
+        ok2, _ = validate_table_output_invariants(
+            original_table=original,
+            refined_table=refined_bad,
+        )
+        self.assertFalse(ok2)
+
+    def test_summarize_markdown_quality_counts_html_tr_rows(self) -> None:
+        md = (
+            "<table>\n"
+            "  <tr><th>A</th></tr>\n"
+            "  <tr><td>1</td></tr>\n"
+            "</table>\n"
+        )
+        stats = summarize_markdown_quality(md)
+        self.assertGreaterEqual(stats["table_rows"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()
-
