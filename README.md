@@ -6,21 +6,39 @@
 
 ## 目录
 
-- [能力与技术栈](#能力与技术栈)
-- [架构与数据流](#架构与数据流)
-- [环境要求](#环境要求)
-- [安装](#安装)
-- [配置说明（环境变量）](#配置说明环境变量)
-- [认证：本地用户与 OA](#认证本地用户与-oa)
-- [运行 Web 服务](#运行-web-服务)
-- [HTTP API 参考](#http-api-参考)
-- [任务状态与权限](#任务状态与权限)
-- [批量转换 CLI（main.py）](#批量转换-climainpy)
-- [GPU / PyTorch 提示](#gpu--pytorch-提示)
-- [日志与排错](#日志与排错)
-- [测试](#测试)
-- [目录结构](#目录结构)
-- [许可证与第三方](#许可证与第三方)
+- [智枢文档（docling-demo）](#智枢文档docling-demo)
+  - [目录](#目录)
+  - [能力与技术栈](#能力与技术栈)
+  - [架构与数据流](#架构与数据流)
+  - [环境要求](#环境要求)
+  - [安装](#安装)
+  - [配置说明（环境变量）](#配置说明环境变量)
+    - [数据目录与 Web 上传](#数据目录与-web-上传)
+    - [PDF 按页 VL 与 Docling 相关（Web 与 `build_converter_config` 一致）](#pdf-按页-vl-与-docling-相关web-与-build_converter_config-一致)
+    - [大模型（OpenAI 兼容接口）](#大模型openai-兼容接口)
+    - [表格 / 图片增强](#表格--图片增强)
+    - [LLM 精修与表格纠错（进阶）](#llm-精修与表格纠错进阶)
+    - [数据库与登录（本地账号）](#数据库与登录本地账号)
+    - [OA 登录（可选）](#oa-登录可选)
+    - [日志（Web）](#日志web)
+  - [认证：本地用户与 OA](#认证本地用户与-oa)
+    - [鉴权方式](#鉴权方式)
+    - [本地模式（`OA_AUTH_ENABLED=false`）](#本地模式oa_auth_enabledfalse)
+    - [OA 模式（`OA_AUTH_ENABLED=true`）](#oa-模式oa_auth_enabledtrue)
+    - [登录响应示例字段](#登录响应示例字段)
+  - [运行 Web 服务](#运行-web-服务)
+  - [HTTP API 参考](#http-api-参考)
+  - [任务状态与权限](#任务状态与权限)
+  - [批量转换 CLI（main.py）](#批量转换-climainpy)
+    - [输入输出](#输入输出)
+    - [Docling 与资源](#docling-与资源)
+    - [LLM / PDF-VL](#llm--pdf-vl)
+    - [示例](#示例)
+  - [GPU / PyTorch 提示](#gpu--pytorch-提示)
+  - [日志与排错](#日志与排错)
+  - [测试](#测试)
+  - [目录结构](#目录结构)
+  - [许可证与第三方](#许可证与第三方)
 
 ---
 
@@ -198,7 +216,7 @@ pip install -r requirements.txt
 | `OA_AUTH_TIMEOUT_SEC` | `15` | 请求超时（秒），下限 3。 |
 | `OA_AUTH_ORIGIN` / `OA_AUTH_REFERER` / `OA_AUTH_USER_AGENT` | 空 | 未设置时由登录 URL 推导 Origin，Referer 默认为 `{origin}/login?redirect=/index`，UA 为内置浏览器串。 |
 | `OA_AUTH_COOKIE` | 空 | 需要时可附加 `Cookie` 头。 |
-| `OA_AUTH_TRUST_ENV` | `false` | 为 `false` 时**不使用**系统环境代理（避免内网 OA 被 `HTTP_PROXY` 拐走）；与 `oa_auth.py` 中说明一致。 |
+| `OA_AUTH_TRUST_ENV` | `false` | 为 `false` 时**不使用**系统环境代理（避免内网 OA 被 `HTTP_PROXY` 拐走）；与 `src/core/oa_auth.py` 中说明一致。 |
 
 ### 日志（Web）
 
@@ -231,7 +249,7 @@ pip install -r requirements.txt
 
 ### OA 模式（`OA_AUTH_ENABLED=true`）
 
-- **普通用户**：用户名/密码由 **`authenticate_with_oa`**（`oa_auth.py`）POST 到 `OA_AUTH_LOGIN_URL`；成功则根据返回 JSON 解析用户名与是否 admin（`user.admin`、`roles` 等启发式），**不写本地 users 表**。
+- **普通用户**：用户名/密码由 **`authenticate_with_oa`**（`src/core/oa_auth.py`）POST 到 `OA_AUTH_LOGIN_URL`；成功则根据返回 JSON 解析用户名与是否 admin（`user.admin`、`roles` 等启发式），**不写本地 users 表**。
 - **环境管理员特例**：用户名等于 **`AUTH_ADMIN_USERNAME`**（默认 `admin`）时，**不请求 OA**，仅在本地库校验密码（通过 `ensure_env_admin_user` 与 `INITIAL_PASSWORD` 同步的哈希）。用于运维兜底。
 
 ### 登录响应示例字段
