@@ -43,6 +43,7 @@ class TestJobQueueWorkerParallel(unittest.TestCase):
         self.assertTrue(worker.cancel("job-a"))
         self.assertTrue(proc.terminated)
         self.assertFalse(worker.cancel("job-b"))
+        self.assertNotIn("job-a", worker._active_procs)
 
     @patch("job_worker.threading.Thread")
     def test_reap_marks_failed_for_abnormal_exit(self, _thread_cls: MagicMock) -> None:

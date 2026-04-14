@@ -335,8 +335,14 @@ class JobQueueWorker:
         if p and p.is_alive():
             try:
                 p.terminate()
+                # Best-effort join to speed up slot release after manual cancellation.
+                p.join(timeout=1.0)
             except Exception:  # noqa: BLE001
                 return False
+            with self._active_lock:
+                cur = self._active_procs.get(job_id)
+                if cur is p:
+                    self._active_procs.pop(job_id, None)
             return True
         return False
 
