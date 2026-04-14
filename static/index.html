@@ -1,0 +1,2798 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>智枢文档</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body data-theme="dark">
+    <main class="page">
+      <header class="brand">
+        <div class="brand-inner">
+          <h1>智枢文档</h1>
+          <p class="brand-slogan">智能文档中枢 · 结构化知识引擎</p>
+          <p id="productTagline" class="product-tagline">多格式文档智能转 Markdown</p>
+        </div>
+      </header>
+
+      <div class="top-actions">
+        <div class="top-actions-bar" role="toolbar" aria-label="顶部工具栏">
+          <button
+            id="themeToggle"
+            class="top-bar-icon-btn"
+            type="button"
+            aria-label="切换主题"
+            title="切换主题"
+          ></button>
+          <div class="top-actions-sep" aria-hidden="true"></div>
+          <div class="top-session-block">
+            <div
+              id="userBadge"
+              class="user-display hidden"
+              role="status"
+              aria-live="polite"
+              aria-label="当前登录用户"
+            ></div>
+            <button id="logoutBtn" class="top-logout-btn hidden" type="button">退出登录</button>
+          </div>
+        </div>
+      </div>
+
+      <section id="mainShell" class="shell login-shell">
+        <div id="sessionBoot" class="session-boot" role="status" aria-live="polite">
+          <div class="session-boot-spinner" aria-hidden="true"></div>
+          <p class="session-boot-text">正在验证登录状态…</p>
+        </div>
+        <section id="authBox" class="auth-view hidden">
+          <h2 class="auth-title">账号登录</h2>
+
+          <div class="auth-grid">
+            <label class="field">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 12C14.4853 12 16.5 9.98528 16.5 7.5C16.5 5.01472 14.4853 3 12 3C9.51472 3 7.5 5.01472 7.5 7.5C7.5 9.98528 9.51472 12 12 12Z" stroke="currentColor" stroke-width="1.7"></path>
+                <path d="M4 20.25C4.7 16.9 7.8 14.5 12 14.5C16.2 14.5 19.3 16.9 20 20.25" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+              </svg>
+              <input id="usernameInput" type="text" placeholder="账号" autocomplete="username" />
+            </label>
+            <label class="field with-action password-field">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M7.5 10V7.75C7.5 5.12665 9.62665 3 12.25 3C14.8734 3 17 5.12665 17 7.75V10" stroke="currentColor" stroke-width="1.7"></path>
+                <rect x="5" y="10" width="14" height="11" rx="2.5" stroke="currentColor" stroke-width="1.7"></rect>
+                <circle cx="12" cy="15.5" r="1.2" fill="currentColor"></circle>
+              </svg>
+              <input id="passwordInput" type="password" placeholder="密码" autocomplete="current-password" />
+              <button id="passwordToggle" class="field-action" type="button" aria-label="显示密码" title="显示密码">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M2.7 12.02C4.5 8.6 7.82 6.5 12 6.5C16.18 6.5 19.5 8.6 21.3 12.02C19.5 15.4 16.18 17.5 12 17.5C7.82 17.5 4.5 15.4 2.7 12.02Z" stroke="currentColor" stroke-width="1.7"></path>
+                  <circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.7"></circle>
+                </svg>
+              </button>
+            </label>
+            <div class="auth-meta">
+              <label class="remember-wrap" for="rememberMe">
+                <input id="rememberMe" type="checkbox" />
+                <span>记住我</span>
+              </label>
+              <a id="forgotPasswordLink" class="forgot-link" href="#" role="button">忘记密码？</a>
+            </div>
+            <button id="loginBtn" class="primary-btn" type="button">登录</button>
+            <p
+              id="authFeedback"
+              class="auth-feedback hidden"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            ></p>
+          </div>
+          <p class="auth-tip">
+            <svg class="auth-tip-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 2.75L21.25 19.25C21.57 19.82 21.16 20.5 20.5 20.5H3.5C2.84 20.5 2.43 19.82 2.75 19.25L12 2.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path>
+              <path d="M12 8.5V13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+              <circle cx="12" cy="16.9" r="1.1" fill="currentColor"></circle>
+            </svg>
+            <span>已支持云脑账号，请使用云脑账号登录</span>
+          </p>
+        </section>
+
+        <section id="workArea" class="workspace hidden">
+          <input id="fileInput" type="file" multiple hidden />
+          <input id="folderInput" type="file" webkitdirectory multiple hidden />
+          <div
+            id="dropzone"
+            class="dropzone"
+            role="region"
+            aria-label="拖拽上传：将文件或文件夹拖入此区域"
+          >
+            <div class="dropzone-lead">
+              <p class="dropzone-text">
+                <span class="dropzone-text-primary">拖拽文件或文件夹到此处</span><span class="dropzone-text-secondary">，松开即可添加</span>
+              </p>
+            </div>
+            <div class="dropzone-picks">
+              <button
+                type="button"
+                class="dropzone-pick dropzone-pick-file"
+                id="pickFileBtn"
+                aria-label="选择文件，本地文件可多选"
+              >
+                <svg class="pick-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M14 3H8C6.34315 3 5 4.34315 5 6V18C5 19.6569 6.34315 21 8 21H16C17.6569 21 19 19.6569 19 18V9L14 3Z"
+                    stroke="currentColor"
+                    stroke-width="1.65"
+                    stroke-linejoin="round"
+                  ></path>
+                  <path d="M14 3V9H19" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round"></path>
+                  <path d="M8 13H16M8 17H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+                </svg>
+                <span class="dropzone-pick-sub">上传本地文件，可多选</span>
+              </button>
+              <button
+                type="button"
+                class="dropzone-pick dropzone-pick-folder"
+                id="pickFolderBtn"
+                aria-label="上传文件夹，批量添加其中文件"
+              >
+                <svg class="pick-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M4 8.5C4 7.11929 5.11929 6 6.5 6H9.17157C9.70201 6 10.2107 6.21071 10.5858 6.58579L12 8H19C20.1046 8 21 8.89543 21 10V17.5C21 18.8807 19.8807 20 18.5 20H6.5C5.11929 20 4 18.8807 4 17.5V8.5Z"
+                    stroke="currentColor"
+                    stroke-width="1.65"
+                    stroke-linejoin="round"
+                  ></path>
+                  <path d="M4 10H21" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"></path>
+                </svg>
+                <span class="dropzone-pick-sub">选中文件夹批量添加</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="upload-flow">
+            <div id="selectedFile" class="selected-file hidden"></div>
+            <div id="selectedListWrap" class="selected-list-wrap hidden">
+              <p class="selected-list-title">已选条目</p>
+              <div id="selectedList" class="history-list"></div>
+            </div>
+            <button id="convertBtn" class="primary-btn" type="button" disabled>上传并转换</button>
+          </div>
+
+          <div id="progressWrap" class="progress-wrap" aria-live="polite">
+            <p class="progress-text">文档解析中，请稍候...</p>
+            <p id="progressElapsedLine" class="progress-elapsed-line" hidden></p>
+            <div id="progressTrack" class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+              <div class="progress-bar progress-bar-indeterminate"></div>
+            </div>
+            <div class="upload-actions">
+              <button id="uploadCancelBtn" type="button" class="task-cancel-btn" hidden>取消上传</button>
+            </div>
+          </div>
+
+          <div id="statusBox" class="status-box" aria-live="polite"></div>
+
+          <div id="result" class="result">
+            <p class="section-title">转换结果</p>
+            <div class="result-card">
+              <span id="resultFilename" class="filename"></span>
+              <a id="downloadBtn" class="download-btn" href="#" target="_blank" rel="noopener">下载结果（ZIP）</a>
+            </div>
+          </div>
+
+          <div id="history" class="history">
+            <div class="task-board">
+              <div class="task-board-toolbar">
+                <div class="task-toolbar-stack">
+                  <div class="task-toolbar-row">
+                    <div class="task-toolbar-left">
+                      <div class="task-search-shell">
+                        <svg class="task-search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M10.5 18.5C14.6421 18.5 18 15.1421 18 11C18 6.85786 14.6421 3.5 10.5 3.5C6.35786 3.5 3 6.85786 3 11C3 15.1421 6.35786 18.5 10.5 18.5Z" stroke="currentColor" stroke-width="1.8"></path>
+                          <path d="M16.3 16.3L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                        </svg>
+                        <input
+                          id="taskSearchInput"
+                          class="task-search-input"
+                          type="search"
+                          placeholder="搜索文件名..."
+                          aria-label="按文件名搜索任务"
+                          autocomplete="off"
+                        />
+                      </div>
+                      <div id="taskFilters" class="task-filters hidden">
+                        <label id="taskOwnerFilterField" class="filter-field">
+                          <span>用户</span>
+                          <select id="taskOwnerFilter" aria-label="按用户筛选"></select>
+                        </label>
+                      </div>
+                      <div id="taskStatusTabs" class="task-status-tabs" aria-label="按任务状态快捷筛选">
+                        <button type="button" class="task-status-tab is-active" data-task-status="all" data-status="all">全部</button>
+                        <button type="button" class="task-status-tab" data-task-status="running" data-status="running">处理中</button>
+                        <button type="button" class="task-status-tab" data-task-status="queued" data-status="queued">排队中</button>
+                        <button type="button" class="task-status-tab" data-task-status="succeeded" data-status="succeeded">已完成</button>
+                        <button type="button" class="task-status-tab" data-task-status="failed" data-status="failed">失败</button>
+                        <button type="button" class="task-status-tab" data-task-status="cancelled" data-status="cancelled">已取消</button>
+                      </div>
+                    </div>
+                    <div class="task-toolbar-right">
+                      <button id="refreshTasksBtn" class="task-muted-btn" type="button">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M20 12A8 8 0 1 1 17.66 6.34" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                          <path d="M20 4V10H14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                        <span>刷新</span>
+                      </button>
+                      <button id="resetTaskFiltersBtn" type="button" class="task-muted-btn">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M21 12A9 9 0 1 1 18.4 5.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                          <path d="M21 4V10H15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                        <span>重置</span>
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              <div id="taskSectionHead" class="task-section-head" aria-label="当前任务分区">
+                <div class="task-section-meta">
+                  <p id="taskSectionTitle" class="task-section-title">全部任务：0条</p>
+                </div>
+                <div id="taskCompletedActions" class="task-completed-actions hidden" aria-label="已完成任务操作">
+                  <label class="task-select-all-wrap" for="taskSelectAllCb">
+                    <input id="taskSelectAllCb" type="checkbox" class="task-select-cb" aria-label="全选当前页可下载任务" />
+                    <span>全选当前页</span>
+                  </label>
+                  <span id="taskSelectedLabel" class="task-selected-label">已选择 0 项</span>
+                  <button id="batchDownloadBtn" class="task-primary-btn" type="button" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M12 3V14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                      <path d="M8 10L12 14L16 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                      <path d="M4 17.5C4 18.8807 5.11929 20 6.5 20H17.5C18.8807 20 20 18.8807 20 17.5V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                    </svg>
+                    <span>批量下载</span>
+                  </button>
+                </div>
+              </div>
+
+              <div id="historyList" class="task-list"></div>
+
+              <div class="task-board-pager" aria-label="任务列表翻页">
+                <div class="task-pager-left">
+                  <span class="task-page-state">每页</span>
+                  <select id="taskPageSizeSelect" class="task-page-size" aria-label="每页条数">
+                    <option value="10" selected>10 条</option>
+                    <option value="20">20 条</option>
+                    <option value="50">50 条</option>
+                  </select>
+                </div>
+                <div class="task-pager-center">
+                  <button id="taskPrevBtn" class="task-page-btn" type="button" aria-label="上一页">上一页</button>
+                  <div id="taskPageNumbers" class="task-pager-center"></div>
+                  <button id="taskNextBtn" class="task-page-btn" type="button" aria-label="下一页">下一页</button>
+                </div>
+                <div class="task-pager-right">
+                  <span id="taskPageLabel" class="task-page-state">第 1 / 1 页</span>
+                  <span class="task-page-state">跳转</span>
+                  <input id="taskJumpInput" class="task-jump-input" type="number" min="1" step="1" aria-label="跳转到页码" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <div
+      id="confirmModal"
+      class="modal-overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirmModalTitle"
+      aria-describedby="confirmModalDesc"
+      hidden
+    >
+      <div class="modal-dialog">
+        <h2 id="confirmModalTitle" class="modal-title"></h2>
+        <p id="confirmModalDesc" class="modal-desc"></p>
+        <div class="modal-actions" id="confirmModalActions">
+  <button type="button" class="modal-btn modal-btn-cancel" id="confirmModalCancel">取消</button>
+  <button type="button" class="modal-btn modal-btn-confirm" id="confirmModalOk">确定</button>
+</div>
+      </div>
+    </div>
+
+    <script>
+
+      const folderInput = document.getElementById("folderInput");
+      const fileInput = document.getElementById("fileInput");
+      const pickFileBtn = document.getElementById("pickFileBtn");
+      const pickFolderBtn = document.getElementById("pickFolderBtn");
+      const dropzone = document.getElementById("dropzone");
+      const selectedFile = document.getElementById("selectedFile");
+      const selectedListWrap = document.getElementById("selectedListWrap");
+const selectedList = document.getElementById("selectedList");
+
+      const convertBtn = document.getElementById("convertBtn");
+      const progressWrap = document.getElementById("progressWrap");
+      const progressTrack = document.getElementById("progressTrack");
+      const progressFill = document.getElementById("progressFill");
+      const progressElapsedLine = document.getElementById("progressElapsedLine");
+      const uploadCancelBtn = document.getElementById("uploadCancelBtn");
+      const statusBox = document.getElementById("statusBox");
+      const result = document.getElementById("result");
+      const resultFilename = document.getElementById("resultFilename");
+      const downloadBtn = document.getElementById("downloadBtn");
+      const toast = document.getElementById("toast");
+      const confirmModal = document.getElementById("confirmModal");
+      const confirmModalTitle = document.getElementById("confirmModalTitle");
+      const confirmModalDesc = document.getElementById("confirmModalDesc");
+      const confirmModalOk = document.getElementById("confirmModalOk");
+      const confirmModalCancel = document.getElementById("confirmModalCancel");
+      const confirmModalActions = document.getElementById("confirmModalActions");
+      const dropzoneText = dropzone.querySelector(".dropzone-text");
+      const dropzoneHint = dropzone.querySelector(".dropzone-hint");
+      const defaultDropzoneHtml = dropzoneText ? dropzoneText.innerHTML : "";
+      const defaultDropzoneHint = dropzoneHint ? dropzoneHint.textContent : "";
+      const themeToggle = document.getElementById("themeToggle");
+      const historyWrap = document.getElementById("history");
+      const historyList = document.getElementById("historyList");
+      const refreshTasksBtn = document.getElementById("refreshTasksBtn");
+      const batchDownloadBtn = document.getElementById("batchDownloadBtn");
+      const taskPrevBtn = document.getElementById("taskPrevBtn");
+      const taskNextBtn = document.getElementById("taskNextBtn");
+      const taskPageLabel = document.getElementById("taskPageLabel");
+      const taskPageSizeSelect = document.getElementById("taskPageSizeSelect");
+      const taskSearchInput = document.getElementById("taskSearchInput");
+      const taskSearchClearBtn = document.getElementById("taskSearchClearBtn");
+      const taskFilters = document.getElementById("taskFilters");
+      const taskStatusTabs = document.getElementById("taskStatusTabs");
+      const taskOwnerFilter = document.getElementById("taskOwnerFilter");
+      const resetTaskFiltersBtn = document.getElementById("resetTaskFiltersBtn");
+      const taskSectionTitle = document.getElementById("taskSectionTitle");
+      const taskCompletedActions = document.getElementById("taskCompletedActions");
+      const taskSelectedLabel = document.getElementById("taskSelectedLabel");
+      const taskSelectAllCb = document.getElementById("taskSelectAllCb");
+      const taskPageNumbers = document.getElementById("taskPageNumbers");
+      const taskJumpInput = document.getElementById("taskJumpInput");
+      const sessionBoot = document.getElementById("sessionBoot");
+      const authBox = document.getElementById("authBox");
+      const workArea = document.getElementById("workArea");
+      const mainShell = document.getElementById("mainShell");
+      const userBadge = document.getElementById("userBadge");
+      const logoutBtn = document.getElementById("logoutBtn");
+      const loginBtn = document.getElementById("loginBtn");
+      const usernameInput = document.getElementById("usernameInput");
+      const passwordInput = document.getElementById("passwordInput");
+      const passwordToggle = document.getElementById("passwordToggle");
+      const rememberMeInput = document.getElementById("rememberMe");
+      const forgotPasswordLink = document.getElementById("forgotPasswordLink");
+      const authFeedback = document.getElementById("authFeedback");
+      const productTagline = document.getElementById("productTagline");
+      const topActions = document.querySelector(".top-actions");
+      if (refreshTasksBtn) {
+        refreshTasksBtn.style.whiteSpace = "nowrap";
+      }
+      if (batchDownloadBtn) {
+        batchDownloadBtn.style.whiteSpace = "nowrap";
+        batchDownloadBtn.style.minWidth = "112px";
+      }
+
+      const STORAGE_KEYS = {
+        theme: "docling_theme",
+        history: "docling_history",
+        rememberedUser: "docling_remembered_user",
+        accessToken: "docling_access_token",
+        tokenExpiresAt: "docling_token_expires_at",
+      };
+
+      function getStoredAccessToken() {
+        const exp = localStorage.getItem(STORAGE_KEYS.tokenExpiresAt);
+        if (exp && Number(exp) < Date.now()) {
+          localStorage.removeItem(STORAGE_KEYS.accessToken);
+          localStorage.removeItem(STORAGE_KEYS.tokenExpiresAt);
+          return null;
+        }
+        return localStorage.getItem(STORAGE_KEYS.accessToken);
+      }
+
+      function authHeaderObject() {
+        const t = getStoredAccessToken();
+        return t ? { Authorization: "Bearer " + t } : {};
+      }
+
+      function mergeAuthHeaders(headers) {
+        const h = headers ? Object.assign({}, headers) : {};
+        Object.assign(h, authHeaderObject());
+        return h;
+      }
+
+      function clearStoredAuthToken() {
+        localStorage.removeItem(STORAGE_KEYS.accessToken);
+        localStorage.removeItem(STORAGE_KEYS.tokenExpiresAt);
+      }
+      let currentUploadMode = null; // "file" | "folder"
+      let currentFiles = [];
+      let currentRootName = ""; 
+      let currentUser = null;
+      let taskPollTimer = null;
+      let taskListRequestSeq = 0;
+      let taskListAbortController = null;
+      let taskPageSize = 10;
+      let taskTotal = 0;
+      let taskSearchQuery = "";
+      let taskSearchTimer = 0;
+      let activeTaskStatus = "all";
+      const taskPageByStatus = {
+        all: 1,
+        queued: 1,
+        running: 1,
+        succeeded: 1,
+        failed: 1,
+        cancelled: 1,
+      };
+      const selectedJobIds = new Set();
+      let lastRenderableSelectableJobIds = [];
+      /** 任务列表中排队/进行中项的「已用时」每秒刷新 */
+      let liveElapsedInterval = null;
+      /** 每次点击上传自增，用于丢弃过期的 pollJobUntilTerminal，避免多次上传互相覆盖 UI */
+      let uploadGeneration = 0;
+      /** 正在进行中的上传 XHR（用于点击「取消上传」时 abort） */
+      let uploadXhr = null;
+
+      let toastTimer = null;
+      let windowDragDepth = 0;
+
+      const TASK_STATUS_META = {
+        all: { queryValue: "", label: "全部任务" },
+        running: { queryValue: "running", label: "处理中任务" },
+        queued: { queryValue: "queued", label: "排队中任务" },
+        succeeded: { queryValue: "succeeded", label: "已完成任务" },
+        failed: { queryValue: "failed", label: "失败任务" },
+        cancelled: { queryValue: "cancelled", label: "已取消任务" },
+      };
+
+      function syncBatchDownloadButton() {
+        if (!batchDownloadBtn) return;
+        const n = selectedJobIds.size;
+        const enabled = activeTaskStatus === "succeeded";
+        if (taskCompletedActions) {
+          taskCompletedActions.classList.toggle("hidden", !enabled);
+        }
+        batchDownloadBtn.disabled = !enabled || n <= 0;
+        if (taskSelectedLabel) taskSelectedLabel.textContent = "已选择 " + n + " 项";
+      }
+
+      function clearTaskSelections() {
+        selectedJobIds.clear();
+        if (taskSelectAllCb) {
+          taskSelectAllCb.checked = false;
+          taskSelectAllCb.indeterminate = false;
+        }
+        syncBatchDownloadButton();
+      }
+
+      function normalizeTaskStatusKey(value) {
+        const raw = String(value || "").trim();
+        return Object.prototype.hasOwnProperty.call(TASK_STATUS_META, raw) ? raw : "all";
+      }
+
+      function getActiveTaskStatusQueryValue() {
+        const meta = TASK_STATUS_META[normalizeTaskStatusKey(activeTaskStatus)];
+        return meta ? meta.queryValue : "";
+      }
+
+      function getActiveTaskStatusLabel() {
+        const meta = TASK_STATUS_META[normalizeTaskStatusKey(activeTaskStatus)];
+        return meta ? meta.label : "全部任务";
+      }
+
+      function getCurrentTaskPage() {
+        const key = normalizeTaskStatusKey(activeTaskStatus);
+        const current = Number(taskPageByStatus[key]);
+        return Number.isFinite(current) && current > 0 ? Math.max(1, Math.floor(current)) : 1;
+      }
+
+      function setCurrentTaskPage(value) {
+        const key = normalizeTaskStatusKey(activeTaskStatus);
+        const p = Number(value);
+        taskPageByStatus[key] = Number.isFinite(p) && p > 0 ? Math.max(1, Math.floor(p)) : 1;
+      }
+
+      function syncTaskStatusTabs() {
+        if (!taskStatusTabs) return;
+        const key = normalizeTaskStatusKey(activeTaskStatus);
+        taskStatusTabs.querySelectorAll("[data-task-status]").forEach((btn) => {
+          btn.classList.toggle("is-active", btn.getAttribute("data-task-status") === key);
+        });
+      }
+
+      function updateTaskStatusTabCounts(counts) {
+        if (!taskStatusTabs) return;
+        const src = counts && typeof counts === "object" ? counts : {};
+        taskStatusTabs.querySelectorAll("[data-task-status]").forEach((btn) => {
+          const key = btn.getAttribute("data-task-status") || "";
+          let base = btn.getAttribute("data-base-label");
+          if (!base) {
+            base = String(btn.textContent || "")
+              .replace(/\(\s*\d+\s*\)\s*$/, "")
+              .trim();
+            base = base || key;
+            btn.setAttribute("data-base-label", base);
+          }
+          const raw = Number(src[key]);
+          const n = Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 0;
+          btn.textContent = base + "(" + n + ")";
+        });
+      }
+
+      function updateTaskSectionHeader() {
+        const label = getActiveTaskStatusLabel();
+        if (taskSectionTitle) {
+          taskSectionTitle.textContent = label + "：" + taskTotal + "条";
+        }
+        syncBatchDownloadButton();
+      }
+
+      function formatSupportedFormatsLine(allowedTypes) {
+        const types = new Set(
+          (Array.isArray(allowedTypes) ? allowedTypes : [])
+            .map((x) => String(x || "").trim().toLowerCase())
+            .filter(Boolean)
+            .map((x) => (x.startsWith(".") ? x.slice(1) : x))
+        );
+        const parts = [];
+        if (types.has("pdf")) parts.push("PDF");
+        if (types.has("doc") || types.has("docx")) parts.push("Word");
+        if (types.has("ppt") || types.has("pptx")) parts.push("PPT");
+        if (types.has("xls") || types.has("xlsx")) parts.push("Excel");
+        if (types.has("html") || types.has("htm")) parts.push("网页");
+        const imgExts = ["png", "jpg", "jpeg", "tif", "tiff", "bmp", "webp"];
+        if (imgExts.some((x) => types.has(x))) parts.push("图片");
+        if (!parts.length) {
+          return "多格式文档智能转 Markdown";
+        }
+        return parts.join("、") + " 智能转 Markdown";
+      }
+
+      async function initProductTagline() {
+        if (!productTagline) return;
+        try {
+          const resp = await fetch("/app/config", {
+            credentials: "same-origin",
+            cache: "no-store",
+          });
+          if (!resp.ok) {
+            productTagline.textContent = formatSupportedFormatsLine(null);
+            return;
+          }
+          const data = await resp.json();
+          productTagline.textContent = formatSupportedFormatsLine(data.allowed_types);
+        } catch (e) {
+          productTagline.textContent = formatSupportedFormatsLine(null);
+        }
+      }
+
+      const TASK_PAGE_SIZES = [10, 20, 50];
+
+      function normalizeTaskPageSize(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n) || n <= 0) return TASK_PAGE_SIZES[0];
+        let best = TASK_PAGE_SIZES[0];
+        let bestDiff = Math.abs(n - best);
+        for (let i = 1; i < TASK_PAGE_SIZES.length; i++) {
+          const s = TASK_PAGE_SIZES[i];
+          const diff = Math.abs(n - s);
+          if (diff < bestDiff) {
+            best = s;
+            bestDiff = diff;
+          }
+        }
+        return best;
+      }
+
+      function updateConvertButtonState() {
+  convertBtn.disabled = !currentFiles || currentFiles.length === 0;
+}
+
+
+
+      function formatBytes(n) {
+        const x = Number(n);
+        if (!Number.isFinite(x) || x < 0) return "0 B";
+        if (x < 1024) return x + " B";
+        if (x < 1048576) return (x / 1024).toFixed(1) + " KB";
+        return (x / 1048576).toFixed(1) + " MB";
+      }
+
+      /** 根据秒数格式化为中文剩余时间文案（用于上传 ETA） */
+      function formatEtaSeconds(sec) {
+        const s = Number(sec);
+        if (!Number.isFinite(s) || s <= 0) return "";
+        const ceil = Math.ceil(s);
+        if (ceil < 60) return ceil + " 秒";
+        if (ceil < 3600) {
+          const m = Math.floor(ceil / 60);
+          const rs = ceil % 60;
+          if (rs === 0) return m + " 分钟";
+          return m + " 分 " + rs + " 秒";
+        }
+        const h = Math.floor(ceil / 3600);
+        const m = Math.floor((ceil % 3600) / 60);
+        if (m === 0) return h + " 小时";
+        return h + " 小时 " + m + " 分";
+      }
+
+      /**
+       * 用已传字节与耗时估算剩余时间；起步阶段返回空串避免抖动。
+       * @returns {string} 如 " · 剩余约 12 秒"，无可估算时 ""
+       */
+      function formatUploadEta(loaded, total, elapsedSec) {
+        const L = Number(loaded);
+        const T = Number(total);
+        const elapsed = Number(elapsedSec);
+        if (!Number.isFinite(L) || !Number.isFinite(T) || T <= 0 || L <= 0 || L >= T) {
+          return "";
+        }
+        if (!Number.isFinite(elapsed) || elapsed < 0.45) {
+          return "";
+        }
+        const speed = L / elapsed;
+        if (speed < 200) {
+          return "";
+        }
+        const etaSec = (T - L) / speed;
+        if (!Number.isFinite(etaSec) || etaSec < 0.5) {
+          return "";
+        }
+        if (etaSec > 48 * 3600) {
+          return " · 剩余超过 48 小时";
+        }
+        return " · 剩余约 " + formatEtaSeconds(etaSec);
+      }
+
+      function resetProgressBar() {
+        progressWrap.classList.remove("progress-upload");
+        progressWrap.classList.remove("progress-has-pct");
+        if (progressFill) progressFill.style.width = "0%";
+        if (progressTrack) {
+          progressTrack.setAttribute("aria-valuenow", "0");
+        }
+        if (progressElapsedLine) {
+          progressElapsedLine.textContent = "";
+          progressElapsedLine.hidden = true;
+        }
+      }
+
+      function setStatus(type, text) {
+        if (type === "loading") {
+          statusBox.className = "status-box";
+          resetProgressBar();
+          progressWrap.classList.add("show");
+          const progressText = progressWrap.querySelector(".progress-text");
+          progressText.textContent = text || "正在解析文档，请稍候...";
+          return;
+        }
+
+        if (type === "success") {
+          statusBox.className = "status-box";
+          showToast("success", text);
+          return;
+        }
+
+        // error
+        statusBox.className = "status-box show status-error";
+        statusBox.innerHTML = "✖ " + text;
+      }
+
+      function showToast(type, text) {
+        if (!toast) return;
+        if (toastTimer) {
+          clearTimeout(toastTimer);
+          toastTimer = null;
+        }
+        var t = String(text || "");
+        var isSuccess = type === "success";
+        var isWarn = type === "warn";
+        toast.className =
+          "toast show " +
+          (isSuccess ? "toast-success" : isWarn ? "toast-warn" : "toast-error");
+        toast.textContent =
+          (isSuccess ? "✔ " : isWarn ? "⚠ " : "✖ ") + t;
+        var ms = isSuccess ? 3200 : Math.min(9000, Math.max(4500, 800 + t.length * 40));
+        toastTimer = setTimeout(() => {
+          toast.className = "toast";
+          toast.textContent = "";
+        }, ms);
+      }
+
+      /** 将 FastAPI / HTTP JSON 里的 detail 转成可读字符串 */
+      function formatApiDetail(payload) {
+        if (!payload || payload.detail == null) return "";
+        var d = payload.detail;
+        if (typeof d === "string") return d;
+        if (Array.isArray(d)) {
+          return d
+            .map(function (x) {
+              if (x == null) return "";
+              if (typeof x === "string") return x;
+              if (typeof x.msg === "string") return x.msg;
+              try {
+                return JSON.stringify(x);
+              } catch (e) {
+                return "";
+              }
+            })
+            .filter(Boolean)
+            .join("；");
+        }
+        try {
+          return JSON.stringify(d);
+        } catch (e) {
+          return String(d);
+        }
+      }
+
+      function clearAuthFeedback() {
+        if (!authFeedback) return;
+        authFeedback.textContent = "";
+        authFeedback.className = "auth-feedback hidden";
+      }
+
+      /** 登录表单内可见反馈（statusBox 在工作区内，登录页隐藏时用户看不到） */
+      function setAuthFeedback(kind, text) {
+        if (!authFeedback) return;
+        var t = String(text || "").trim();
+        if (!t) {
+          clearAuthFeedback();
+          return;
+        }
+        authFeedback.textContent = t;
+        authFeedback.className =
+          "auth-feedback " +
+          (kind === "success" ? "auth-feedback-success" : "auth-feedback-error");
+      }
+
+      /**
+       * 主题化确认框（替代浏览器 confirm）。opts: title, message, confirmText, cancelText, danger
+       * @returns {Promise<boolean>}
+       */
+      function openThemedConfirm(opts) {
+        opts = opts || {};
+        return new Promise(function (resolve) {
+          if (!confirmModal || !confirmModalOk || !confirmModalCancel) {
+            resolve(false);
+            return;
+          }
+          var title = opts.title != null ? opts.title : "确认";
+          var message = opts.message != null ? opts.message : "";
+          var confirmText = opts.confirmText != null ? opts.confirmText : "确定";
+          var cancelText = opts.cancelText != null ? opts.cancelText : "取消";
+          var danger = !!opts.danger;
+          var prevActive = document.activeElement;
+          var settled = false;
+
+          confirmModalTitle.textContent = title;
+          confirmModalDesc.textContent = message;
+          confirmModalOk.textContent = confirmText;
+          confirmModalCancel.textContent = cancelText;
+
+          confirmModalOk.classList.remove("modal-btn-confirm", "modal-btn-danger");
+          if (danger) {
+            confirmModalOk.classList.add("modal-btn-danger");
+          } else {
+            confirmModalOk.classList.add("modal-btn-confirm");
+          }
+
+          function finish(result) {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            document.removeEventListener("keydown", onDocKey);
+            confirmModalOk.onclick = null;
+            confirmModalCancel.onclick = null;
+            confirmModal.onclick = null;
+            confirmModal.classList.add("hidden");
+            confirmModal.setAttribute("hidden", "");
+            if (prevActive && typeof prevActive.focus === "function") {
+              try {
+                prevActive.focus();
+              } catch (e) {
+                /* ignore */
+              }
+            }
+            resolve(result);
+          }
+
+          function onDocKey(e) {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              finish(false);
+            }
+          }
+
+          confirmModalOk.onclick = function () {
+            finish(true);
+          };
+          confirmModalCancel.onclick = function () {
+            finish(false);
+          };
+          confirmModal.onclick = function (e) {
+            if (e.target === confirmModal) {
+              finish(false);
+            }
+          };
+
+          document.addEventListener("keydown", onDocKey);
+          confirmModal.classList.remove("hidden");
+          confirmModal.removeAttribute("hidden");
+          (danger ? confirmModalCancel : confirmModalOk).focus();
+        });
+      }
+
+      function getFileRelativePath(file, mode) {
+  if (!file) return "";
+  if (mode === "folder") {
+    return file.webkitRelativePath || file._relativePath || file.name || "";
+  }
+  return file.name || "";
+}
+
+function renderSelectedFiles() {
+  if (!selectedListWrap || !selectedList) return;
+
+  if (!currentFiles || !currentFiles.length) {
+    selectedListWrap.classList.add("hidden");
+    selectedList.innerHTML = "";
+    return;
+  }
+
+  selectedListWrap.classList.remove("hidden");
+
+  selectedList.innerHTML = currentFiles
+    .map(function (file, index) {
+      const rel = getFileRelativePath(file, currentUploadMode);
+      const displayName = rel || file.name || ("文件 " + (index + 1));
+      const sizeText = formatBytes(file && file.size ? file.size : 0);
+
+      return (
+        '<div class="selected-item">' +
+          '<div class="selected-item-main">' +
+            '<div class="selected-item-name">' +
+              String(displayName).replace(/</g, "&lt;") +
+            '</div>' +
+            '<div class="selected-item-meta">' +
+              sizeText +
+            '</div>' +
+          '</div>' +
+          '<button type="button" class="selected-remove-btn" data-remove-index="' + index + '" aria-label="删除该条目" title="删除该条目">删除</button>' +
+        '</div>'
+      );
+    })
+    .join("");
+}
+
+function removeSelectedFileAt(index) {
+  const i = Number(index);
+  if (!Number.isInteger(i) || i < 0 || i >= currentFiles.length) {
+    return;
+  }
+
+  currentFiles.splice(i, 1);
+
+  if (!currentFiles.length) {
+    currentUploadMode = null;
+    currentRootName = "";
+    selectedFile.textContent = "";
+    selectedFile.classList.add("hidden");
+    selectedListWrap.classList.add("hidden");
+    selectedList.innerHTML = "";
+    try {
+      fileInput.value = "";
+      folderInput.value = "";
+    } catch (e) {
+      /* ignore */
+    }
+    updateConvertButtonState();
+    return;
+  }
+
+  if (currentUploadMode === "folder") {
+    const first = currentFiles[0];
+    const rel = getFileRelativePath(first, "folder");
+    const root = rel ? rel.split("/")[0] : "folder_upload";
+    currentRootName = root;
+    selectedFile.textContent =
+      root + " · " + currentFiles.length + " 个文件";
+  } else {
+    currentRootName = currentFiles[0].name || "";
+    if (currentFiles.length === 1) {
+      selectedFile.textContent = currentFiles[0].name || "";
+    } else {
+      selectedFile.textContent = currentFiles.length + " 个文件";
+    }
+  }
+
+  renderSelectedFiles();
+  updateConvertButtonState();
+}
+
+
+      function setSelectedUpload(mode, files) {
+  currentUploadMode = mode;
+  currentFiles = Array.from(files || []);
+  currentRootName = "";
+
+  if (!currentFiles.length) {
+    selectedFile.textContent = "";
+    selectedFile.classList.add("hidden");
+    selectedListWrap.classList.add("hidden");
+    selectedList.innerHTML = "";
+    updateConvertButtonState();
+    return;
+  }
+
+  selectedFile.classList.remove("hidden");
+
+  if (mode === "folder") {
+    const first = currentFiles[0];
+    const rel = first.webkitRelativePath || first._relativePath || "";
+    const root = rel ? rel.split("/")[0] : "folder_upload";
+    currentRootName = root;
+    selectedFile.textContent =
+      root + " · " + currentFiles.length + " 个文件";
+  } else {
+    currentRootName = currentFiles[0].name;
+    if (currentFiles.length === 1) {
+      selectedFile.textContent = currentFiles[0].name;
+    } else {
+      selectedFile.textContent = currentFiles.length + " 个文件";
+    }
+  }
+
+  statusBox.className = "status-box";
+  statusBox.textContent = "";
+  renderSelectedFiles();
+  updateConvertButtonState();
+}
+
+
+
+
+      function resetResult() {
+        result.classList.remove("show");
+        resultFilename.textContent = "";
+        downloadBtn.href = "#";
+      }
+
+      function stopTaskPolling() {
+        if (taskPollTimer) {
+          clearInterval(taskPollTimer);
+          taskPollTimer = null;
+        }
+      }
+
+      function setAuthState(user, opts) {
+        opts = opts || {};
+        if (user) {
+          clearAuthFeedback();
+          if (user.access_token) {
+            localStorage.setItem(STORAGE_KEYS.accessToken, user.access_token);
+            const ttl = Number(user.expires_in);
+            localStorage.setItem(
+              STORAGE_KEYS.tokenExpiresAt,
+              String(Date.now() + (Number.isFinite(ttl) && ttl > 0 ? ttl : 86400) * 1000)
+            );
+          }
+          currentUser = { username: user.username, role: user.role };
+          document.body.classList.add("task-page");
+          document.body.classList.toggle("role-admin", user.role === "admin");
+          mainShell.classList.remove("login-shell");
+          authBox.classList.add("hidden");
+          workArea.classList.remove("hidden");
+          userBadge.classList.remove("hidden");
+          logoutBtn.classList.remove("hidden");
+          const name = user.username || "用户";
+          const avatar = name.slice(0, 1).toUpperCase();
+          const roleHint = user.role === "admin" ? "（管理员）" : "";
+          userBadge.innerHTML =
+            '<span class="user-display-avatar" aria-hidden="true">' +
+            avatar +
+            '</span><span class="user-display-meta">' +
+            '<span class="user-display-name">' +
+            String(name).replace(/</g, "&lt;") +
+            "</span>" +
+            (roleHint
+              ? '<span class="user-display-role">' +
+                String(roleHint).replace(/</g, "&lt;") +
+                "</span>"
+              : "") +
+            "</span>";
+          taskFilters.classList.remove("hidden");
+          if (user.role === "admin") {
+            loadAdminUserFilters();
+          } else {
+            if (taskOwnerFilter) taskOwnerFilter.value = "";
+          }
+          updateConvertButtonState();
+          syncTaskStatusTabs();
+          updateTaskStatusTabCounts({});
+          if (opts.initialJobs && Array.isArray(opts.initialJobs.items)) {
+            setCurrentTaskPage(Number(opts.initialJobs.page) || 1);
+            taskPageSize = Number(opts.initialJobs.page_size) || taskPageSize;
+            taskTotal = Number(opts.initialJobs.total) || 0;
+            updateTaskSectionHeader();
+            updateTaskStatusTabCounts(opts.initialJobs.status_counts || {});
+            renderTaskItems(opts.initialJobs.items);
+            updateTaskPollingFromItems(opts.initialJobs.items);
+            syncTaskPager();
+          } else {
+            refreshTaskList();
+          }
+          return;
+        }
+        stopTaskPolling();
+        currentUser = null;
+        clearStoredAuthToken();
+        clearAuthFeedback();
+        document.body.classList.remove("task-page");
+        document.body.classList.remove("role-admin");
+        if (sessionBoot) sessionBoot.classList.add("hidden");
+        mainShell.classList.add("login-shell");
+        authBox.classList.remove("hidden");
+        workArea.classList.add("hidden");
+        userBadge.classList.add("hidden");
+        logoutBtn.classList.add("hidden");
+        userBadge.textContent = "未登录";
+        taskFilters.classList.add("hidden");
+        currentUploadMode = null;
+currentFiles = [];
+currentRootName = "";
+selectedFile.classList.add("hidden");
+selectedFile.textContent = "";
+if (selectedListWrap) selectedListWrap.classList.add("hidden");
+if (selectedList) selectedList.innerHTML = "";
+
+
+        resetResult();
+        progressWrap.classList.remove("show");
+        historyWrap.classList.remove("show");
+        historyList.innerHTML = "";
+        activeTaskStatus = "all";
+        Object.keys(taskPageByStatus).forEach((key) => {
+          taskPageByStatus[key] = 1;
+        });
+        taskTotal = 0;
+        syncTaskStatusTabs();
+        updateTaskStatusTabCounts({});
+        updateTaskSectionHeader();
+        updateConvertButtonState();
+      }
+
+      function applyTheme(theme) {
+        document.body.setAttribute("data-theme", theme);
+        if (theme === "dark") {
+          themeToggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 12.8A8.8 8.8 0 1 1 11.2 3a6.9 6.9 0 0 0 9.8 9.8Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+          themeToggle.setAttribute("aria-label", "切换亮色模式");
+          themeToggle.setAttribute("title", "切换亮色模式");
+        } else {
+          themeToggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 2.5V5M12 19V21.5M21.5 12H19M5 12H2.5M18.7 5.3L17 7M7 17L5.3 18.7M18.7 18.7L17 17M7 7L5.3 5.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>';
+          themeToggle.setAttribute("aria-label", "切换暗色模式");
+          themeToggle.setAttribute("title", "切换暗色模式");
+        }
+      }
+
+      function saveTheme(theme) {
+        localStorage.setItem(STORAGE_KEYS.theme, theme);
+        applyTheme(theme);
+      }
+
+      function statusLabel(status) {
+        const map = {
+          queued: "排队中",
+          running: "转换中",
+          succeeded: "已完成",
+          failed: "失败",
+          cancelled: "已取消",
+        };
+        return map[status] || status;
+      }
+
+      function formatTime(iso) {
+        if (!iso) return "—";
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return iso;
+        return d.toLocaleString("zh-CN", { hour12: false });
+      }
+
+      function parseIsoMs(iso) {
+        if (!iso) return null;
+        const d = new Date(iso);
+        const t = d.getTime();
+        return Number.isNaN(t) ? null : t;
+      }
+
+      /** 毫秒 → 中文耗时，如「45秒」「3分12秒」「1小时5分」 */
+      function formatDurationZh(ms) {
+        const n = Number(ms);
+        if (!Number.isFinite(n) || n < 0) return "0秒";
+        const sec = Math.floor(n / 1000);
+        if (sec < 60) return sec + "秒";
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        if (m < 60) {
+          return s === 0 ? m + "分钟" : m + "分" + s + "秒";
+        }
+        const h = Math.floor(m / 60);
+        const rm = m % 60;
+        if (rm === 0) return h + "小时";
+        return h + "小时" + rm + "分";
+      }
+
+      /** 已完成任务：仅展示耗时（开始处理→结束），不包含排队等待 */
+      function totalDurationMetaLine(job) {
+        const term = { succeeded: 1, failed: 1, cancelled: 1 };
+        if (!term[job.status] || !job.finished_at || !job.started_at) return "";
+        const st = parseIsoMs(job.started_at);
+        const f = parseIsoMs(job.finished_at);
+        if (st == null || f == null || f < st) return "";
+        return " · 耗时 " + formatDurationZh(f - st);
+      }
+
+      function escapeAttr(s) {
+        return String(s || "")
+          .replace(/&/g, "&amp;")
+          .replace(/"/g, "&quot;")
+          .replace(/</g, "&lt;");
+      }
+
+      function updateLiveElapsedSpans() {
+        document.querySelectorAll(".task-live-elapsed").forEach(function (el) {
+          const s = el.getAttribute("data-started-at");
+          const st = el.getAttribute("data-st");
+          const pctStr = el.getAttribute("data-progress-percent");
+          const t1 = parseIsoMs(s);
+          const now = Date.now();
+          let txt = "";
+          if (t1 != null && st === "running" && now >= t1) {
+            const processingMs = now - t1;
+            txt = "耗时 " + formatDurationZh(processingMs);
+
+            const pct = parseFloat(pctStr);
+            if (Number.isFinite(pct) && pct > 1 && pct < 100) {
+              const estimatedTotal = processingMs / (pct / 100);
+              const remaining = estimatedTotal - processingMs;
+              if (remaining > 1000) {
+                txt += " · 预计剩余 " + formatDurationZh(remaining);
+              }
+            }
+          }
+          el.textContent = txt;
+        });
+      }
+
+      function ensureLiveElapsedTicker(items) {
+        const hasActive = (items || []).some(function (j) {
+          return j.status === "running";
+        });
+        if (hasActive) {
+          updateLiveElapsedSpans();
+          if (!liveElapsedInterval) {
+            liveElapsedInterval = setInterval(updateLiveElapsedSpans, 1000);
+          }
+        } else if (liveElapsedInterval) {
+          clearInterval(liveElapsedInterval);
+          liveElapsedInterval = null;
+        }
+      }
+
+      async function loadAdminUserFilters() {
+        if (!currentUser || currentUser.role !== "admin") return;
+        try {
+          const resp = await fetch("/auth/users", {
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: mergeAuthHeaders({}),
+          });
+          if (!resp.ok) return;
+          const data = await resp.json();
+          const names = data.usernames || [];
+          const prev = taskOwnerFilter.value;
+          taskOwnerFilter.innerHTML =
+            '<option value="">全部用户</option>' +
+            names
+              .map((u) => '<option value="' + u.replace(/"/g, "&quot;") + '">' + u + "</option>")
+              .join("");
+          if (prev && names.indexOf(prev) !== -1) {
+            taskOwnerFilter.value = prev;
+          }
+        } catch (e) {
+          /* ignore */
+        }
+      }
+
+      function updateTaskPollingFromItems(items) {
+        const needs = (items || []).some(function (j) {
+          return j.status === "queued" || j.status === "running";
+        });
+        if (needs) {
+          if (!taskPollTimer) {
+            taskPollTimer = setInterval(function () {
+              refreshTaskList({ silent: true });
+            }, 1500);
+          }
+        } else {
+          stopTaskPolling();
+        }
+      }
+
+      function renderTaskItems(items) {
+        const selectionEnabled = activeTaskStatus === "succeeded";
+        if (!items || !items.length) {
+          historyWrap.classList.add("show");
+          historyList.innerHTML =
+            '<p class="history-meta" style="margin:0">' +
+            getActiveTaskStatusLabel() +
+            ' 暂无记录。任务会保存在服务器，重新登录后仍可在此查看与管理。</p>';
+          ensureLiveElapsedTicker([]);
+          lastRenderableSelectableJobIds = [];
+          if (taskSelectAllCb) {
+            taskSelectAllCb.checked = false;
+            taskSelectAllCb.indeterminate = false;
+          }
+          syncBatchDownloadButton();
+          return;
+        }
+        historyWrap.classList.add("show");
+        lastRenderableSelectableJobIds = [];
+        historyList.innerHTML = items
+          .map(function (job) {
+            const ownerLine =
+              currentUser && currentUser.role === "admin"
+                ? '<div class="history-meta">提交人：' + (job.owner_username || "—") + "</div>"
+                : "";
+            const err =
+              job.error_message && job.status !== "succeeded"
+                ? '<div class="task-error-line">' + String(job.error_message).replace(/</g, "&lt;") + "</div>"
+                : "";
+            const queueLine =
+              job.status === "queued" &&
+              job.queue_position != null &&
+              job.queue_total != null &&
+              job.queue_total > 0
+                ? '<div class="task-queue-meta">排队位次：第 ' +
+                  job.queue_position +
+                  " / " +
+                  job.queue_total +
+                  " 位</div>"
+                : "";
+            const partialPagesLine =
+              job.status === "succeeded" &&
+              Array.isArray(job.pdf_vl_failed_pages) &&
+              job.pdf_vl_failed_pages.length
+                ? '<div class="task-queue-meta">部分页转写未完成（页码：' +
+                  job.pdf_vl_failed_pages.join("、") +
+                  "）</div>"
+                : "";
+                    let progressBlock = "";
+        if (job.status === "running") {
+          let pct = Number(job.progress_percent);
+          if (!Number.isFinite(pct)) {
+            pct = 0;
+          }
+          pct = Math.max(0, Math.min(100, pct));
+          
+          // 👇 核心修改：如果后端在 progress_note 里塞了类似 "pdf/xxx.pdf" 的路径，强行抹除
+          let noteRaw = job.progress_note != null ? String(job.progress_note) : "转换中…";
+          if (job.original_filename) {
+            const prefix = job.original_filename + "/";
+            noteRaw = noteRaw.split(prefix).join(""); // 将 "pdf/" 替换为空
+          }
+          const note = noteRaw.replace(/</g, "&lt;");
+
+          let fileHint = "";
+          if (
+            job.total_files != null &&
+            job.processed_files != null &&
+            Number(job.total_files) > 1
+          ) {
+            const currentIdx = Math.min(
+              Number(job.total_files),
+              Math.max(1, (Number(job.processed_files) || 0) + 1)
+            );
+            fileHint = " · 文件 " + currentIdx + "/" + job.total_files;
+          }
+
+          let pageHint = "";
+          if (
+            job.progress_pages_done != null &&
+            job.progress_pages_total != null &&
+            Number(job.progress_pages_total) > 0
+          ) {
+            pageHint =
+              " · 第 " + job.progress_pages_done + "/" + job.progress_pages_total + " 页";
+          }
+
+          let progressNote = note;
+          const pdfPageMatch = noteRaw.match(/PDF 已完成\s+(\d+)\/(\d+)\s*页/);
+          if (pdfPageMatch) {
+            pageHint = "";
+            if (job.current_file_name) {
+              const currentName = String(job.current_file_name).split('/').pop().split('\\').pop();
+              progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
+            }
+          } else {
+            const noteMatch = noteRaw.match(/正在处理\s+\d+\/\d+\s*[:：]\s*(.+)$/);
+            if (noteMatch && noteMatch[1]) {
+              let currentName = noteMatch[1].trim();
+              currentName = String(currentName).split('/').pop().split('\\').pop();
+              progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
+            } else if (job.current_file_name || job.current_filename) {
+              let currentName = job.current_file_name || job.current_filename;
+              currentName = String(currentName).split('/').pop().split('\\').pop();
+              progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
+            }
+          }
+
+          progressBlock =
+            '<div class="task-progress-wrap" role="progressbar" aria-valuenow="' +
+            pct +
+            '" aria-valuemin="0" aria-valuemax="100">' +
+            '<div class="task-progress-bar-bg"><div class="task-progress-bar-fill" style="width:' +
+            pct +
+            '%"></div></div>' +
+            '<div class="task-progress-note">' +
+            progressNote +
+            fileHint +
+            pageHint +
+            " · " +
+            pct +
+            "%</div></div>";
+        }
+
+
+            const canCancel = job.status === "queued" || job.status === "running";
+            const cancelBtn = canCancel
+              ? '<button type="button" class="task-inline-btn" data-job-cancel="' +
+                job.job_id +
+                '"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span>取消</span></button>'
+              : "";
+            const canDelete = job.status !== "running" && job.status !== "queued";
+            const deleteBtn = canDelete
+              ? '<button type="button" class="task-inline-btn danger" data-job-delete="' +
+                job.job_id +
+                '"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M10 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M14 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M6 7L7 20H17L18 7" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path><path d="M9 7V5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5V7" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span>删除记录</span></button>'
+              : "";
+            const canRetry = job.status === "failed" || job.status === "cancelled" || job.status === "succeeded";
+            const retryBtn = canRetry
+              ? '<button type="button" class="task-retry-btn" data-job-retry="' +
+                job.job_id +
+                '"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 12A9 9 0 1 1 18.4 5.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path><path d="M21 4V10H15" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></svg><span>重试</span></button>'
+              : "";
+            const dl =
+              job.download_url && job.status === "succeeded"
+                ? '<a class="task-inline-btn primary" href="' +
+                  job.download_url +
+                  '" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3V14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M8 10L12 14L16 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 17.5C4 18.8807 5.11929 20 6.5 20H17.5C18.8807 20 20 18.8807 20 17.5V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span>下载 md</span></a>'
+                : "";
+            const canSelect = selectionEnabled && job.status === "succeeded" && job.download_url;
+            const checked = canSelect && selectedJobIds.has(job.job_id) ? " checked" : "";
+            const disabled = canSelect ? "" : " disabled";
+            const cb =
+              '<input type="checkbox" class="task-select-cb" data-job-select="' +
+              job.job_id +
+              '"' +
+              checked +
+              disabled +
+              ' aria-label="选择该任务用于批量下载" />';
+            if (canSelect) lastRenderableSelectableJobIds.push(job.job_id);
+            const selectorHtml = selectionEnabled ? cb : "";
+            const nameForExt = job.original_filename || job.current_file_name || job.current_filename || "";
+            const ext = String(nameForExt).split(".").pop().toLowerCase();
+            const iconKind =
+              ext === "xlsx" || ext === "xls"
+                ? "xlsx"
+                : ext === "pdf"
+                  ? "pdf"
+                  : ext === "docx" || ext === "doc"
+                    ? "docx"
+                    : ext === "png" || ext === "jpg" || ext === "jpeg" || ext === "gif" || ext === "webp" || ext === "bmp" || ext === "tif" || ext === "tiff" || ext === "svg"
+                      ? "image"
+                    : "other";
+            const iconHtml =
+              iconKind === "xlsx"
+                ? '<div class="task-file-icon xlsx" aria-hidden="true">X</div>'
+                : iconKind === "pdf"
+                  ? '<div class="task-file-icon pdf" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 3H14L19 8V21H7V3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M14 3V8H19" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M8.5 13.5H15.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><path d="M8.5 17H13.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg></div>'
+                  : iconKind === "docx"
+                    ? '<div class="task-file-icon docx" aria-hidden="true">W</div>'
+                    : iconKind === "image"
+                      ? '<div class="task-file-icon image" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" rx="2.4" stroke="currentColor" stroke-width="1.8"></rect><circle cx="9" cy="10" r="1.6" fill="currentColor"></circle><path d="M6.5 16L10.2 12.5L13.2 15.2L15.6 13.1L18 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>'
+                    : '<div class="task-file-icon other" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M6 12H6.01M12 12H12.01M18 12H18.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path></svg></div>';
+            const baseName = (function() {
+              let displayName = job.current_file_name || job.current_filename || job.original_filename || "";
+              return String(displayName).split('/').pop().split('\\').pop().replace(/</g, "&lt;");
+            })();
+            const pillClass = job.status === "succeeded" ? "succeeded" : job.status === "running" ? "running" : job.status === "queued" ? "queued" : job.status === "failed" ? "failed" : "cancelled";
+            const pillText = job.status === "running" ? "处理中" : statusLabel(job.status);
+            const pillIndicator =
+              job.status === "running"
+                ? '<span class="task-pill-spinner" aria-hidden="true"></span>'
+                : job.status === "succeeded" || job.status === "failed"
+                  ? '<span class="task-pill-dot" aria-hidden="true"></span>'
+                  : "";
+            const messageLine =
+              job.status === "succeeded"
+                ? '<div class="task-row-message success">输出文件已生成，可点击右侧按钮下载</div>'
+                : job.status === "cancelled"
+                  ? '<div class="task-row-message error">取消原因：' +
+                    (job.error_message ? String(job.error_message).replace(/</g, "&lt;") : "用户主动取消") +
+                    "</div>"
+                  : job.status === "failed"
+                    ? '<div class="task-row-message error">解析失败：' +
+                      (job.error_message ? String(job.error_message).replace(/</g, "&lt;") : "请重试") +
+                      "</div>"
+                    : "";
+            const metaOwner =
+              currentUser && currentUser.role === "admin"
+                ? '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 12C14.4853 12 16.5 9.98528 16.5 7.5C16.5 5.01472 14.4853 3 12 3C9.51472 3 7.5 5.01472 7.5 7.5C7.5 9.98528 9.51472 12 12 12Z" stroke="currentColor" stroke-width="1.8"></path><path d="M4 20.25C4.7 16.9 7.8 14.5 12 14.5C16.2 14.5 19.3 16.9 20 20.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg><span>' +
+                  String(job.owner_username || "—").replace(/</g, "&lt;") +
+                  "</span></span>"
+                : "";
+            const metaCreated =
+              '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 6V12L16 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M21 12A9 9 0 1 1 12 3A9 9 0 0 1 21 12Z" stroke="currentColor" stroke-width="1.8"></path></svg><span>' +
+              formatTime(job.created_at) +
+              "</span></span>";
+            const metaFinished =
+              job.finished_at
+                ? '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg><span>' +
+                  formatTime(job.finished_at) +
+                  "</span></span>"
+                : "";
+            const liveElapsedHtml =
+              job.status === "running"
+                ? ' <span class="task-live-elapsed" data-created-at="' +
+                  escapeAttr(job.created_at) +
+                  '" data-started-at="' +
+                  escapeAttr(job.started_at || "") +
+                  '" data-progress-percent="' +
+                  escapeAttr(job.progress_percent || "0") +
+                  '" data-st="' +
+                  escapeAttr(job.status) +
+                  '"></span>'
+                : "";
+            const metaElapsed = (function () {
+              if (job.status === "running") {
+                return (
+                  '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 7V12L15 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="1.8"></path></svg><span>' +
+                  liveElapsedHtml +
+                  "</span></span>"
+                );
+              }
+              const st = parseIsoMs(job.started_at);
+              const f = parseIsoMs(job.finished_at);
+              if (st != null && f != null && f >= st) {
+                return (
+                  '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 7V12L15 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="1.8"></path></svg><span>耗时 ' +
+                  formatDurationZh(f - st) +
+                  "</span></span>"
+                );
+              }
+              return "";
+            })();
+            const menu = "";
+            return (
+              '<div class="history-item" data-status="' +
+              escapeAttr(job.status) +
+              '">' +
+              '<div class="task-item-main">' +
+              '<div class="task-row-top">' +
+              '<div class="task-row-left">' +
+              selectorHtml +
+              iconHtml +
+              '<div class="task-title-text" title="' +
+              escapeAttr(baseName) +
+              '">' +
+              baseName +
+              "</div>" +
+              '<span class="task-status-pill ' +
+              pillClass +
+              '">' +
+              pillText +
+              pillIndicator +
+              "</span>" +
+              "</div>" +
+              "</div>" +
+              '<div class="task-row-meta">' +
+              metaOwner +
+              metaCreated +
+              metaFinished +
+              metaElapsed +
+              "</div>" +
+              queueLine +
+              partialPagesLine +
+              messageLine +
+              progressBlock +
+              err +
+              "</div>" +
+              '<div class="task-row-actions">' +
+              dl +
+              retryBtn +
+              cancelBtn +
+              deleteBtn +
+              "</div>" +
+              "</div>"
+            );
+          })
+          .join("");
+        ensureLiveElapsedTicker(items);
+        if (taskSelectAllCb) {
+          const totalSelectable = lastRenderableSelectableJobIds.length;
+          const selectedSelectable = lastRenderableSelectableJobIds.filter((id) => selectedJobIds.has(id)).length;
+          taskSelectAllCb.checked = totalSelectable > 0 && selectedSelectable === totalSelectable;
+          taskSelectAllCb.indeterminate = selectedSelectable > 0 && selectedSelectable < totalSelectable;
+        }
+        syncBatchDownloadButton();
+      }
+
+      function syncTaskPager() {
+        if (taskPageSizeSelect) {
+          const raw = Number(taskPageSizeSelect.value);
+          if (Number.isFinite(raw) && raw > 0) {
+            taskPageSize = normalizeTaskPageSize(raw);
+          }
+          taskPageSizeSelect.value = String(taskPageSize);
+        }
+        let taskPage = getCurrentTaskPage();
+        taskTotal = Math.max(0, Math.floor(Number(taskTotal) || 0));
+        const totalPages = taskPageSize > 0 ? Math.max(1, Math.ceil(taskTotal / taskPageSize)) : 1;
+        if (taskPage > totalPages) taskPage = totalPages;
+        setCurrentTaskPage(taskPage);
+        if (taskPrevBtn) taskPrevBtn.disabled = taskPage <= 1;
+        if (taskNextBtn) taskNextBtn.disabled = taskPage >= totalPages;
+        if (taskPageLabel) taskPageLabel.textContent = "第 " + taskPage + " / " + totalPages + " 页";
+        if (taskJumpInput) taskJumpInput.value = "";
+        if (taskPageNumbers) {
+          const pages = [];
+          const pushPage = (p) => pages.push({ t: String(p), p });
+          const pushDots = () => pages.push({ t: "…", p: null });
+          if (totalPages <= 7) {
+            for (let i = 1; i <= totalPages; i++) pushPage(i);
+          } else {
+            pushPage(1);
+            if (taskPage > 4) pushDots();
+            const start = Math.max(2, taskPage - 1);
+            const end = Math.min(totalPages - 1, taskPage + 1);
+            for (let i = start; i <= end; i++) pushPage(i);
+            if (taskPage < totalPages - 3) pushDots();
+            pushPage(totalPages);
+          }
+          taskPageNumbers.innerHTML = pages
+            .map((x) => {
+              if (x.p == null) return '<span class="task-page-dots">…</span>';
+              const active = x.p === taskPage ? " active" : "";
+              return (
+                '<button type="button" class="task-page-btn' +
+                active +
+                '" data-task-page="' +
+                x.p +
+                '">' +
+                x.t +
+                "</button>"
+              );
+            })
+            .join("");
+        }
+      }
+
+      async function refreshTaskList(opts) {
+        opts = opts || {};
+        if (!currentUser) {
+          historyWrap.classList.remove("show");
+          historyList.innerHTML = "";
+          return;
+        }
+        const requestSeq = ++taskListRequestSeq;
+        if (taskListAbortController) {
+          try {
+            taskListAbortController.abort();
+          } catch (e) {
+            /* ignore */
+          }
+        }
+        taskListAbortController = new AbortController();
+        if (opts.page_size != null) {
+          const ps = Number(opts.page_size);
+          if (Number.isFinite(ps) && ps > 0) {
+            taskPageSize = normalizeTaskPageSize(ps);
+          }
+        }
+        if (opts.page != null) {
+          const p = Number(opts.page);
+          if (Number.isFinite(p) && p > 0) {
+            setCurrentTaskPage(Math.max(1, Math.floor(p)));
+          }
+        }
+        if (opts.resetPage) {
+          setCurrentTaskPage(1);
+        }
+        syncTaskPager();
+        if (!opts.silent) {
+          historyWrap.classList.add("show");
+          historyList.innerHTML =
+            '<p class="history-meta" style="margin:0;color:var(--text-sub)">加载任务列表…</p>';
+        }
+        try {
+          const params = new URLSearchParams();
+          params.set("page", String(getCurrentTaskPage()));
+          params.set("page_size", String(taskPageSize));
+          if (taskSearchQuery) {
+            params.set("q", taskSearchQuery);
+          }
+          if (currentUser.role === "admin") {
+            if (taskOwnerFilter.value) params.set("owner", taskOwnerFilter.value);
+          }
+          const activeStatusValue = getActiveTaskStatusQueryValue();
+          if (activeStatusValue) params.set("status", activeStatusValue);
+          const resp = await fetch("/jobs?" + params.toString(), {
+            credentials: "same-origin",
+            cache: "no-store",
+            signal: taskListAbortController.signal,
+          });
+          if (requestSeq !== taskListRequestSeq) return;
+          if (resp.status === 401) {
+            setAuthState(null);
+            return;
+          }
+          const data = await resp.json();
+          if (requestSeq !== taskListRequestSeq) return;
+          if (!resp.ok) {
+            if (!opts.silent) showToast("error", data.detail || "加载任务失败");
+            if (!opts.silent) {
+              historyWrap.classList.add("show");
+              historyList.innerHTML =
+                '<p class="history-meta" style="margin:0">加载失败，请稍后点击「刷新」重试。</p>';
+            }
+            return;
+          }
+          updateTaskStatusTabCounts(data.status_counts || {});
+          renderTaskItems(data.items || []);
+          updateTaskPollingFromItems(data.items || []);
+          setCurrentTaskPage(Number(data.page) || getCurrentTaskPage());
+          taskPageSize = normalizeTaskPageSize(data.page_size);
+          taskTotal = Number(data.total) || 0;
+          updateTaskSectionHeader();
+          syncTaskPager();
+        } catch (e) {
+          if (e && e.name === "AbortError") return;
+          if (requestSeq !== taskListRequestSeq) return;
+          if (!opts.silent) showToast("error", "加载任务列表失败");
+          if (!opts.silent) {
+            historyWrap.classList.add("show");
+            historyList.innerHTML =
+              '<p class="history-meta" style="margin:0">加载失败，请稍后点击「刷新」重试。</p>';
+          }
+        }
+      }
+
+      async function pollJobUntilTerminal(jobId, generation) {
+        const terminal = { succeeded: 1, failed: 1, cancelled: 1 };
+        // 任务进度在任务列表中展示；此处仅轮询以在完成后更新结果区与 Toast。
+
+        while (true) {
+          if (generation !== uploadGeneration) {
+            return;
+          }
+          try {
+            await refreshTaskList({ silent: true });
+            if (generation !== uploadGeneration) {
+              return;
+            }
+            const resp = await fetch("/jobs/" + encodeURIComponent(jobId), {
+              credentials: "same-origin",
+              cache: "no-store",
+              headers: mergeAuthHeaders({}),
+            });
+            if (resp.status === 401) {
+              setAuthState(null);
+              return;
+            }
+            const job = await resp.json();
+            if (!resp.ok) {
+              if (resp.status === 404) {
+                await refreshTaskList();
+                if (generation === uploadGeneration) {
+                  showToast("success", "该任务记录已不存在");
+                }
+                break;
+              }
+              if (generation === uploadGeneration) {
+                setStatus("error", job.detail || "无法获取任务状态");
+              }
+              break;
+            }
+            if (terminal[job.status]) {
+              if (generation !== uploadGeneration) {
+                return;
+              }
+              if (job.status === "succeeded") {
+    let msg = "转换完成";
+    const st = parseIsoMs(job.started_at);
+    const f = parseIsoMs(job.finished_at);
+    if (st != null && f != null && f >= st) {
+      msg += "，耗时 " + formatDurationZh(f - st);
+    }
+
+    if (Array.isArray(job.pdf_vl_failed_pages) && job.pdf_vl_failed_pages.length) {
+      msg += "（部分页未成功：第 " + job.pdf_vl_failed_pages.join("、") + " 页）";
+    }
+
+    setStatus("success", msg);
+    resultFilename.textContent = job.original_filename || "";
+    downloadBtn.href = job.download_url || "#";
+    result.classList.add("show");
+    progressWrap.classList.remove("show");
+    resetProgressBar();
+  }
+ else if (job.status === "failed") {
+                setStatus("error", job.error_message || "转换失败");
+                progressWrap.classList.remove("show");
+                resetProgressBar();
+              } else if (job.status === "cancelled") {
+                setStatus("success", "任务已取消");
+                progressWrap.classList.remove("show");
+                resetProgressBar();
+              }
+
+              await refreshTaskList();
+              try {
+                fileInput.value = "";
+              } catch (e) {
+                /* ignore */
+              }
+              break;
+            }
+          } catch (e) {
+            if (generation === uploadGeneration) {
+              setStatus("error", "轮询任务状态失败");
+            }
+            break;
+          }
+          await new Promise(function (r) {
+            setTimeout(r, 1000);
+          });
+        }
+      }
+
+      themeToggle.addEventListener("click", () => {
+        const current = document.body.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        themeToggle.classList.remove("switching");
+        void themeToggle.offsetWidth;
+        themeToggle.classList.add("switching");
+        saveTheme(current === "dark" ? "light" : "dark");
+      });
+
+      themeToggle.addEventListener("animationend", () => {
+        themeToggle.classList.remove("switching");
+      });
+
+      if (taskPrevBtn) {
+        taskPrevBtn.addEventListener("click", () => {
+          const currentPage = getCurrentTaskPage();
+          if (currentPage <= 1) return;
+          setCurrentTaskPage(currentPage - 1);
+          refreshTaskList({ silent: true });
+        });
+      }
+
+      if (taskNextBtn) {
+        taskNextBtn.addEventListener("click", () => {
+          setCurrentTaskPage(getCurrentTaskPage() + 1);
+          refreshTaskList({ silent: true });
+        });
+      }
+
+      if (taskPageSizeSelect) {
+        taskPageSizeSelect.addEventListener("change", () => {
+          refreshTaskList({ resetPage: true });
+        });
+      }
+
+      function applyTaskSearchQuery(raw) {
+        const next = String(raw || "").trim().slice(0, 120);
+        if (next === taskSearchQuery) return;
+        taskSearchQuery = next;
+        refreshTaskList({ resetPage: true, silent: true });
+      }
+
+      if (taskSearchInput) {
+        taskSearchInput.addEventListener("input", () => {
+          if (taskSearchTimer) {
+            clearTimeout(taskSearchTimer);
+          }
+          taskSearchTimer = setTimeout(() => {
+            taskSearchTimer = 0;
+            applyTaskSearchQuery(taskSearchInput.value);
+          }, 250);
+        });
+        taskSearchInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            if (taskSearchTimer) {
+              clearTimeout(taskSearchTimer);
+              taskSearchTimer = 0;
+            }
+            applyTaskSearchQuery(taskSearchInput.value);
+          }
+        });
+      }
+
+      if (taskSearchClearBtn) {
+        taskSearchClearBtn.addEventListener("click", () => {
+          if (taskSearchInput) taskSearchInput.value = "";
+          applyTaskSearchQuery("");
+        });
+      }
+
+      refreshTasksBtn.addEventListener("click", () => {
+        refreshTaskList();
+      });
+
+      if (batchDownloadBtn) {
+        batchDownloadBtn.addEventListener("click", async () => {
+          const ids = Array.from(selectedJobIds);
+          if (!ids.length) return;
+          try {
+            batchDownloadBtn.disabled = true;
+            const resp = await fetch("/jobs/batch-download", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: mergeAuthHeaders({ "Content-Type": "application/json" }),
+              body: JSON.stringify({ job_ids: ids }),
+            });
+            if (resp.status === 401) {
+              setAuthState(null);
+              return;
+            }
+            if (!resp.ok) {
+              const data = await resp.json().catch(() => ({}));
+              showToast("error", data.detail || "批量下载失败");
+              return;
+            }
+            const blob = await resp.blob();
+            let filename = "jobs.zip";
+            const cd = resp.headers.get("content-disposition") || "";
+            const m = cd.match(/filename=\"?([^\";]+)\"?/i);
+            if (m && m[1]) {
+              filename = m[1];
+            }
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            showToast("success", "已开始下载");
+          } catch (e) {
+            showToast("error", "批量下载失败");
+          } finally {
+            syncBatchDownloadButton();
+          }
+        });
+      }
+
+      if (resetTaskFiltersBtn) {
+        resetTaskFiltersBtn.addEventListener("click", () => {
+          if (taskOwnerFilter) taskOwnerFilter.value = "";
+          activeTaskStatus = "all";
+          taskSearchQuery = "";
+          if (taskSearchInput) taskSearchInput.value = "";
+          clearTaskSelections();
+          syncTaskStatusTabs();
+          updateTaskSectionHeader();
+          refreshTaskList({ resetPage: true });
+        });
+      }
+
+      if (taskOwnerFilter) {
+        taskOwnerFilter.addEventListener("change", () => {
+          clearTaskSelections();
+          refreshTaskList({ resetPage: true });
+        });
+      }
+
+      if (taskStatusTabs) {
+        taskStatusTabs.addEventListener("click", (event) => {
+          const btn = event.target.closest("[data-task-status]");
+          if (!btn) return;
+          const nextStatus = normalizeTaskStatusKey(btn.getAttribute("data-task-status"));
+          if (nextStatus === activeTaskStatus) return;
+          activeTaskStatus = nextStatus;
+          syncTaskStatusTabs();
+          updateTaskSectionHeader();
+          refreshTaskList({ silent: true });
+        });
+      }
+
+      if (taskSelectAllCb) {
+        taskSelectAllCb.addEventListener("change", () => {
+          const target = !!taskSelectAllCb.checked;
+          (lastRenderableSelectableJobIds || []).forEach((id) => {
+            if (target) selectedJobIds.add(id);
+            else selectedJobIds.delete(id);
+          });
+          historyList.querySelectorAll('input.task-select-cb[data-job-select]:not([disabled])').forEach((el) => {
+            el.checked = target;
+          });
+          syncBatchDownloadButton();
+          const totalSelectable = lastRenderableSelectableJobIds.length;
+          const selectedSelectable = lastRenderableSelectableJobIds.filter((id) => selectedJobIds.has(id)).length;
+          taskSelectAllCb.checked = totalSelectable > 0 && selectedSelectable === totalSelectable;
+          taskSelectAllCb.indeterminate = selectedSelectable > 0 && selectedSelectable < totalSelectable;
+        });
+      }
+
+      if (selectedList) {
+  selectedList.addEventListener("click", function (event) {
+    const btn = event.target.closest("[data-remove-index]");
+    if (!btn) return;
+
+    const idx = btn.getAttribute("data-remove-index");
+    removeSelectedFileAt(idx);
+  });
+}
+
+
+      historyList.addEventListener("change", (event) => {
+        const cb = event.target && event.target.closest
+          ? event.target.closest("[data-job-select]")
+          : null;
+        if (!cb) return;
+        const jobId = cb.getAttribute("data-job-select");
+        if (!jobId) return;
+        if (cb.checked) {
+          selectedJobIds.add(jobId);
+        } else {
+          selectedJobIds.delete(jobId);
+        }
+        syncBatchDownloadButton();
+        if (taskSelectAllCb) {
+          const totalSelectable = lastRenderableSelectableJobIds.length;
+          const selectedSelectable = lastRenderableSelectableJobIds.filter((id) => selectedJobIds.has(id)).length;
+          taskSelectAllCb.checked = totalSelectable > 0 && selectedSelectable === totalSelectable;
+          taskSelectAllCb.indeterminate = selectedSelectable > 0 && selectedSelectable < totalSelectable;
+        }
+      });
+
+      historyList.addEventListener("click", async (event) => {
+        const menuBtn = event.target.closest("[data-task-menu-btn]");
+        if (menuBtn) {
+          const jobId = menuBtn.getAttribute("data-task-menu-btn");
+          if (!jobId) return;
+          document.querySelectorAll(".task-menu.open").forEach((el) => {
+            if (el.getAttribute("data-task-menu") !== jobId) el.classList.remove("open");
+          });
+          const host = historyList.querySelector('.task-menu[data-task-menu="' + jobId.replace(/"/g, "&quot;") + '"]');
+          if (host) host.classList.toggle("open");
+          return;
+        }
+
+        const delBtn = event.target.closest("[data-job-delete]");
+        if (delBtn) {
+          const jobId = delBtn.getAttribute("data-job-delete");
+          if (!jobId) return;
+          const okDelete = await openThemedConfirm({
+            title: "删除任务记录",
+            message:
+              "将删除该条任务记录，并尝试移除服务器上对应的输入、输出目录（若仍存在）。此操作不可恢复。",
+            confirmText: "删除",
+            cancelText: "取消",
+            danger: true,
+          });
+          if (!okDelete) {
+            return;
+          }
+          try {
+            const resp = await fetch("/jobs/" + encodeURIComponent(jobId), {
+              method: "DELETE",
+              credentials: "same-origin",
+              cache: "no-store",
+              headers: mergeAuthHeaders({}),
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (resp.status === 401) {
+              setAuthState(null);
+              return;
+            }
+            if (!resp.ok) {
+              showToast("error", data.detail || "删除失败");
+              return;
+            }
+            selectedJobIds.delete(jobId);
+            syncBatchDownloadButton();
+            showToast("success", data.message || "已删除");
+            await refreshTaskList();
+          } catch (e) {
+            showToast("error", "删除请求失败");
+          }
+          return;
+        }
+
+        const retryBtn = event.target.closest("[data-job-retry]");
+        if (retryBtn) {
+          const jobId = retryBtn.getAttribute("data-job-retry");
+          if (!jobId) return;
+          const okRetry = await openThemedConfirm({
+            title: "重试任务",
+            message: "将清理该任务已有输出并重新排队执行，确定重试吗？",
+            confirmText: "重试",
+            cancelText: "取消",
+          });
+          if (!okRetry) {
+            return;
+          }
+          try {
+            const resp = await fetch(
+              "/jobs/" + encodeURIComponent(jobId) + "/retry",
+              {
+                method: "POST",
+                credentials: "same-origin",
+                cache: "no-store",
+                headers: mergeAuthHeaders({}),
+              }
+            );
+            const data = await resp.json().catch(() => ({}));
+            if (resp.status === 401) {
+              setAuthState(null);
+              return;
+            }
+            if (!resp.ok) {
+              showToast("error", data.detail || "重试失败");
+              return;
+            }
+            showToast("success", data.message || "已重试");
+            refreshTaskList();
+          } catch (e) {
+            showToast("error", "重试请求失败");
+          }
+          return;
+        }
+
+        const btn = event.target.closest("[data-job-cancel]");
+        if (!btn) return;
+        const jobId = btn.getAttribute("data-job-cancel");
+        if (!jobId) return;
+        const okCancel = await openThemedConfirm({
+          title: "取消任务",
+          message:
+            "确定要取消该任务吗？将立即标记为已取消；若底层转换仍在进行，结束后不会保留结果。",
+          confirmText: "确认取消",
+          cancelText: "返回",
+          danger: true,
+        });
+        if (!okCancel) {
+          return;
+        }
+        try {
+          const resp = await fetch("/jobs/" + encodeURIComponent(jobId) + "/cancel", {
+            method: "POST",
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: mergeAuthHeaders({}),
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (resp.status === 401) {
+            setAuthState(null);
+            return;
+          }
+          if (!resp.ok) {
+            showToast("error", data.detail || "取消失败");
+            return;
+          }
+          showToast("success", data.message || "已处理");
+          refreshTaskList();
+        } catch (e) {
+          showToast("error", "取消请求失败");
+        }
+      });
+
+      document.addEventListener("click", (e) => {
+        const insideMenu = e.target && e.target.closest ? e.target.closest(".task-menu") : null;
+        if (insideMenu) return;
+        document.querySelectorAll(".task-menu.open").forEach((el) => el.classList.remove("open"));
+      });
+
+      if (taskPageNumbers) {
+        taskPageNumbers.addEventListener("click", (e) => {
+          const btn = e.target.closest("[data-task-page]");
+          if (!btn) return;
+          const p = Number(btn.getAttribute("data-task-page"));
+          if (!Number.isFinite(p) || p <= 0) return;
+          refreshTaskList({ page: p });
+        });
+      }
+
+      if (taskJumpInput) {
+        taskJumpInput.addEventListener("keydown", (e) => {
+          if (e.key !== "Enter") return;
+          const p = Number(taskJumpInput.value);
+          if (!Number.isFinite(p) || p <= 0) return;
+          refreshTaskList({ page: Math.floor(p) });
+        });
+      }
+
+      loginBtn.addEventListener("click", async () => {
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+        if (!username || !password) {
+          const msg = "请输入用户名和密码";
+          showToast("error", msg);
+          return;
+        }
+        const oldText = loginBtn.textContent;
+        let loginOkScheduled = false;
+        clearAuthFeedback();
+        loginBtn.disabled = true;
+        loginBtn.textContent = "登录中...";
+        try {
+          const resp = await fetch("/auth/login", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+          });
+          let payload = {};
+          try {
+            const ct = (resp.headers.get("content-type") || "").toLowerCase();
+            if (ct.indexOf("application/json") !== -1) {
+              payload = await resp.json();
+            } else {
+              const t = await resp.text();
+              if (t) payload = { detail: t.slice(0, 200) };
+            }
+          } catch (e) {
+            payload = {};
+          }
+          if (!resp.ok) {
+            const errMsg =
+              formatApiDetail(payload) || "登录失败（HTTP " + resp.status + "）";
+            showToast("error", errMsg);
+            return;
+          }
+          if (rememberMeInput.checked) {
+            localStorage.setItem(STORAGE_KEYS.rememberedUser, username);
+          } else {
+            localStorage.removeItem(STORAGE_KEYS.rememberedUser);
+          }
+          passwordInput.value = "";
+          const okMsg =
+            (typeof payload.message === "string" && payload.message.trim()
+              ? payload.message.trim()
+              : "登录成功，欢迎 " + (payload.username || username)) +
+            (payload.role === "admin" ? "（管理员）" : "");
+          showToast("success", okMsg);
+          loginOkScheduled = true;
+          window.setTimeout(function () {
+            setAuthState({
+              username: payload.username,
+              role: payload.role,
+              access_token: payload.access_token,
+              expires_in: payload.expires_in,
+            });
+            loginBtn.disabled = false;
+            loginBtn.textContent = oldText;
+          }, 400);
+        } catch (error) {
+          const netMsg = "登录请求失败，请检查网络或稍后重试";
+          showToast("error", netMsg);
+        } finally {
+          if (!loginOkScheduled) {
+            loginBtn.disabled = false;
+            loginBtn.textContent = oldText;
+          }
+        }
+      });
+
+      [usernameInput, passwordInput].forEach((el) => {
+        el.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            loginBtn.click();
+          }
+        });
+      });
+
+      passwordToggle.addEventListener("click", () => {
+        const isPassword = passwordInput.type === "password";
+        passwordInput.type = isPassword ? "text" : "password";
+        passwordToggle.setAttribute("aria-label", isPassword ? "隐藏密码" : "显示密码");
+        passwordToggle.setAttribute("title", isPassword ? "隐藏密码" : "显示密码");
+      });
+
+      forgotPasswordLink.addEventListener("click", (event) => {
+        event.preventDefault();
+        const msg = "请联系管理员重置密码";
+        setStatus("error", msg);
+        showToast("warn", msg);
+      });
+
+      logoutBtn.addEventListener("click", async () => {
+        await fetch("/auth/logout", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: mergeAuthHeaders({}),
+        });
+        setAuthState(null);
+        setStatus("success", "已退出登录");
+      });
+
+      async function readAllDirectoryEntries(dirReader) {
+    const entries = [];
+    while (true) {
+      const batch = await new Promise((resolve, reject) => {
+        dirReader.readEntries(resolve, reject);
+      });
+      if (!batch || !batch.length) {
+        break;
+      }
+      entries.push(...batch);
+    }
+    return entries;
+  }
+
+  async function walkEntry(entry, pathPrefix) {
+    if (!entry) return [];
+
+    if (entry.isFile) {
+      const file = await new Promise((resolve, reject) => {
+        entry.file(resolve, reject);
+      });
+
+      const relPath = pathPrefix ? (pathPrefix + "/" + file.name) : file.name;
+
+      try {
+        Object.defineProperty(file, "webkitRelativePath", {
+          value: relPath,
+          configurable: true,
+        });
+      } catch (e) {
+        file._relativePath = relPath;
+      }
+
+      if (!file._relativePath) {
+        file._relativePath = relPath;
+      }
+
+      return [file];
+    }
+
+    if (entry.isDirectory) {
+      const dirPath = pathPrefix ? (pathPrefix + "/" + entry.name) : entry.name;
+      const reader = entry.createReader();
+      const children = await readAllDirectoryEntries(reader);
+
+      let files = [];
+      for (const child of children) {
+        const subFiles = await walkEntry(child, dirPath);
+        files = files.concat(subFiles);
+      }
+      return files;
+    }
+
+    return [];
+  }
+
+async function extractDroppedFiles(dataTransfer) {
+  if (!dataTransfer) {
+    return { mode: "file", files: [] };
+  }
+
+  const items = Array.from(dataTransfer.items || []);
+  const hasEntryApi = items.some(
+    (item) => item && typeof item.webkitGetAsEntry === "function"
+  );
+
+  if (!hasEntryApi) {
+    return {
+      mode: "file",
+      files: Array.from(dataTransfer.files || []),
+    };
+  }
+
+  let allFiles = [];
+  let hasDirectory = false;
+
+  for (const item of items) {
+    if (!item || item.kind !== "file") continue;
+
+    const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+    if (!entry) continue;
+
+    if (entry.isDirectory) {
+      hasDirectory = true;
+    }
+
+    const files = await walkEntry(entry, "");
+    allFiles = allFiles.concat(files);
+  }
+
+  return {
+    mode: hasDirectory ? "folder" : "file",
+    files: allFiles,
+  };
+}
+
+      if (pickFileBtn) {
+        pickFileBtn.addEventListener("click", function () {
+          fileInput.click();
+        });
+      }
+      if (pickFolderBtn) {
+        pickFolderBtn.addEventListener("click", function () {
+          folderInput.click();
+        });
+      }
+
+      fileInput.addEventListener("change", () => {
+  if (fileInput.files && fileInput.files.length) {
+    setSelectedUpload("file", fileInput.files);
+    resetResult();
+  }
+});
+
+folderInput.addEventListener("change", () => {
+  if (folderInput.files && folderInput.files.length) {
+    setSelectedUpload("folder", folderInput.files);
+    resetResult();
+  }
+});
+
+
+      ["dragenter", "dragover"].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          dropzone.classList.add("dragover");
+          if (dropzoneText) dropzoneText.textContent = "松开以上传";
+          if (dropzoneHint) dropzoneHint.textContent = "";
+        });
+      });
+
+      ["dragleave", "drop"].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          dropzone.classList.remove("dragover");
+          if (dropzoneText) dropzoneText.innerHTML = defaultDropzoneHtml;
+          if (dropzoneHint) dropzoneHint.textContent = defaultDropzoneHint;
+        });
+      });
+
+      window.addEventListener("dragenter", (event) => {
+        event.preventDefault();
+        windowDragDepth += 1;
+        document.body.classList.add("window-dragging");
+      });
+
+      window.addEventListener("dragleave", (event) => {
+        event.preventDefault();
+        windowDragDepth = Math.max(0, windowDragDepth - 1);
+        if (windowDragDepth === 0) {
+          document.body.classList.remove("window-dragging");
+        }
+      });
+
+      window.addEventListener("drop", (event) => {
+        event.preventDefault();
+        windowDragDepth = 0;
+        document.body.classList.remove("window-dragging");
+      });
+
+      window.addEventListener("dragover", (event) => {
+        event.preventDefault();
+      });
+
+      dropzone.addEventListener("drop", async (event) => {
+  event.preventDefault();
+  dropzone.classList.remove("dragover");
+  if (dropzoneText) dropzoneText.innerHTML = defaultDropzoneHtml;
+  if (dropzoneHint) dropzoneHint.textContent = defaultDropzoneHint;
+
+  try {
+    const { mode, files } = await extractDroppedFiles(event.dataTransfer);
+    if (!files || !files.length) {
+      setStatus("error", "未读取到可上传的文件");
+      return;
+    }
+
+    setSelectedUpload(mode, files);
+    resetResult();
+  } catch (error) {
+    console.error("drop parse failed:", error);
+    setStatus("error", "读取拖拽内容失败");
+  }
+});
+
+  function clearCurrentSelection() {
+  currentUploadMode = null;
+  currentFiles = [];
+  currentRootName = "";
+
+  selectedFile.textContent = "";
+  selectedFile.classList.add("hidden");
+
+  if (selectedListWrap) selectedListWrap.classList.add("hidden");
+  if (selectedList) selectedList.innerHTML = "";
+
+  try {
+    fileInput.value = "";
+    folderInput.value = "";
+  } catch (e) {
+    /* ignore */
+  }
+
+  updateConvertButtonState();
+}
+
+
+      function postJobsWithUploadProgress(formData, myGen, totalBytes) {
+        const progressText = progressWrap.querySelector(".progress-text");
+        return new Promise(function (resolve, reject) {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/jobs");
+          xhr.withCredentials = true;
+          const ah = authHeaderObject();
+          if (ah.Authorization) {
+            xhr.setRequestHeader("Authorization", ah.Authorization);
+          }
+          uploadXhr = xhr;
+          let uploadT0 = 0;
+          xhr.upload.addEventListener("progress", function (e) {
+            if (myGen !== uploadGeneration) {
+              return;
+            }
+            const fileSize = typeof totalBytes === "number"
+              ? totalBytes
+              : (currentFiles || []).reduce(function (sum, f) {
+  return sum + (f && f.size ? f.size : 0);
+}, 0);
+
+            const total =
+              e.lengthComputable && e.total > 0 ? e.total : fileSize > 0 ? fileSize : 0;
+            const elapsedSec = uploadT0 > 0 ? (performance.now() - uploadT0) / 1000 : 0;
+            if (total > 0 && progressFill) {
+              progressWrap.classList.add("progress-upload");
+              const pct = Math.min(100, Math.round((e.loaded / total) * 100));
+              progressFill.style.width = pct + "%";
+              if (progressTrack) {
+                progressTrack.setAttribute("aria-valuenow", String(pct));
+              }
+              const eta = formatUploadEta(e.loaded, total, elapsedSec);
+              progressText.textContent =
+                "上传中 " +
+                pct +
+                "%（" +
+                formatBytes(e.loaded) +
+                " / " +
+                formatBytes(total) +
+                "）" +
+                eta;
+            } else {
+              progressWrap.classList.remove("progress-upload");
+              if (progressFill) progressFill.style.width = "0%";
+              if (progressTrack) progressTrack.setAttribute("aria-valuenow", "0");
+              progressText.textContent = "上传中… " + formatBytes(e.loaded);
+            }
+          });
+          xhr.onload = function () {
+            if (uploadXhr === xhr) uploadXhr = null;
+            if (myGen !== uploadGeneration) {
+              return;
+            }
+            let payload = null;
+            try {
+              payload = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+            } catch (err) {
+              payload = { detail: xhr.responseText || "响应解析失败" };
+            }
+            resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, payload: payload });
+          };
+          xhr.onerror = function () {
+            if (uploadXhr === xhr) uploadXhr = null;
+            if (myGen !== uploadGeneration) {
+              return;
+            }
+            reject(new Error("network"));
+          };
+          xhr.onabort = function () {
+            if (uploadXhr === xhr) uploadXhr = null;
+            if (myGen !== uploadGeneration) {
+              return;
+            }
+            reject(new Error("aborted"));
+          };
+          uploadT0 = performance.now();
+          xhr.send(formData);
+        });
+      }
+
+      async function uploadAndConvert() {
+        resetResult();
+        resetProgressBar();
+        progressWrap.classList.remove("show");
+        statusBox.className = "status-box";
+        statusBox.textContent = "";
+        if (!currentFiles || !currentFiles.length) {
+  setStatus("error", "请先选择要上传的文件或文件夹");
+  return;
+}
+
+        const myGen = ++uploadGeneration;
+        const oldText = convertBtn.textContent;
+        convertBtn.disabled = true;
+        convertBtn.textContent = "提交中...";
+        const progressText = progressWrap.querySelector(".progress-text");
+        try {
+          progressWrap.classList.add("show");
+          progressWrap.classList.add("progress-upload");
+          if (progressFill) progressFill.style.width = "0%";
+          if (progressTrack) progressTrack.setAttribute("aria-valuenow", "0");
+          progressText.textContent = "开始上传…";
+          if (uploadCancelBtn) {
+            uploadCancelBtn.hidden = false;
+            uploadCancelBtn.disabled = false;
+          }
+
+          const jobIds = [];
+          const failedUploads = [];
+
+          if (currentUploadMode === "folder") {
+            for (let i = 0; i < currentFiles.length; i++) {
+              if (myGen !== uploadGeneration) {
+                return;
+              }
+              const f = currentFiles[i];
+              const rel = f.webkitRelativePath || f._relativePath || f.name;
+              const namedFile = new File([f], rel, {
+                type: f.type,
+                lastModified: f.lastModified,
+              });
+
+              progressText.textContent =
+                "开始上传（" + (i + 1) + "/" + currentFiles.length + "）…";
+              if (progressFill) progressFill.style.width = "0%";
+              if (progressTrack) progressTrack.setAttribute("aria-valuenow", "0");
+
+              const formData = new FormData();
+              formData.append("files", namedFile);
+              formData.append("relative_paths", rel);
+              formData.append("upload_kind", "file");
+              formData.append("root_name", "");
+
+              const { ok, status, payload } = await postJobsWithUploadProgress(
+                formData,
+                myGen,
+                f.size || 0
+              );
+              if (status === 401) {
+                setAuthState(null);
+                setStatus("error", "登录已失效，请重新登录");
+                resetProgressBar();
+                progressWrap.classList.remove("show");
+                return;
+              }
+              if (!ok) {
+                console.error("create job failed:", status, payload);
+                failedUploads.push({
+                  name: rel,
+                  detail: (payload && payload.detail) || ("创建任务失败，HTTP " + status),
+                });
+                continue;
+              }
+              const jobId = payload && payload.job_id;
+              if (jobId) {
+                jobIds.push(jobId);
+              } else {
+                failedUploads.push({ name: rel, detail: "未返回任务 ID" });
+              }
+            }
+          } else if (currentFiles.length === 1) {
+            const f = currentFiles[0];
+            const formData = new FormData();
+            formData.append("files", f);
+            formData.append("relative_paths", f.name);
+            formData.append("upload_kind", "file");
+            formData.append("root_name", "");
+
+            const { ok, status, payload } = await postJobsWithUploadProgress(formData, myGen, f.size || 0);
+            if (status === 401) {
+              setAuthState(null);
+              setStatus("error", "登录已失效，请重新登录");
+              resetProgressBar();
+              progressWrap.classList.remove("show");
+              return;
+            }
+            if (!ok) {
+              console.error("create job failed:", status, payload);
+              setStatus("error", (payload && payload.detail) || ("创建任务失败，HTTP " + status));
+              resetProgressBar();
+              progressWrap.classList.remove("show");
+              return;
+            }
+            const jobId = payload && payload.job_id;
+            if (jobId) {
+              jobIds.push(jobId);
+            } else {
+              setStatus("error", "未返回任务 ID");
+              resetProgressBar();
+              progressWrap.classList.remove("show");
+              return;
+            }
+          } else {
+            for (let i = 0; i < currentFiles.length; i++) {
+              if (myGen !== uploadGeneration) {
+                return;
+              }
+              const f = currentFiles[i];
+              progressText.textContent =
+                "开始上传（" + (i + 1) + "/" + currentFiles.length + "）…";
+              if (progressFill) progressFill.style.width = "0%";
+              if (progressTrack) progressTrack.setAttribute("aria-valuenow", "0");
+
+              const formData = new FormData();
+              formData.append("files", f);
+              formData.append("relative_paths", f.name);
+              formData.append("upload_kind", "file");
+              formData.append("root_name", "");
+
+              const { ok, status, payload } = await postJobsWithUploadProgress(formData, myGen, f.size || 0);
+              if (status === 401) {
+                setAuthState(null);
+                setStatus("error", "登录已失效，请重新登录");
+                resetProgressBar();
+                progressWrap.classList.remove("show");
+                return;
+              }
+              if (!ok) {
+                console.error("create job failed:", status, payload);
+                failedUploads.push({
+                  name: f.name,
+                  detail: (payload && payload.detail) || ("创建任务失败，HTTP " + status),
+                });
+                continue;
+              }
+              const jobId = payload && payload.job_id;
+              if (jobId) {
+                jobIds.push(jobId);
+              } else {
+                failedUploads.push({ name: f.name, detail: "未返回任务 ID" });
+              }
+            }
+          }
+
+          if (myGen !== uploadGeneration) {
+            return;
+          }
+          // 上传请求已经结束：进入任务创建/轮询阶段，不再需要「取消上传」按钮。
+          if (uploadCancelBtn) {
+            uploadCancelBtn.hidden = true;
+            uploadCancelBtn.disabled = false;
+          }
+          resetProgressBar();
+          progressWrap.classList.remove("show");
+
+        await refreshTaskList();
+        clearCurrentSelection();
+
+          if (jobIds.length) {
+            setStatus("success", "任务已创建，正在后台处理");
+            for (const jobId of jobIds) {
+              pollJobUntilTerminal(jobId, myGen);
+            }
+          } else {
+            setStatus("error", "未创建任何任务");
+            resetProgressBar();
+            progressWrap.classList.remove("show");
+            return;
+          }
+
+          if (!failedUploads.length) {
+            showToast("success", "已提交 " + jobIds.length + " 个任务");
+          } else if (jobIds.length) {
+            showToast("warn", "已提交 " + jobIds.length + " 个任务，失败 " + failedUploads.length + " 个");
+          } else {
+            showToast("error", "上传失败 " + failedUploads.length + " 个文件");
+          }
+
+        } catch (error) {
+          if (myGen === uploadGeneration) {
+            const message = String((error && error.message) || "");
+            if (message === "aborted") {
+              setStatus("success", "已取消上传");
+              resetProgressBar();
+              progressWrap.classList.remove("show");
+            } else {
+              console.error("upload failed:", error);
+setStatus("error", "请求失败：" + (error && error.message ? error.message : "未知错误"));
+
+              resetProgressBar();
+              progressWrap.classList.remove("show");
+            }
+          }
+        } finally {
+          convertBtn.textContent = oldText;
+          if (uploadCancelBtn) {
+            uploadCancelBtn.hidden = true;
+            uploadCancelBtn.disabled = false;
+          }
+          updateConvertButtonState();
+        }
+      }
+
+      convertBtn.addEventListener("click", uploadAndConvert);
+      if (uploadCancelBtn) {
+        uploadCancelBtn.addEventListener("click", async () => {
+          if (!uploadXhr) return;
+          const okCancel = await openThemedConfirm({
+            title: "取消上传",
+            message: "确定取消当前上传吗？取消后不会创建转换任务。",
+            confirmText: "确认取消",
+            cancelText: "返回",
+            danger: true,
+          });
+          if (!okCancel) return;
+          if (uploadCancelBtn) uploadCancelBtn.disabled = true;
+          try {
+            uploadXhr.abort();
+          } catch (e) {
+            /* ignore */
+          }
+        });
+      }
+      initProductTagline();
+      applyTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
+      const rememberedUser = localStorage.getItem(STORAGE_KEYS.rememberedUser) || "";
+      if (rememberedUser) {
+        usernameInput.value = rememberedUser;
+        rememberMeInput.checked = true;
+      }
+      updateConvertButtonState();
+
+      (async function initAuth() {
+        try {
+          const hadStoredToken = !!getStoredAccessToken();
+          const resp = await fetch("/auth/bootstrap", {
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: mergeAuthHeaders({}),
+          });
+          let payload = null;
+          if (resp.ok) {
+            payload = await resp.json();
+          }
+          if (sessionBoot) sessionBoot.classList.add("hidden");
+          if (!resp.ok) {
+            setAuthState(null);
+            if (resp.status === 401 && hadStoredToken) {
+              showToast("error", "登录已过期或凭证无效，请重新登录");
+            }
+            return;
+          }
+          setAuthState(
+            { username: payload.username, role: payload.role },
+            { initialJobs: payload.jobs }
+          );
+        } catch (error) {
+          if (sessionBoot) sessionBoot.classList.add("hidden");
+          setAuthState(null);
+          if (hadStoredToken) {
+            showToast("error", "无法验证登录状态，请检查网络后刷新页面");
+          }
+        }
+      })();
+    </script>
+  </body>
+</html>
