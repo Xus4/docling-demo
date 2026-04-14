@@ -32,8 +32,8 @@
 | **Excel** | `.xlsx` 由 **pandas** 按工作表导出为 Markdown 表格（见 `src/converter.py`）。 |
 | **MinerU（magic-pdf）** | 可选；PDF 配图裁剪时优先用其布局检测 bbox，未安装则回退 PyMuPDF（见 `requirements.txt` 注释）。 |
 | **VL / LLM** | `src/pdf_vl_transcribe.py`、`src/dashscope_client.py` 等；兼容 OpenAI 风格的 `/chat/completions`。 |
-| **Web** | **FastAPI** + `SessionMiddleware` + **JWT**（`access_token.py`）；静态页 `static/index.html`。 |
-| **任务与账号** | **SQLAlchemy**；**SQLite** 或 **MySQL**；进程内队列 `JobQueueWorker`（`job_worker.py`）。 |
+| **Web** | **FastAPI** + `SessionMiddleware` + **JWT**（`src/core/access_token.py`）；路由入口 `webapp.py`，业务模块在 `src/web/`。 |
+| **任务与账号** | **SQLAlchemy**；**SQLite** 或 **MySQL**；进程内队列 `JobQueueWorker`（`src/core/job_worker.py`）。 |
 
 **默认支持的扩展名**（可通过 `ALLOWED_TYPES` 收窄）：`pdf, docx, pptx, html, htm, png, jpg, jpeg, tif, tiff, bmp, webp, xlsx`。
 
@@ -205,9 +205,11 @@ pip install -r requirements.txt
 | 变量 | 说明 |
 |------|------|
 | `RUN_LOG_FILE` | 若设置，日志写入该文件；否则在 `LOG_DIR` 下按时间戳与 PID 生成。 |
-| `LOG_DIR` | 默认 `DATA_DIR/logs`。 |
+| `LOG_DIR` | 代码默认 `DATA_DIR/logs`；当前项目 `.env`/`.env.docker` 已设置为 `./logs` 与 `/app/logs`。 |
 | `LOG_MAX_BYTES` | 单文件滚动上限，默认 `52428800`（50MB）。 |
 | `LOG_BACKUP_COUNT` | 保留备份数，默认 `10`。 |
+| `LOG_ROTATE_MODE` | `time` 或 `size`；推荐 `time`（按天滚动）。 |
+| `LOG_RETENTION_DAYS` | 当 `LOG_ROTATE_MODE=time` 时生效，保留最近 N 天日志（当前建议 `7`）。 |
 
 ---
 
@@ -334,7 +336,7 @@ python main.py --pdf-vl-primary --output-by-model --pdf-caption-crop-figures --m
 
 ## 日志与排错
 
-- **Web**：默认日志在 `data/logs/webapp_*.log`（或 `RUN_LOG_FILE`）；uvicorn access 对任务轮询做了过滤，减少噪音。
+- **Web**：当前日志目录为 `./logs`（或 `RUN_LOG_FILE`）；已启用按天滚动并保留最近 7 天（由 `LOG_ROTATE_MODE` / `LOG_RETENTION_DAYS` 控制）。`uvicorn.access` 对任务轮询做了过滤以减少噪音。
 - **OA 登录失败**：检查 `OA_AUTH_LOGIN_URL` 是否内网可达、是否需 `OA_AUTH_COOKIE`；若 Postman 正常而程序超时，注意 **`OA_AUTH_TRUST_ENV=false`** 时不走系统代理，反之若需走公司代理可设为 `true`。
 - **本地 LLM**：适当增大 `LLM_TIMEOUT_SEC`，`LLM_ENABLE_THINKING=false` 往往可降低延迟；`LLM_MAX_TOKENS` 过大易导致单次生成过久。
 - **Markdown 图片链接**：可使用 `scripts/smoke_check_md_images.py` 做本地路径检查（见脚本内说明）。
@@ -354,22 +356,32 @@ pytest
 
 ```
 ├── main.py                 # 批量转换 CLI
-├── webapp.py               # FastAPI 应用与路由
+├── webapp.py               # FastAPI 启动入口（路由编排）
 ├── config.py               # AppConfig / 环境变量
-├── service.py              # ConversionService、上传落盘
-├── job_worker.py           # 异步任务 worker
-├── auth.py                 # 用户、任务、队列位置（SQLAlchemy）
-├── oa_auth.py              # OA 登录客户端
-├── access_token.py         # JWT 创建与校验
 ├── static/                 # 前端资源
 ├── src/
+│   ├── core/
+│   │   ├── auth.py         # 用户、任务、队列位置（SQLAlchemy）
+│   │   ├── service.py      # ConversionService、输入输出工作区
+│   │   ├── job_worker.py   # 异步任务 worker
+│   │   ├── oa_auth.py      # OA 登录客户端
+│   │   └── access_token.py # JWT 创建与校验
+│   ├── web/
+│   │   ├── webapp_auth.py
+│   │   ├── webapp_uploads.py
+│   │   ├── webapp_jobs_view.py
+│   │   ├── webapp_job_actions.py
+│   │   ├── webapp_downloads.py
+│   │   ├── webapp_login.py
+│   │   ├── webapp_legacy_convert.py
+│   │   └── webapp_job_utils.py
 │   ├── converter.py        # Docling + Excel 等主转换逻辑
 │   ├── pdf_vl_transcribe.py
 │   ├── dashscope_client.py
 │   ├── llm_markdown_refiner.py
 │   └── ...
 ├── tests/
-├── scripts/
+├── scripts/                # 可选本地辅助脚本（不影响主流程运行）
 └── requirements.txt
 ```
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from sqlalchemy import text
 
-from auth import AuthStore
+from src.core.auth import AuthStore
 
 
 class TestJobSorting(unittest.TestCase):

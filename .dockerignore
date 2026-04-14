@@ -9,11 +9,15 @@ __pycache__
 *.log
 app.log
 output.log
+logs
+
+# secrets
+.env
+.env.*
 
 # 本地数据与大文件不打进镜像
 data/input
 data/output
-data/logs
 data/*.db
 
 # 文档和临时文件

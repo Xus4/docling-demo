@@ -102,6 +102,13 @@ def _parse_allowed_types(value: str | None) -> set[str]:
     return parsed or default_types
 
 
+def _normalize_db_type(value: str | None) -> str:
+    raw = (value or "sqlite").strip().lower()
+    if raw in {"sqlite", "mysql"}:
+        return raw
+    raise ValueError(f"Invalid DB_TYPE: {value!r}. Allowed values: sqlite, mysql")
+
+
 @dataclass(frozen=True)
 class AppConfig:
     max_file_size_bytes: int
@@ -203,7 +210,7 @@ class AppConfig:
         else:
             oa_tenant_name = str(_oa_tenant_name_raw).rstrip("\r\n")
         auth_db_path = Path(os.getenv("AUTH_DB_PATH", str(data_dir / "auth.db"))).resolve()
-        db_type = os.getenv("DB_TYPE", "sqlite").strip().lower()
+        db_type = _normalize_db_type(os.getenv("DB_TYPE", "sqlite"))
         if db_type == "sqlite":
             database_url = "sqlite:///" + auth_db_path.as_posix()
         elif db_type == "mysql":
@@ -225,9 +232,8 @@ class AppConfig:
                         f"@{mysql_host}:{mysql_port}/{mysql_db}?charset=utf8mb4"
                     )
         else:
-            database_url = os.getenv("DATABASE_URL", "").strip() or (
-                "sqlite:///" + auth_db_path.as_posix()
-            )
+            # _normalize_db_type already validates allowed values.
+            database_url = "sqlite:///" + auth_db_path.as_posix()
         return cls(
             max_file_size_bytes=max_file_size_bytes,
             allowed_types=_parse_allowed_types(os.getenv("ALLOWED_TYPES")),

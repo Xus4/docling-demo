@@ -31,6 +31,19 @@ class TestAppConfig(unittest.TestCase):
 
         self.assertEqual(cfg.worker_max_parallel_jobs, 3)
 
+    def test_db_type_is_case_insensitive(self) -> None:
+        env_upper = {"DB_TYPE": "SQLite", "AUTH_DB_PATH": "./data/auth.db"}
+        with patch.dict(os.environ, env_upper, clear=True):
+            cfg_upper = AppConfig.from_env()
+        self.assertEqual(cfg_upper.db_type, "sqlite")
+        self.assertTrue(cfg_upper.database_url.startswith("sqlite:///"))
+
+    def test_db_type_typo_raises(self) -> None:
+        env_typo = {"DB_TYPE": "sqllite", "AUTH_DB_PATH": "./data/auth.db"}
+        with patch.dict(os.environ, env_typo, clear=True):
+            with self.assertRaises(ValueError):
+                AppConfig.from_env()
+
 
 if __name__ == "__main__":
     unittest.main()

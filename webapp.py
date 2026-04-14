@@ -1,11 +1,8 @@
 from __future__ import annotations
 from fastapi.responses import HTMLResponse
-import json
 import logging
 import os
 import re
-import shutil
-import tempfile
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -25,18 +22,42 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
-from access_token import (
-    ExpiredSignatureError,
-    InvalidTokenError,
+from src.core.access_token import (
     create_access_token,
-    decode_access_token,
 )
-from auth import AuthStore, AuthUser, JobRecord
+from src.core.auth import AuthStore, AuthUser
 from config import AppConfig
-from oa_auth import authenticate_with_oa
-from job_worker import JobQueueWorker
-from service import ConversionError, ConversionService
+from src.core.oa_auth import authenticate_with_oa
+from src.core.job_worker import JobQueueWorker
+from src.core.service import ConversionService
 from src.logging_utils import configure_logging, log_event, short_job_id
+from src.web.webapp_job_utils import (
+    job_to_api_dict as _job_to_api_dict,
+    normalize_job_id as _normalize_job_id,
+    remove_job_workspace as _remove_job_workspace,
+    safe_rel_path as _safe_rel_path,
+    wait_job_terminal as _wait_job_terminal,
+    zip_job_output_folder as _zip_job_output_folder,
+)
+from src.web.webapp_uploads import ingest_uploads_create_job
+from src.web.webapp_auth import (
+    can_access_job as _can_access_job,
+    is_admin as _is_admin,
+    require_auth_user,
+)
+from src.web.webapp_jobs_view import list_jobs_payload
+from src.web.webapp_downloads import (
+    build_batch_download_response,
+    build_single_download_response,
+)
+from src.web.webapp_login import auth_bootstrap_payload, handle_login
+from src.web.webapp_job_actions import (
+    cancel_job_payload,
+    delete_job_payload,
+    get_job_detail_payload,
+    retry_job_payload,
+)
+from src.web.webapp_legacy_convert import handle_legacy_convert
 
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "static"
@@ -83,6 +104,8 @@ configure_logging(
     log_file=run_log_file,
     rotate_max_bytes=max(1024 * 1024, int(os.getenv("LOG_MAX_BYTES", "52428800"))),
     rotate_backup_count=max(1, int(os.getenv("LOG_BACKUP_COUNT", "10"))),
+    rotate_mode=os.getenv("LOG_ROTATE_MODE", "time").strip().lower(),
+    retention_days=max(1, int(os.getenv("LOG_RETENTION_DAYS", "7"))),
     app="webapp",
 )
 log = logging.getLogger("webapp")
@@ -95,7 +118,7 @@ _JOB_STATUS_POLL_RE = re.compile(
 
 
 class _SuppressJobsListAccessLogFilter(logging.Filter):
-    """屏蔽前端轮询产生的 access 行：GET /jobs、GET /jobs?...、GET /jobs/{job_id}。"""
+    """屏蔽前端轮询产生的 /jobs 访问日志噪音。"""
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:
@@ -124,7 +147,7 @@ async def _lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="智枢文档",
+    title="鏅烘灑鏂囨。",
     debug=config.debug,
     lifespan=_lifespan,
 )
@@ -144,164 +167,16 @@ class LoginRequest(BaseModel):
 
 
 def _require_auth_user(request: Request) -> AuthUser:
-    auth_hdr = request.headers.get("Authorization")
-    if auth_hdr and auth_hdr.startswith("Bearer "):
-        raw = auth_hdr[7:].strip()
-        if raw:
-            try:
-                return decode_access_token(raw, config.access_token_secret)
-            except ExpiredSignatureError:
-                raise HTTPException(
-                    status_code=401, detail="登录已过期，请重新登录"
-                ) from None
-            except InvalidTokenError:
-                raise HTTPException(
-                    status_code=401, detail="无效或已失效的凭证"
-                ) from None
-
-    username = request.session.get("username")
-    if not username:
-        raise HTTPException(status_code=401, detail="请先登录")
-    if config.oa_auth_enabled:
-        role = request.session.get("role")
-        if role not in ("admin", "user"):
-            request.session.clear()
-            raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
-        return AuthUser(username=str(username).strip(), role=str(role))
-    user = auth_store.get_user(str(username))
-    if not user:
-        request.session.clear()
-        raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
-    return user
+    return require_auth_user(
+        request,
+        access_token_secret=config.access_token_secret,
+        oa_auth_enabled=config.oa_auth_enabled,
+        get_user=auth_store.get_user,
+    )
 
 
-def _is_admin(user: AuthUser) -> bool:
-    return user.role == "admin"
-
-
-def _can_access_job(user: AuthUser, job: JobRecord) -> bool:
-    return _is_admin(user) or job.owner_username == user.username
-
-
-_JOB_ID_RE = re.compile(r"^[a-f0-9]{32}$")
-
-
-def _normalize_job_id(raw: str) -> str:
-    jid = raw.strip()
-    if not _JOB_ID_RE.fullmatch(jid):
-        raise HTTPException(status_code=400, detail="无效的任务 ID")
-    return jid
-
-
-def _remove_job_workspace(job_id: str) -> None:
-    for base in (config.input_dir, config.output_dir):
-        d = base / job_id
-        if d.is_dir():
-            shutil.rmtree(d, ignore_errors=True)
-
-
-def _job_to_api_dict(
-    job: JobRecord,
-    *,
-    queue_position: int | None = None,
-    queue_total: int = 0,
-) -> dict[str, object | None]:
-    out: dict[str, object | None] = {
-        "job_id": job.job_id,
-        "owner_username": job.owner_username,
-        "original_filename": job.original_filename,
-        "status": job.status,
-        "created_at": job.created_at,
-        "started_at": job.started_at,
-        "finished_at": job.finished_at,
-        "error_message": job.error_message,
-        "is_directory": bool(job.is_directory),
-        "total_files": job.total_files,
-        "processed_files": job.processed_files,
-        "succeeded_files": job.succeeded_files,
-        "failed_files": job.failed_files,
-    }
-    if job.status == "succeeded":
-        out["download_url"] = f"/jobs/{job.job_id}/download"
-    else:
-        out["download_url"] = None
-
-    out["queue_position"] = queue_position
-    out["queue_total"] = queue_total
-
-    if job.status == "running":
-        out["progress_percent"] = job.progress_percent
-        out["progress_note"] = job.progress_note
-        out["progress_pages_done"] = job.progress_pages_done
-        out["progress_pages_total"] = job.progress_pages_total
-        out["current_file_name"] = job.current_file_name
-    elif job.status == "succeeded":
-        out["progress_percent"] = 100
-        out["progress_note"] = "已完成"
-        out["progress_pages_done"] = None
-        out["progress_pages_total"] = None
-        out["current_file_name"] = None
-    else:
-        out["progress_percent"] = None
-        out["progress_note"] = None
-        out["progress_pages_done"] = None
-        out["progress_pages_total"] = None
-        out["current_file_name"] = None
-
-    out["pdf_vl_failed_pages"] = None
-    out["failed_files_preview"] = None
-    if job.status == "succeeded" and job.result_extra:
-        try:
-            data = json.loads(job.result_extra)
-            if isinstance(data, dict):
-                pages = data.get("pdf_vl_failed_pages")
-                if isinstance(pages, list) and pages:
-                    nums: list[int] = []
-                    for x in pages:
-                        if isinstance(x, int):
-                            nums.append(x)
-                        elif isinstance(x, str) and x.strip().isdigit():
-                            nums.append(int(x.strip()))
-                    if nums:
-                        out["pdf_vl_failed_pages"] = nums
-
-                failed_files = data.get("failed_files")
-                if isinstance(failed_files, list) and failed_files:
-                    preview: list[dict[str, str]] = []
-                    for item in failed_files[:20]:
-                        if isinstance(item, dict):
-                            preview.append(
-                                {
-                                    "file": str(item.get("file", "")),
-                                    "error": str(item.get("error", "")),
-                                }
-                            )
-                    if preview:
-                        out["failed_files_preview"] = preview
-        except (json.JSONDecodeError, TypeError, ValueError):
-            out["pdf_vl_failed_pages"] = None
-
-    return out
-
-
-def _wait_job_terminal(job_id: str, poll_seconds: float = 0.25) -> JobRecord:
-    terminal = frozenset({"succeeded", "failed", "cancelled"})
-    while True:
-        row = auth_store.get_job(job_id)
-        if row and row.status in terminal:
-            return row
-        time.sleep(poll_seconds)
-
-
-def _safe_rel_path(raw: str) -> Path:
-    p = Path((raw or "").replace("\\", "/").strip("/").strip())
-    if not str(p) or str(p) == ".":
-        raise HTTPException(status_code=400, detail="无效的相对路径")
-    if p.is_absolute():
-        raise HTTPException(status_code=400, detail="相对路径非法")
-    if ".." in p.parts:
-        raise HTTPException(status_code=400, detail="相对路径非法")
-    return p
+def _remove_job_workspace_for_app(job_id: str) -> None:
+    _remove_job_workspace(job_id, config.input_dir, config.output_dir)
 
 
 async def _ingest_uploads_create_job(
@@ -313,159 +188,23 @@ async def _ingest_uploads_create_job(
     upload_kind: str,
     root_name: str,
 ) -> str:
-    user = _require_auth_user(request)
-
-    upload_kind = (upload_kind or "file").strip().lower()
-    if upload_kind not in {"file", "folder"}:
-        raise HTTPException(status_code=400, detail="upload_kind 仅支持 file 或 folder")
-
-    merged_files: list[UploadFile] = []
-    if files:
-        merged_files.extend(files)
-    if file is not None:
-        merged_files.append(file)
-
-    merged_files = [f for f in merged_files if f is not None and f.filename]
-    if not merged_files:
-        raise HTTPException(status_code=400, detail="未收到上传文件")
-
-    if not relative_paths:
-        if upload_kind == "folder":
-            raise HTTPException(status_code=400, detail="文件夹上传缺少 relative_paths")
-        relative_paths = [merged_files[0].filename or "upload"]
-
-    if len(relative_paths) != len(merged_files):
-        raise HTTPException(status_code=400, detail="files 与 relative_paths 数量不一致")
-
-    paths = None
-    try:
-        if upload_kind == "file":
-            if len(merged_files) != 1:
-                raise HTTPException(status_code=400, detail="单文件上传只能包含 1 个文件")
-            filename_raw = merged_files[0].filename or "upload"
-            filename = Path(filename_raw).name or "upload"
-            service.validate_extension(filename)
-            paths = service.create_job_paths(filename, is_directory=False)
-            total_size = 0
-            dst = paths.input_entry
-            dst.parent.mkdir(parents=True, exist_ok=True)
-
-            with dst.open("wb") as buffer:
-                while True:
-                    if await request.is_disconnected():
-                        raise HTTPException(status_code=499, detail="客户端已取消上传")
-                    chunk = await merged_files[0].read(1024 * 1024)
-                    if not chunk:
-                        break
-                    total_size += len(chunk)
-                    if total_size > config.max_file_size_bytes:
-                        raise HTTPException(
-                            status_code=413,
-                            detail=f"文件过大，最大允许 {config.max_file_size_bytes} 字节",
-                        )
-                    buffer.write(chunk)
-
-            await merged_files[0].close()
-
-            auth_store.insert_job(
-                job_id=paths.job_id,
-                owner_username=user.username,
-                role_snapshot=user.role,
-                original_filename=filename,
-                input_file=str(paths.input_entry.resolve()),
-                output_file=str(paths.output_entry.resolve()),
-                is_directory=0,
-                input_root=str(paths.input_root.resolve()),
-                output_root=str(paths.output_root.resolve()),
-                total_files=1,
-                processed_files=0,
-                succeeded_files=0,
-                failed_files=0,
-            )
-            job_worker.enqueue(paths.job_id)
-            log.info(
-                "单文件任务已创建并入队 job_id=%s user=%s role=%s file=%s size_bytes=%s",
-                paths.job_id,
-                user.username,
-                user.role,
-                filename,
-                total_size,
-            )
-            return paths.job_id
-
-        # folder mode
-        normalized_root = Path(root_name).name.strip() or "uploaded_folder"
-        paths = service.create_job_paths(normalized_root, is_directory=True)
-        input_root = paths.input_entry
-        input_root.mkdir(parents=True, exist_ok=True)
-
-        total_size = 0
-        saved_count = 0
-        for up, rel_raw in zip(merged_files, relative_paths, strict=False):
-            rel = _safe_rel_path(rel_raw)
-            dst = input_root / rel
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            with dst.open("wb") as buffer:
-                while True:
-                    if await request.is_disconnected():
-                        raise HTTPException(status_code=499, detail="客户端已取消上传")
-                    chunk = await up.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    total_size += len(chunk)
-                    if total_size > config.max_file_size_bytes:
-                        raise HTTPException(
-                            status_code=413,
-                            detail=f"上传总大小过大，最大允许 {config.max_file_size_bytes} 字节",
-                        )
-                    buffer.write(chunk)
-            await up.close()
-            saved_count += 1
-
-        supported_files = list(service.iter_supported_files(input_root))
-        if not supported_files:
-            raise HTTPException(status_code=400, detail="文件夹中没有可处理的文件")
-
-        auth_store.insert_job(
-            job_id=paths.job_id,
-            owner_username=user.username,
-            role_snapshot=user.role,
-            original_filename=normalized_root,
-            input_file=str(paths.input_entry.resolve()),
-            output_file=str(paths.output_root.resolve()),
-            is_directory=1,
-            input_root=str(paths.input_entry.resolve()),
-            output_root=str(paths.output_root.resolve()),
-            total_files=len(supported_files),
-            processed_files=0,
-            succeeded_files=0,
-            failed_files=0,
-        )
-        job_worker.enqueue(paths.job_id)
-        log_event(
-    log,
-    logging.INFO,
-    "job.created",
-    job=short_job_id(paths.job_id),
-    user=user.username,
-    role=user.role,
-    file=normalized_root,
-    size_bytes=total_size,
-)
-
-        return paths.job_id
-
-    except HTTPException:
-        if paths:
-            _remove_job_workspace(paths.job_id)
-        raise
-    except ConversionError as exc:
-        if paths:
-            _remove_job_workspace(paths.job_id)
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001
-        log.exception("event=job.create.failed")
-        raise HTTPException(status_code=500, detail="创建任务失败") from exc
+    return await ingest_uploads_create_job(
+        request,
+        file=file,
+        files=files,
+        relative_paths=relative_paths,
+        upload_kind=upload_kind,
+        root_name=root_name,
+        require_auth_user=_require_auth_user,
+        safe_rel_path=_safe_rel_path,
+        remove_job_workspace=_remove_job_workspace_for_app,
+        service=service,
+        auth_store=auth_store,
+        job_worker=job_worker,
+        max_file_size_bytes=config.max_file_size_bytes,
+        log=log,
+        short_job_id=short_job_id,
+    )
 
 
 
@@ -493,37 +232,15 @@ def app_config_public() -> dict[str, object]:
 
 @app.post("/auth/login")
 def login(payload: LoginRequest, request: Request) -> dict[str, object]:
-    user: AuthUser | None = None
-    if config.oa_auth_enabled:
-        admin_name = config.auth_admin_username.strip()
-        is_env_admin = bool(
-            admin_name and payload.username.strip().lower() == admin_name.lower()
-        )
-        if is_env_admin:
-            # 仅 env 管理员：只校验 SQLite 中由 INITIAL_PASSWORD 同步的哈希，绝不请求 OA
-            user = auth_store.authenticate(admin_name, payload.password)
-        else:
-            user = authenticate_with_oa(config, payload.username, payload.password)
-    else:
-        user = auth_store.authenticate(payload.username, payload.password)
-    if not user:
-        raise HTTPException(status_code=401, detail="用户名或密码错误")
-    request.session["username"] = user.username
-    request.session["role"] = user.role
-    token = create_access_token(
-        username=user.username,
-        role=user.role,
-        secret=config.access_token_secret,
-        ttl_seconds=config.access_token_ttl_sec,
+    return handle_login(
+        username=payload.username,
+        password=payload.password,
+        request=request,
+        config=config,
+        auth_store=auth_store,
+        authenticate_with_oa=authenticate_with_oa,
+        create_access_token=create_access_token,
     )
-    return {
-        "username": user.username,
-        "role": user.role,
-        "access_token": token,
-        "token_type": "bearer",
-        "expires_in": config.access_token_ttl_sec,
-        "message": f"登录成功，欢迎 {user.username}",
-    }
 
 
 @app.post("/auth/logout")
@@ -540,62 +257,18 @@ def _list_jobs_payload(
     page: int,
     page_size: int,
 ) -> dict[str, object]:
-    offset = (page - 1) * page_size
-    items, total = auth_store.list_jobs(
-        viewer_username=user.username,
-        viewer_role=user.role,
-        owner_filter=owner if _is_admin(user) else None,
-        status_filter=status,
-        query=q,
-        limit=page_size,
-        offset=offset,
+    return list_jobs_payload(
+        user=user,
+        owner=owner,
+        status=status,
+        q=q,
+        page=page,
+        page_size=page_size,
+        auth_store=auth_store,
+        is_admin=_is_admin,
+        job_to_api_dict=_job_to_api_dict,
+        log=log,
     )
-    try:
-        status_counts = auth_store.count_jobs_by_status(
-            viewer_username=user.username,
-            viewer_role=user.role,
-            owner_filter=owner if _is_admin(user) else None,
-            query=q,
-        )
-        status_counts["all"] = sum(status_counts.values())
-    except Exception as e:  # noqa: BLE001
-        log_event(
-            log,
-            logging.WARNING,
-            "jobs.status_counts.failed",
-            err=repr(e),
-        )
-        status_counts = {"all": 0}
-    queued_ids = [j.job_id for j in items if j.status == "queued"]
-    q_map: dict[str, int] = {}
-    q_total = 0
-    try:
-        if queued_ids:
-            q_map, q_total = auth_store.get_queue_positions(queued_ids)
-        else:
-            q_total = auth_store.count_queued_jobs()
-    except Exception as e:  # noqa: BLE001
-        log_event(
-            log,
-            logging.WARNING,
-            "jobs.queue_snapshot.failed",
-            err=repr(e),
-        )
-        q_map, q_total = {}, 0
-    return {
-        "items": [
-            _job_to_api_dict(
-                j,
-                queue_position=q_map.get(j.job_id) if j.status == "queued" else None,
-                queue_total=q_total,
-            )
-            for j in items
-        ],
-        "status_counts": status_counts,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    }
 
 
 @app.get("/auth/me")
@@ -606,13 +279,9 @@ def me(request: Request) -> dict[str, str]:
 
 @app.get("/auth/bootstrap")
 def auth_bootstrap(request: Request) -> dict[str, object]:
-    """单次请求返回当前用户与首页任务列表（与首次进入工作台时的默认筛选一致）。"""
+    """单次请求返回当前用户与默认任务列表，用于前端初始化。"""
     user = _require_auth_user(request)
-    return {
-        "username": user.username,
-        "role": user.role,
-        "jobs": _list_jobs_payload(user, None, None, None, 1, 100),
-    }
+    return auth_bootstrap_payload(user=user, list_jobs_payload=_list_jobs_payload)
 
 
 @app.get("/auth/users")
@@ -655,7 +324,7 @@ def list_jobs(
     request: Request,
     owner: str | None = Query(None, description="管理员按提交人筛选"),
     status: str | None = Query(None, description="queued|running|succeeded|failed|cancelled"),
-    q: str | None = Query(None, description="按文件名关键字搜索（original_filename，大小写不敏感）"),
+    q: str | None = Query(None, description="按原始文件名关键词搜索"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=500),
 ) -> dict[str, object]:
@@ -667,117 +336,55 @@ def list_jobs(
 def get_job_detail(job_id: str, request: Request) -> dict[str, object]:
     jid = _normalize_job_id(job_id)
     user = _require_auth_user(request)
-    job = auth_store.get_job(jid)
-    if not job:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    if not _can_access_job(user, job):
-        raise HTTPException(status_code=403, detail="无权访问该任务")
-    return _job_to_api_dict(job)
+    return get_job_detail_payload(
+        jid=jid,
+        user=user,
+        auth_store=auth_store,
+        can_access_job=_can_access_job,
+        job_to_api_dict=_job_to_api_dict,
+    )
 
 
 @app.post("/jobs/{job_id}/cancel")
 def cancel_job(job_id: str, request: Request) -> dict[str, str]:
     jid = _normalize_job_id(job_id)
     user = _require_auth_user(request)
-    job = auth_store.get_job(jid)
-    if not job:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    if not _can_access_job(user, job):
-        raise HTTPException(status_code=403, detail="无权操作该任务")
-
-    if job.status in ("queued", "running"):
-        if auth_store.try_mark_job_cancelled(jid):
-            if job.status == "running":
-                try:
-                    job_worker.cancel(jid)
-                except Exception:  # noqa: BLE001
-                    pass
-            log_event(
-                log,
-                logging.INFO,
-                "job.cancelled",
-                job=short_job_id(jid),
-                owner=job.owner_username,
-                operator=user.username,
-                file=job.original_filename,
-                prior_status=job.status,
-            )
-            return {"message": "已取消", "status": "cancelled"}
-        raise HTTPException(status_code=409, detail="任务状态已变更，请刷新")
-
-    raise HTTPException(status_code=400, detail="当前状态不可取消")
+    return cancel_job_payload(
+        jid=jid,
+        user=user,
+        auth_store=auth_store,
+        can_access_job=_can_access_job,
+        job_worker=job_worker,
+        log=log,
+    )
 
 
 @app.post("/jobs/{job_id}/retry")
 def retry_job(job_id: str, request: Request) -> dict[str, str]:
     jid = _normalize_job_id(job_id)
     user = _require_auth_user(request)
-    job = auth_store.get_job(jid)
-    if not job:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    if not _can_access_job(user, job):
-        raise HTTPException(status_code=403, detail="无权操作该任务")
-    if job.status in ("queued", "running"):
-        raise HTTPException(status_code=400, detail="当前状态不可重试")
-
-    out_dir = config.output_dir / jid
-    if out_dir.is_dir():
-        shutil.rmtree(out_dir, ignore_errors=True)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    if job.is_directory:
-        retry_output = str(Path(job.output_root or out_dir).resolve())
-    else:
-        existing = (job.output_file or "").strip()
-        if existing:
-            retry_output = str(Path(existing).resolve())
-        else:
-            stem = Path(job.original_filename or "result").stem or "result"
-            retry_output = str((out_dir / f"{stem}.md").resolve())
-
-    if not auth_store.try_reset_job_queued(jid, output_file=retry_output):
-        raise HTTPException(status_code=409, detail="任务状态已变更，请刷新")
-
-    job_worker.enqueue(jid)
-    log_event(
-        log,
-        logging.INFO,
-        "job.retried",
-        job=short_job_id(jid),
-        owner=job.owner_username,
-        operator=user.username,
-        file=job.original_filename,
-        prior_status=job.status,
+    return retry_job_payload(
+        jid=jid,
+        user=user,
+        auth_store=auth_store,
+        can_access_job=_can_access_job,
+        job_worker=job_worker,
+        output_dir_root=config.output_dir,
+        log=log,
     )
-    return {"message": "已重试", "status": "queued"}
 
 
 @app.delete("/jobs/{job_id}")
 def delete_job_record(job_id: str, request: Request) -> dict[str, str]:
     jid = _normalize_job_id(job_id)
     user = _require_auth_user(request)
-    job = auth_store.get_job(jid)
-    if not job:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    if not _can_access_job(user, job):
-        raise HTTPException(status_code=403, detail="无权删除该任务")
-    if job.status == "running":
-        raise HTTPException(
-            status_code=409,
-            detail="任务正在执行，请先点击「取消」结束后再删除记录",
-        )
-    if not auth_store.delete_job(jid):
-        raise HTTPException(status_code=404, detail="任务不存在")
-    _remove_job_workspace(jid)
-    return {"message": "已删除"}
-
-
-def _zip_job_output_folder(job_dir: Path) -> Path:
-    fd, tmp_zip = tempfile.mkstemp(suffix=".zip")
-    os.close(fd)
-    Path(tmp_zip).unlink(missing_ok=True)
-    archive_base = Path(tmp_zip).with_suffix("")
-    return Path(shutil.make_archive(str(archive_base), "zip", root_dir=str(job_dir)))
+    return delete_job_payload(
+        jid=jid,
+        user=user,
+        auth_store=auth_store,
+        can_access_job=_can_access_job,
+        remove_job_workspace=_remove_job_workspace_for_app,
+    )
 
 
 class BatchDownloadRequest(BaseModel):
@@ -790,35 +397,15 @@ def download_job_result(
 ) -> FileResponse:
     jid = _normalize_job_id(job_id)
     user = _require_auth_user(request)
-    job = auth_store.get_job(jid)
-    if not job:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    if not _can_access_job(user, job):
-        raise HTTPException(status_code=403, detail="无权下载该任务")
-    if job.status != "succeeded":
-        raise HTTPException(status_code=400, detail="任务未完成或不可下载")
-
-    if job.output_root:
-        job_dir = Path(job.output_root)
-    elif job.output_file:
-        out_path = Path(job.output_file)
-        job_dir = out_path if out_path.is_dir() else out_path.parent
-    else:
-        raise HTTPException(status_code=404, detail="未找到转换结果")
-
-    if not job_dir.is_dir():
-        raise HTTPException(status_code=404, detail="未找到转换结果目录")
-
-    try:
-        zip_path = _zip_job_output_folder(job_dir)
-    except Exception as exc:
-        log.exception("event=job.download.zip_failed job=%s dir=%s", short_job_id(jid), job_dir)
-        raise HTTPException(status_code=500, detail="打包下载失败") from exc
-    background_tasks.add_task(lambda p=zip_path: p.unlink(missing_ok=True))
-    return FileResponse(
-        path=zip_path,
-        media_type="application/zip",
-        filename=f"{Path(job.original_filename).stem or 'result'}.zip",
+    return build_single_download_response(
+        jid=jid,
+        user=user,
+        auth_store=auth_store,
+        can_access_job=_can_access_job,
+        zip_job_output_folder=_zip_job_output_folder,
+        short_job_id=short_job_id,
+        log=log,
+        background_tasks=background_tasks,
     )
 
 
@@ -829,85 +416,27 @@ def batch_download_jobs(
     background_tasks: BackgroundTasks,
 ) -> FileResponse:
     user = _require_auth_user(request)
-    raw_ids = list(payload.job_ids or [])
-    job_ids: list[str] = []
-    for x in raw_ids:
-        jid = _normalize_job_id(str(x))
-        if jid not in job_ids:
-            job_ids.append(jid)
-    if not job_ids:
-        raise HTTPException(status_code=400, detail="未选择可下载的任务")
-    if len(job_ids) > 500:
-        raise HTTPException(status_code=400, detail="批量下载数量过多")
-
-    staging = Path(tempfile.mkdtemp(prefix="docling_jobs_"))
-    try:
-        for jid in job_ids:
-            job = auth_store.get_job(jid)
-            if not job:
-                raise HTTPException(status_code=404, detail=f"任务不存在: {jid}")
-            if not _can_access_job(user, job):
-                raise HTTPException(status_code=403, detail=f"无权下载任务: {jid}")
-            if job.status != "succeeded":
-                raise HTTPException(status_code=400, detail="仅支持下载已完成任务")
-
-            if job.output_root:
-                job_dir = Path(job.output_root)
-            elif job.output_file:
-                out_path = Path(job.output_file)
-                job_dir = out_path if out_path.is_dir() else out_path.parent
-            else:
-                raise HTTPException(status_code=404, detail="未找到转换结果")
-
-            if not job_dir.is_dir():
-                raise HTTPException(status_code=404, detail="未找到转换结果目录")
-
-            stem = Path(job.original_filename).stem or "result"
-            target = staging / f"{stem}_{jid[:8]}"
-            shutil.copytree(job_dir, target, dirs_exist_ok=True)
-
-        zip_path = _zip_job_output_folder(staging)
-    except HTTPException:
-        shutil.rmtree(staging, ignore_errors=True)
-        raise
-    except Exception as exc:
-        shutil.rmtree(staging, ignore_errors=True)
-        log.exception("event=jobs.batch_download.failed count=%s", len(job_ids))
-        raise HTTPException(status_code=500, detail="批量打包下载失败") from exc
-
-    background_tasks.add_task(lambda p=zip_path: p.unlink(missing_ok=True))
-    background_tasks.add_task(lambda d=staging: shutil.rmtree(d, ignore_errors=True))
-    return FileResponse(
-        path=zip_path,
-        media_type="application/zip",
-        filename="jobs.zip",
+    return build_batch_download_response(
+        raw_ids=list(payload.job_ids or []),
+        user=user,
+        normalize_job_id=_normalize_job_id,
+        auth_store=auth_store,
+        can_access_job=_can_access_job,
+        zip_job_output_folder=_zip_job_output_folder,
+        log=log,
+        background_tasks=background_tasks,
     )
 
 
 @app.post("/convert")
 async def convert(request: Request, file: UploadFile = File(...)) -> dict[str, str]:
-    """兼容旧客户端：创建异步任务并阻塞直到结束，返回原 download_url 形态。"""
-    job_id = await _ingest_uploads_create_job(
-        request,
+    return await handle_legacy_convert(
+        request=request,
         file=file,
-        files=None,
-        relative_paths=None,
-        upload_kind="file",
-        root_name="",
+        ingest_uploads_create_job=_ingest_uploads_create_job,
+        wait_job_terminal=_wait_job_terminal,
+        get_job=auth_store.get_job,
     )
-    final = _wait_job_terminal(job_id)
-    rec = auth_store.get_job(job_id)
-    filename = rec.original_filename if rec else ""
-
-    if final.status == "succeeded":
-        return {
-            "job_id": job_id,
-            "filename": filename,
-            "download_url": f"/download/{job_id}",
-        }
-    if final.status == "cancelled":
-        raise HTTPException(status_code=400, detail=final.error_message or "任务已取消")
-    raise HTTPException(status_code=400, detail=final.error_message or "转换失败")
 
 
 @app.get("/download/{job_id}")
@@ -915,3 +444,5 @@ def download_legacy(
     job_id: str, request: Request, background_tasks: BackgroundTasks
 ) -> FileResponse:
     return download_job_result(job_id, request, background_tasks)
+
+

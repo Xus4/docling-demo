@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from job_worker import JobQueueWorker
+from src.core.job_worker import JobQueueWorker
 
 
 class _FakeProc:
@@ -25,14 +25,14 @@ class _FakeProc:
 
 
 class TestJobQueueWorkerParallel(unittest.TestCase):
-    @patch("job_worker.threading.Thread")
+    @patch("src.core.job_worker.threading.Thread")
     def test_max_parallel_jobs_minimum_one(self, _thread_cls: MagicMock) -> None:
         auth = MagicMock()
         service = MagicMock()
         worker = JobQueueWorker(auth, service, max_parallel_jobs=0)
         self.assertEqual(worker.max_parallel_jobs, 1)
 
-    @patch("job_worker.threading.Thread")
+    @patch("src.core.job_worker.threading.Thread")
     def test_cancel_targets_specific_job(self, _thread_cls: MagicMock) -> None:
         auth = MagicMock()
         service = MagicMock()
@@ -45,7 +45,7 @@ class TestJobQueueWorkerParallel(unittest.TestCase):
         self.assertFalse(worker.cancel("job-b"))
         self.assertNotIn("job-a", worker._active_procs)
 
-    @patch("job_worker.threading.Thread")
+    @patch("src.core.job_worker.threading.Thread")
     def test_reap_marks_failed_for_abnormal_exit(self, _thread_cls: MagicMock) -> None:
         auth = MagicMock()
         service = MagicMock()
@@ -59,7 +59,7 @@ class TestJobQueueWorkerParallel(unittest.TestCase):
         auth.mark_job_failed.assert_called_once_with("job-a", "转换进程异常退出")
         self.assertNotIn("job-a", worker._active_procs)
 
-    @patch("job_worker.threading.Thread")
+    @patch("src.core.job_worker.threading.Thread")
     def test_reap_does_not_mark_failed_when_not_running(self, _thread_cls: MagicMock) -> None:
         auth = MagicMock()
         service = MagicMock()
