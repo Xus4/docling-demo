@@ -128,7 +128,7 @@ pip install -r requirements.txt
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
-| `LLM_MODEL` | `qwen3.5-35b-a3b` | 模型名（百炼 / Ollama 等各自命名）。 |
+| `LLM_MODEL` | `qwen3.5:35b-a3b` | 模型名（百炼 / Ollama 等各自命名）。 |
 | `LLM_BASE_URL` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | API 根地址；CLI 可用 `--llm-base-url` 覆盖说明见 `main.py -h`。 |
 | `LLM_API_KEY_ENV` | `DASHSCOPE_API_KEY` | 从哪个**环境变量名**读取 API Key。 |
 | `LLM_MAX_TOKENS` | `16384` | 单次 completion 上限；未单独配置时，表格/图片说明的字符上限会与此对齐。 |

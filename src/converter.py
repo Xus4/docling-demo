@@ -136,7 +136,7 @@ class ConverterConfig:
     # ---- LLM post-process（DashScope 千问/Qwen-VL）----
     enable_llm_refine: bool = False
     llm_api_key_env: str = "DASHSCOPE_API_KEY"
-    llm_model: str = "qwen3.5-35b-a3b"
+    llm_model: str = "qwen3.5:35b-a3b"
     llm_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     llm_temperature: float = 0.2
     llm_max_tokens: Optional[int] = 8192

@@ -604,7 +604,7 @@ class AuthStore:
                 {"finished_at": now, "error_message": msg, "job_id": job_id},
             )
 
-    def try_reset_job_queued(self, job_id: str) -> bool:
+    def try_reset_job_queued(self, job_id: str, output_file: str | None = None) -> bool:
         now = _utc_now_iso()
         with self.engine.begin() as conn:
             cur = conn.execute(
@@ -623,13 +623,14 @@ class AuthStore:
                         progress_pages_total = NULL,
                         current_file_name = NULL,
                         result_extra = NULL,
+                        output_file = COALESCE(:output_file, output_file),
                         processed_files = 0,
                         succeeded_files = 0,
                         failed_files = 0
                     WHERE job_id = :job_id AND status IN ('failed', 'cancelled', 'succeeded')
                     """
                 ),
-                {"created_at": now, "job_id": job_id},
+                {"created_at": now, "job_id": job_id, "output_file": output_file},
             )
             return bool(cur.rowcount and cur.rowcount > 0)
 
@@ -959,8 +960,6 @@ class AuthStore:
                         """
                         SELECT job_id FROM jobs
                         WHERE status = 'queued'
-                        AND output_file IS NOT NULL
-                        AND output_file <> ''
                         ORDER BY created_at ASC
                         """
                     )

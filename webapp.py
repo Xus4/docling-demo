@@ -725,7 +725,17 @@ def retry_job(job_id: str, request: Request) -> dict[str, str]:
         shutil.rmtree(out_dir, ignore_errors=True)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    if not auth_store.try_reset_job_queued(jid):
+    if job.is_directory:
+        retry_output = str(Path(job.output_root or out_dir).resolve())
+    else:
+        existing = (job.output_file or "").strip()
+        if existing:
+            retry_output = str(Path(existing).resolve())
+        else:
+            stem = Path(job.original_filename or "result").stem or "result"
+            retry_output = str((out_dir / f"{stem}.md").resolve())
+
+    if not auth_store.try_reset_job_queued(jid, output_file=retry_output):
         raise HTTPException(status_code=409, detail="任务状态已变更，请刷新")
 
     job_worker.enqueue(jid)

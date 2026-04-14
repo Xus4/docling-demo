@@ -1,0 +1,23 @@
+.git
+.gitignore
+.pytest_cache
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.log
+app.log
+output.log
+
+# 本地数据与大文件不打进镜像
+data/input
+data/output
+data/logs
+data/*.db
+
+# 文档和临时文件
+*.md
+!README.md
+.DS_Store
+Thumbs.db

@@ -227,7 +227,7 @@ def main() -> int:
     parser.add_argument(
         "--llm-model",
         type=str,
-        default=env_str("LLM_MODEL", "qwen3.5-35b-a3b"),
+        default=env_str("LLM_MODEL", "qwen3.5:35b-a3b"),
         help="千问模型名（pdf-vl / LLM 共用；默认与项目常用配置一致）。",
     )
     parser.add_argument(

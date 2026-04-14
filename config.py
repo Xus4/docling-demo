@@ -242,7 +242,7 @@ class AppConfig:
             pdf_vl_primary=_parse_bool(os.getenv("PDF_VL_PRIMARY"), default=True),
             pdf_vl_dpi=float(os.getenv("PDF_VL_DPI", "180")),
             pdf_vl_workers=max(1, int(os.getenv("PDF_VL_WORKERS", "10"))),
-            llm_model=env_str("LLM_MODEL", "qwen3.5-35b-a3b"),
+            llm_model=env_str("LLM_MODEL", "qwen3.5:35b-a3b"),
             llm_base_url=llm_base_url_raw or _default_llm_base_url,
             llm_api_key_env=env_str("LLM_API_KEY_ENV", "DASHSCOPE_API_KEY"),
             pdf_vl_table_second_pass_max_tables=max(
