@@ -1,6 +1,8 @@
 import io
+import tempfile
 import unittest
 import zipfile
+from pathlib import Path
 
 from src.mineru_client import (
     MinerUError,
@@ -8,6 +10,7 @@ from src.mineru_client import (
     build_multipart_request_items,
     markdown_from_results_json,
     markdown_from_zip_bytes,
+    persist_zip_artifacts,
 )
 
 
@@ -90,6 +93,36 @@ class TestMinerUMarkdownExtract(unittest.TestCase):
             zf.writestr("doc/auto/doc.md", "# Z")
         md = markdown_from_zip_bytes(buf.getvalue(), "doc")
         self.assertEqual(md, "# Z")
+
+    def test_persist_zip_artifacts_extracts_all_files(self) -> None:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("doc/auto/doc.md", "# Main")
+            zf.writestr("doc/auto/images/a.png", b"\x89PNG")
+            zf.writestr("doc/auto/doc_middle.json", '{"x":1}')
+        with tempfile.TemporaryDirectory() as td:
+            output_path = Path(td) / "doc.md"
+            persist_zip_artifacts(
+                zip_bytes=buf.getvalue(),
+                output_path=output_path,
+                prefer_stem="doc",
+            )
+            self.assertTrue(output_path.is_file())
+            self.assertEqual(output_path.read_text(encoding="utf-8"), "# Main")
+            self.assertTrue((Path(td) / "doc/auto/images/a.png").is_file())
+            self.assertTrue((Path(td) / "doc/auto/doc_middle.json").is_file())
+
+    def test_persist_zip_artifacts_without_md_raises(self) -> None:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("doc/auto/a.txt", "x")
+        with tempfile.TemporaryDirectory() as td:
+            with self.assertRaises(MinerUError):
+                persist_zip_artifacts(
+                    zip_bytes=buf.getvalue(),
+                    output_path=Path(td) / "doc.md",
+                    prefer_stem="doc",
+                )
 
 
 if __name__ == "__main__":

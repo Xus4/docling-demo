@@ -1616,6 +1616,15 @@
         display: none;
       }
 
+      .upload-flow .filter-field > span {
+        display: inline;
+      }
+
+      .upload-mode-field .upload-mode-label {
+        display: inline;
+        white-space: nowrap;
+      }
+
       .filter-field select {
         min-width: 120px;
         height: 38px;

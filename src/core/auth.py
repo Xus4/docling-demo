@@ -723,6 +723,30 @@ class AuthStore:
             )
             return int(cur.rowcount) if cur.rowcount is not None else 0
 
+    def requeue_running_job_for_resume(self, job_id: str) -> bool:
+        """将被中断的 running 任务回退到 queued，保留远端 task_id 以便恢复轮询。"""
+        with self.engine.begin() as conn:
+            cur = conn.execute(
+                text(
+                    """
+                    UPDATE jobs SET
+                        status = 'queued',
+                        started_at = NULL,
+                        finished_at = NULL,
+                        cancel_requested = 0,
+                        error_message = NULL,
+                        progress_percent = NULL,
+                        progress_note = NULL,
+                        progress_pages_done = NULL,
+                        progress_pages_total = NULL,
+                        result_extra = NULL
+                    WHERE job_id = :job_id AND status = 'running'
+                    """
+                ),
+                {"job_id": job_id},
+            )
+            return bool(cur.rowcount and cur.rowcount > 0)
+
     def set_job_cancel_requested(self, job_id: str) -> bool:
         with self.engine.begin() as conn:
             cur = conn.execute(

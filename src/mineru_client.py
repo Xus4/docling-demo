@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import mimetypes
+import shutil
 import time
 import zipfile
 from collections.abc import Callable
@@ -132,6 +133,52 @@ def markdown_from_zip_bytes(zb: bytes, prefer_stem: str) -> str:
         raise MinerUError("MinerU 返回的 ZIP 无效") from exc
 
 
+def _safe_zip_rel_path(name: str) -> Path | None:
+    rel = Path(name)
+    if rel.is_absolute():
+        return None
+    if ".." in rel.parts:
+        return None
+    return rel
+
+
+def persist_zip_artifacts(
+    *,
+    zip_bytes: bytes,
+    output_path: Path,
+    prefer_stem: str,
+) -> None:
+    out_root = output_path.parent
+    out_root.mkdir(parents=True, exist_ok=True)
+    try:
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            md_paths: list[Path] = []
+            for info in zf.infolist():
+                if info.is_dir():
+                    continue
+                rel = _safe_zip_rel_path(info.filename)
+                if rel is None:
+                    continue
+                dst = out_root / rel
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(info, "r") as src, dst.open("wb") as out:
+                    shutil.copyfileobj(src, out)
+                if dst.suffix.lower() == ".md":
+                    md_paths.append(dst)
+    except zipfile.BadZipFile as exc:
+        raise MinerUError("MinerU 返回的 ZIP 无效") from exc
+
+    if not md_paths:
+        raise MinerUError("MinerU ZIP 结果中未找到 .md 文件")
+    preferred = [
+        p for p in md_paths if p.name == f"{prefer_stem}.md" or p.as_posix().endswith(f"/{prefer_stem}.md")
+    ]
+    chosen = preferred[0] if preferred else sorted(md_paths, key=lambda p: p.as_posix())[0]
+    if chosen.resolve() != output_path.resolve():
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(chosen, output_path)
+
+
 def _parse_error_body(resp: httpx.Response) -> str:
     try:
         data = resp.json()
@@ -194,19 +241,35 @@ def run_mineru_convert(
 
     stem = input_path.stem
     selected_backend = (backend_override or "").strip() or cfg.backend
+    # 用户要求“不要过滤 MinerU 返回内容”：
+    # 当返回 ZIP 时，尽可能请求 MinerU 包含全部可返回的产物文件。
+    if cfg.response_format_zip:
+        return_md = True
+        return_middle_json = True
+        return_model_output = True
+        return_content_list = True
+        return_images = True
+        return_original_file = True
+    else:
+        return_md = cfg.return_md
+        return_middle_json = cfg.return_middle_json
+        return_model_output = cfg.return_model_output
+        return_content_list = cfg.return_content_list
+        return_images = cfg.return_images
+        return_original_file = cfg.return_original_file
     form = build_multipart_form_fields(
         backend=selected_backend,
         parse_method=cfg.parse_method,
         formula_enable=cfg.formula_enable,
         table_enable=cfg.table_enable,
         server_url=cfg.server_url,
-        return_md=cfg.return_md,
-        return_middle_json=cfg.return_middle_json,
-        return_model_output=cfg.return_model_output,
-        return_content_list=cfg.return_content_list,
-        return_images=cfg.return_images,
+        return_md=return_md,
+        return_middle_json=return_middle_json,
+        return_model_output=return_model_output,
+        return_content_list=return_content_list,
+        return_images=return_images,
         response_format_zip=cfg.response_format_zip,
-        return_original_file=cfg.return_original_file and cfg.response_format_zip,
+        return_original_file=return_original_file and cfg.response_format_zip,
         start_page_id=cfg.start_page_id,
         end_page_id=cfg.end_page_id,
         lang_list=cfg.lang_list,
@@ -273,15 +336,15 @@ def _run_sync_parse(
     ct = (resp.headers.get("content-type") or "").lower()
     body = resp.content
     if "application/zip" in ct or body.startswith(b"PK\x03\x04"):
-        md = markdown_from_zip_bytes(body, stem)
+        persist_zip_artifacts(zip_bytes=body, output_path=output_path, prefer_stem=stem)
     else:
         try:
             data = resp.json()
         except json.JSONDecodeError as exc:
             raise MinerUError("MinerU /file_parse 返回非 JSON 且非 ZIP") from exc
         md = markdown_from_results_json(data, stem)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(md, encoding="utf-8")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(md, encoding="utf-8")
     if progress_callback:
         progress_callback(10, 10)
 
@@ -361,16 +424,15 @@ def _run_async_parse(
     body = res_resp.content
     ct = (res_resp.headers.get("content-type") or "").lower()
     if "application/zip" in ct or body.startswith(b"PK\x03\x04"):
-        md = markdown_from_zip_bytes(body, stem)
+        persist_zip_artifacts(zip_bytes=body, output_path=output_path, prefer_stem=stem)
     else:
         try:
             data = res_resp.json()
         except json.JSONDecodeError as exc:
             raise MinerUError("MinerU /tasks/.../result 返回非 JSON 且非 ZIP") from exc
         md = markdown_from_results_json(data, stem)
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(md, encoding="utf-8")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(md, encoding="utf-8")
     if progress_callback:
         progress_callback(100, 100)
 

@@ -285,26 +285,31 @@ def _run_conversion_in_subprocess(
     service = ConversionService(config)
     auth = AuthStore(database_url)
 
-    if int(is_directory):
-        _run_directory_conversion(
+    try:
+        if int(is_directory):
+            _run_directory_conversion(
+                job_id=job_id,
+                auth=auth,
+                service=service,
+                input_root=Path(input_root or ""),
+                output_root=Path(output_root or ""),
+                mineru_backend=mineru_backend,
+            )
+            return
+
+        _run_single_file_conversion(
             job_id=job_id,
             auth=auth,
             service=service,
-            input_root=Path(input_root or ""),
-            output_root=Path(output_root or ""),
+            input_file=Path(input_file),
+            output_file=Path(output_file),
             mineru_backend=mineru_backend,
+            mineru_task_id=mineru_task_id,
         )
-        return
-
-    _run_single_file_conversion(
-        job_id=job_id,
-        auth=auth,
-        service=service,
-        input_file=Path(input_file),
-        output_file=Path(output_file),
-        mineru_backend=mineru_backend,
-        mineru_task_id=mineru_task_id,
-    )
+    except (KeyboardInterrupt, SystemExit):
+        # 服务重启/中断时，将任务回退为 queued，保留 mineru_task_id 以便下次恢复轮询。
+        auth.requeue_running_job_for_resume(job_id)
+        raise
 
 
 class JobQueueWorker:

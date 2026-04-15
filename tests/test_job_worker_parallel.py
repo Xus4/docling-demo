@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from src.core.job_worker import JobQueueWorker
+from src.core.job_worker import JobQueueWorker, _run_conversion_in_subprocess
 
 
 class _FakeProc:
@@ -72,6 +72,34 @@ class TestJobQueueWorkerParallel(unittest.TestCase):
 
         auth.mark_job_failed.assert_not_called()
         self.assertNotIn("job-a", worker._active_procs)
+
+    @patch("src.core.job_worker._run_single_file_conversion", side_effect=KeyboardInterrupt())
+    @patch("src.core.job_worker.ConversionService")
+    @patch("src.core.job_worker.AuthStore")
+    def test_subprocess_interrupt_requeues_running_job(
+        self,
+        auth_cls: MagicMock,
+        service_cls: MagicMock,
+        _run_single: MagicMock,
+    ) -> None:
+        auth = MagicMock()
+        auth_cls.return_value = auth
+        service_cls.return_value = MagicMock()
+
+        with self.assertRaises(KeyboardInterrupt):
+            _run_conversion_in_subprocess(
+                job_id="job-a",
+                database_url="sqlite:///dummy.db",
+                input_file="in.pdf",
+                output_file="out.md",
+                input_root=None,
+                output_root=None,
+                is_directory=0,
+                mineru_backend="hybrid-auto-engine",
+                mineru_task_id="task-123",
+            )
+
+        auth.requeue_running_job_for_resume.assert_called_once_with("job-a")
 
 
 if __name__ == "__main__":

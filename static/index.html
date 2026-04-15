@@ -154,16 +154,16 @@
               <p class="selected-list-title">已选条目</p>
               <div id="selectedList" class="history-list"></div>
             </div>
-            <label class="filter-field" style="max-width: 320px">
-              <span>解析方式</span>
+            <div class="filter-field upload-mode-field" style="max-width: 320px">
+              <label for="mineruBackendSelect" class="upload-mode-label">选择解析模式</label>
               <select id="mineruBackendSelect" aria-label="选择 MinerU 解析后端">
-                <option value="hybrid-http-client">hybrid-http-client</option>
-                <option value="hybrid-auto-engine">hybrid-auto-engine</option>
-                <option value="pipeline">pipeline</option>
-                <option value="vlm-http-client">vlm-http-client</option>
-                <option value="vlm-auto-engine">vlm-auto-engine</option>
+                <option value="pipeline">快速解析</option>
+                <option value="vlm-auto-engine">高精度解析（本地）</option>
+                <option value="vlm-http-client">高精度解析（API）</option>
+                <option value="hybrid-auto-engine" selected>混合高精度解析（本地）</option>
+                <option value="hybrid-http-client">混合高精度解析（API）</option>
               </select>
-            </label>
+            </div>
             <button id="convertBtn" class="primary-btn" type="button" disabled>上传并转换</button>
           </div>
 
@@ -571,6 +571,18 @@ const selectedList = document.getElementById("selectedList");
 
       function initMineruBackendSelector(configData) {
         if (!mineruBackendSelect) return;
+        const preferredDefaultBackend = "hybrid-auto-engine";
+        const backendLabelMap = {
+          pipeline: "快速解析",
+          "vlm-auto-engine": "高精度解析（本地）",
+          "vlm-http-client": "高精度解析（API）",
+          "hybrid-auto-engine": "混合高精度解析（本地）",
+          "hybrid-http-client": "混合高精度解析（API）",
+        };
+        const formatBackendLabel = (value) => {
+          const key = String(value || "").trim();
+          return backendLabelMap[key] || key || "未设置";
+        };
         const options = Array.isArray(configData && configData.mineru_backend_options)
           ? configData.mineru_backend_options
           : [];
@@ -581,19 +593,25 @@ const selectedList = document.getElementById("selectedList");
             .map((v) => {
               const val = String(v || "").trim();
               if (!val) return "";
-              return '<option value="' + val.replace(/"/g, "&quot;") + '">' + val + "</option>";
+              return '<option value="' + val.replace(/"/g, "&quot;") + '">' + formatBackendLabel(val) + "</option>";
             })
             .join("");
           if (prev && options.indexOf(prev) !== -1) {
             mineruBackendSelect.value = prev;
           } else if (defaults && options.indexOf(defaults) !== -1) {
             mineruBackendSelect.value = defaults;
+          } else if (options.indexOf(preferredDefaultBackend) !== -1) {
+            mineruBackendSelect.value = preferredDefaultBackend;
           } else if (options.length) {
             mineruBackendSelect.value = options[0];
           }
           return;
         }
-        if (defaults) mineruBackendSelect.value = defaults;
+        if (defaults) {
+          mineruBackendSelect.value = defaults;
+          return;
+        }
+        mineruBackendSelect.value = preferredDefaultBackend;
       }
 
       async function initProductTagline() {
@@ -1470,6 +1488,19 @@ if (selectedList) selectedList.innerHTML = "";
                   formatTime(job.finished_at) +
                   "</span></span>"
                 : "";
+            const backendLabelMap = {
+              pipeline: "快速解析",
+              "vlm-auto-engine": "高精度解析（本地）",
+              "vlm-http-client": "高精度解析（API）",
+              "hybrid-auto-engine": "混合高精度解析（本地）",
+              "hybrid-http-client": "混合高精度解析（API）",
+            };
+            const backendRaw = String(job.mineru_backend || "").trim();
+            const backendLabel = (backendLabelMap[backendRaw] || backendRaw || "未设置").replace(/</g, "&lt;");
+            const metaBackend =
+              '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12H19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><path d="M12 5V19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"></circle></svg><span>解析模式：' +
+              backendLabel +
+              "</span></span>";
             const liveElapsedHtml =
               job.status === "running"
                 ? ' <span class="task-live-elapsed" data-created-at="' +
@@ -1528,6 +1559,7 @@ if (selectedList) selectedList.innerHTML = "";
               metaOwner +
               metaCreated +
               metaFinished +
+              metaBackend +
               metaElapsed +
               "</div>" +
               queueLine +
