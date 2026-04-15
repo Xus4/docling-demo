@@ -11,9 +11,12 @@ app.log
 output.log
 logs
 
-# secrets
+# secrets（示例文件可进入构建上下文，便于 COPY；运行时仍由 compose env_file 注入）
 .env
 .env.*
+!.env.example
+!.env.docker.example
+!.env.docker.mysql.example
 
 # 本地数据与大文件不打进镜像
 data/input

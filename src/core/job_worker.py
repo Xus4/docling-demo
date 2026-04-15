@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import logging
@@ -31,8 +31,10 @@ def _run_single_file_conversion(
     service: ConversionService,
     input_file: Path,
     output_file: Path,
+    mineru_backend: str | None,
+    mineru_task_id: str | None,
 ) -> None:
-    def on_pdf_pages(done: int, total: int) -> None:
+    def on_parse_progress(done: int, total: int) -> None:
         # 子进程内协作取消：若任务已不再 running，则立刻抛错中断后续流程
         j = auth.get_job(job_id)
         if not j or j.status != "running":
@@ -40,18 +42,19 @@ def _run_single_file_conversion(
         t = max(int(total), 1)
         d = max(0, min(int(done), t))
         pct = int(round(100.0 * d / t))
-        pct = max(0, min(100, pct))
-        if d >= t and pct >= 100:
-            pct = 98
-        note = f"PDF 已完成 {d}/{t} 页"
+        pct = max(0, min(99, pct))
+        note = "任务已提交，等待调度…"
+        if pct >= 10:
+            note = "正在解析中…"
         if d >= t:
-            note = "PDF 页码已完成，正在后处理…"
+            pct = 99
+            note = "解析完成，正在整理结果…"
         auth.update_job_progress(
             job_id,
             percent=pct,
             note=note,
-            pages_done=d,
-            pages_total=t,
+            pages_done=None,
+            pages_total=None,
         )
 
     if not input_file.is_file():
@@ -63,12 +66,15 @@ def _run_single_file_conversion(
         return (not j) or j.status != "running"
 
     try:
-        conv_result = service.convert_to_markdown(
-    str(input_file),
-    str(output_file),
-    progress_callback=on_pdf_pages,
-    cancel_check=cancel_check,
-)
+        service.convert_to_markdown(
+            str(input_file),
+            str(output_file),
+            backend_override=mineru_backend,
+            remote_task_id=mineru_task_id,
+            on_remote_task_id=lambda tid: auth.set_job_mineru_task_id(job_id, tid),
+            progress_callback=on_parse_progress,
+            cancel_check=cancel_check,
+        )
 
     except ConversionError as exc:
         auth.update_job_file_counts(
@@ -91,13 +97,6 @@ def _run_single_file_conversion(
         auth.mark_job_failed(job_id, f"转换失败: {exc!s}"[:4000])
         return
 
-    result_extra: str | None = None
-    if conv_result.pdf_vl_failed_pages:
-        result_extra = json.dumps(
-            {"pdf_vl_failed_pages": list(conv_result.pdf_vl_failed_pages)},
-            ensure_ascii=False,
-        )
-
     latest = auth.get_job(job_id)
     if not latest or latest.status != "running":
         if output_file.exists():
@@ -114,7 +113,7 @@ def _run_single_file_conversion(
         succeeded_files=1,
         failed_files=0,
     )
-    auth.mark_job_succeeded(job_id, str(output_file.resolve()), result_extra=result_extra)
+    auth.mark_job_succeeded(job_id, str(output_file.resolve()), result_extra=None)
 
 
 def _run_directory_conversion(
@@ -124,6 +123,7 @@ def _run_directory_conversion(
     service: ConversionService,
     input_root: Path,
     output_root: Path,
+    mineru_backend: str | None,
 ) -> None:
     if not input_root.is_dir():
         auth.mark_job_failed(job_id, "输入目录不存在")
@@ -158,27 +158,27 @@ def _run_directory_conversion(
         dst.parent.mkdir(parents=True, exist_ok=True)
 
         def make_pdf_callback(file_idx: int, file_total: int, file_name: str):
-            def on_pdf_pages(done: int, total: int) -> None:
+            def on_parse_progress(done: int, total: int) -> None:
                 j = auth.get_job(job_id)
                 if not j or j.status != "running":
                     raise RuntimeError("任务已取消")
                 t = max(int(total), 1)
                 d = max(0, min(int(done), t))
-                file_pct = int(round(100.0 * (file_idx - 1) / file_total))
-                page_pct = int(round(100.0 * d / t))
-                combined_pct = min(98, file_pct + int(round(page_pct / file_total)))
-                note = f"PDF 已完成 {d}/{t} 页"
+                combined_pct = int(round(100.0 * ((file_idx - 1) + (d / t)) / file_total))
+                combined_pct = max(0, min(99, combined_pct))
+                note = f"正在解析（{file_idx}/{file_total}）…"
                 if d >= t:
-                    note = "PDF 页码已完成，正在后处理…"
+                    combined_pct = min(99, max(combined_pct, int(round(100.0 * file_idx / file_total)) - 1))
+                    note = f"文件解析完成（{file_idx}/{file_total}），正在整理结果…"
                 auth.update_job_progress(
                     job_id,
-                    percent=max(0, min(99, combined_pct)),
+                    percent=combined_pct,
                     note=note,
-                    pages_done=d,
-                    pages_total=t,
+                    pages_done=None,
+                    pages_total=None,
                     current_file_name=file_name,
                 )
-            return on_pdf_pages
+            return on_parse_progress
 
         def cancel_check() -> bool:
             j = auth.get_job(job_id)
@@ -198,6 +198,7 @@ def _run_directory_conversion(
             service.convert_to_markdown(
                 str(src),
                 str(dst),
+                backend_override=mineru_backend,
                 progress_callback=make_pdf_callback(idx, total, src.name),
                 cancel_check=cancel_check,
             )
@@ -266,6 +267,8 @@ def _run_conversion_in_subprocess(
     input_root: str | None,
     output_root: str | None,
     is_directory: int,
+    mineru_backend: str | None,
+    mineru_task_id: str | None,
 ) -> None:
     config = AppConfig.from_env()
     run_log_file = (os.getenv("RUN_LOG_FILE") or "").strip()
@@ -289,6 +292,7 @@ def _run_conversion_in_subprocess(
             service=service,
             input_root=Path(input_root or ""),
             output_root=Path(output_root or ""),
+            mineru_backend=mineru_backend,
         )
         return
 
@@ -298,6 +302,8 @@ def _run_conversion_in_subprocess(
         service=service,
         input_file=Path(input_file),
         output_file=Path(output_file),
+        mineru_backend=mineru_backend,
+        mineru_task_id=mineru_task_id,
     )
 
 
@@ -318,7 +324,7 @@ class JobQueueWorker:
         self._active_lock = threading.Lock()
         self._active_procs: dict[str, mp.Process] = {}
         self._thread = threading.Thread(
-            target=self._loop, name="docling-job-worker", daemon=True
+            target=self._loop, name="parse-job-worker", daemon=True
         )
         self._thread.start()
 
@@ -396,7 +402,7 @@ class JobQueueWorker:
             input=inp.name,
             output=out.name,
         )
-        self.auth.update_job_progress(job_id, note="图转文准备中（正在初始化）")
+        self.auth.update_job_progress(job_id, note="准备处理任务…")
 
         proc = mp.Process(
             target=_run_conversion_in_subprocess,
@@ -408,8 +414,10 @@ class JobQueueWorker:
                 "input_root": rec.input_root,
                 "output_root": rec.output_root,
                 "is_directory": rec.is_directory,
+                "mineru_backend": rec.mineru_backend,
+                "mineru_task_id": rec.mineru_task_id,
             },
-            name=f"docling-job-{job_id[:8]}",
+            name=f"parse-job-{job_id[:8]}",
             daemon=True,
         )
         try:

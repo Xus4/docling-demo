@@ -84,6 +84,8 @@ class JobRecord:
     processed_files: int | None = None
     succeeded_files: int | None = None
     failed_files: int | None = None
+    mineru_backend: str | None = None
+    mineru_task_id: str | None = None
 
 
 class AuthStore:
@@ -163,6 +165,9 @@ class AuthStore:
                             processed_files INTEGER,
                             succeeded_files INTEGER,
                             failed_files INTEGER
+                            ,
+                            mineru_backend VARCHAR(64),
+                            mineru_task_id VARCHAR(128)
                         )
                         """
                     )
@@ -211,6 +216,9 @@ class AuthStore:
                             processed_files INTEGER,
                             succeeded_files INTEGER,
                             failed_files INTEGER
+                            ,
+                            mineru_backend TEXT,
+                            mineru_task_id TEXT
                         )
                         """
                     )
@@ -254,6 +262,8 @@ class AuthStore:
             ("processed_files", "ALTER TABLE jobs ADD COLUMN processed_files INTEGER"),
             ("succeeded_files", "ALTER TABLE jobs ADD COLUMN succeeded_files INTEGER"),
             ("failed_files", "ALTER TABLE jobs ADD COLUMN failed_files INTEGER"),
+            ("mineru_backend", "ALTER TABLE jobs ADD COLUMN mineru_backend TEXT"),
+            ("mineru_task_id", "ALTER TABLE jobs ADD COLUMN mineru_task_id TEXT"),
         ]:
             if name not in cols:
                 stmts.append(ddl)
@@ -429,6 +439,16 @@ class AuthStore:
                 if "failed_files" in keys and row["failed_files"] is not None
                 else None
             ),
+            mineru_backend=(
+                str(row["mineru_backend"])
+                if "mineru_backend" in keys and row["mineru_backend"] is not None
+                else None
+            ),
+            mineru_task_id=(
+                str(row["mineru_task_id"])
+                if "mineru_task_id" in keys and row["mineru_task_id"] is not None
+                else None
+            ),
         )
 
     def insert_job(
@@ -448,6 +468,8 @@ class AuthStore:
         processed_files: int | None = None,
         succeeded_files: int | None = None,
         failed_files: int | None = None,
+        mineru_backend: str | None = None,
+        mineru_task_id: str | None = None,
     ) -> None:
         now = _utc_now_iso()
         with self.engine.begin() as conn:
@@ -459,11 +481,13 @@ class AuthStore:
                         status, input_file, output_file, created_at,
                         is_directory, input_root, output_root,
                         total_files, processed_files, succeeded_files, failed_files
+                        , mineru_backend, mineru_task_id
                     ) VALUES (
                         :job_id, :owner_username, :role_snapshot, :original_filename,
                         :status, :input_file, :output_file, :created_at,
                         :is_directory, :input_root, :output_root,
                         :total_files, :processed_files, :succeeded_files, :failed_files
+                        , :mineru_backend, :mineru_task_id
                     )
                     """
                 ),
@@ -483,6 +507,8 @@ class AuthStore:
                     "processed_files": processed_files,
                     "succeeded_files": succeeded_files,
                     "failed_files": failed_files,
+                    "mineru_backend": mineru_backend,
+                    "mineru_task_id": mineru_task_id,
                 },
             )
 
@@ -624,6 +650,7 @@ class AuthStore:
                         current_file_name = NULL,
                         result_extra = NULL,
                         output_file = COALESCE(:output_file, output_file),
+                        mineru_task_id = NULL,
                         processed_files = 0,
                         succeeded_files = 0,
                         failed_files = 0
@@ -633,6 +660,21 @@ class AuthStore:
                 {"created_at": now, "job_id": job_id, "output_file": output_file},
             )
             return bool(cur.rowcount and cur.rowcount > 0)
+
+    def set_job_mineru_task_id(self, job_id: str, task_id: str) -> None:
+        tid = str(task_id or "").strip()
+        if not tid:
+            return
+        with self.engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE jobs SET mineru_task_id = :task_id
+                    WHERE job_id = :job_id
+                    """
+                ),
+                {"task_id": tid[:128], "job_id": job_id},
+            )
 
     def try_mark_job_cancelled_queued(self, job_id: str) -> bool:
         return self.try_mark_job_cancelled(job_id)

@@ -1,4 +1,4 @@
-﻿import unittest
+import unittest
 
 from fastapi import HTTPException
 
@@ -59,15 +59,6 @@ class TestWebappJobUtils(unittest.TestCase):
     def test_safe_rel_path_rejects_parent(self) -> None:
         with self.assertRaises(HTTPException):
             safe_rel_path("../x.pdf")
-
-    def test_job_to_api_dict_extracts_pdf_vl_failed_pages(self) -> None:
-        job = _build_job(
-            status="succeeded",
-            result_extra='{"pdf_vl_failed_pages":[1,"2"," x "]}',
-        )
-        out = job_to_api_dict(job)
-        self.assertEqual(out["pdf_vl_failed_pages"], [1, 2])
-        self.assertEqual(out["progress_percent"], 100)
 
     def test_job_to_api_dict_extracts_failed_files_preview(self) -> None:
         job = _build_job(

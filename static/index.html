@@ -154,6 +154,16 @@
               <p class="selected-list-title">已选条目</p>
               <div id="selectedList" class="history-list"></div>
             </div>
+            <label class="filter-field" style="max-width: 320px">
+              <span>解析方式</span>
+              <select id="mineruBackendSelect" aria-label="选择 MinerU 解析后端">
+                <option value="hybrid-http-client">hybrid-http-client</option>
+                <option value="hybrid-auto-engine">hybrid-auto-engine</option>
+                <option value="pipeline">pipeline</option>
+                <option value="vlm-http-client">vlm-http-client</option>
+                <option value="vlm-auto-engine">vlm-auto-engine</option>
+              </select>
+            </label>
             <button id="convertBtn" class="primary-btn" type="button" disabled>上传并转换</button>
           </div>
 
@@ -317,6 +327,7 @@
 const selectedList = document.getElementById("selectedList");
 
       const convertBtn = document.getElementById("convertBtn");
+      const mineruBackendSelect = document.getElementById("mineruBackendSelect");
       const progressWrap = document.getElementById("progressWrap");
       const progressTrack = document.getElementById("progressTrack");
       const progressFill = document.getElementById("progressFill");
@@ -382,11 +393,11 @@ const selectedList = document.getElementById("selectedList");
       }
 
       const STORAGE_KEYS = {
-        theme: "docling_theme",
-        history: "docling_history",
-        rememberedUser: "docling_remembered_user",
-        accessToken: "docling_access_token",
-        tokenExpiresAt: "docling_token_expires_at",
+        theme: "docparse_theme",
+        history: "docparse_history",
+        rememberedUser: "docparse_remembered_user",
+        accessToken: "docparse_access_token",
+        tokenExpiresAt: "docparse_token_expires_at",
       };
 
       function getStoredAccessToken() {
@@ -558,6 +569,33 @@ const selectedList = document.getElementById("selectedList");
         return parts.join("、") + " 智能转 Markdown";
       }
 
+      function initMineruBackendSelector(configData) {
+        if (!mineruBackendSelect) return;
+        const options = Array.isArray(configData && configData.mineru_backend_options)
+          ? configData.mineru_backend_options
+          : [];
+        const defaults = (configData && configData.mineru_backend_default) || "";
+        if (options.length) {
+          const prev = mineruBackendSelect.value;
+          mineruBackendSelect.innerHTML = options
+            .map((v) => {
+              const val = String(v || "").trim();
+              if (!val) return "";
+              return '<option value="' + val.replace(/"/g, "&quot;") + '">' + val + "</option>";
+            })
+            .join("");
+          if (prev && options.indexOf(prev) !== -1) {
+            mineruBackendSelect.value = prev;
+          } else if (defaults && options.indexOf(defaults) !== -1) {
+            mineruBackendSelect.value = defaults;
+          } else if (options.length) {
+            mineruBackendSelect.value = options[0];
+          }
+          return;
+        }
+        if (defaults) mineruBackendSelect.value = defaults;
+      }
+
       async function initProductTagline() {
         if (!productTagline) return;
         try {
@@ -571,9 +609,16 @@ const selectedList = document.getElementById("selectedList");
           }
           const data = await resp.json();
           productTagline.textContent = formatSupportedFormatsLine(data.allowed_types);
+          initMineruBackendSelector(data);
         } catch (e) {
           productTagline.textContent = formatSupportedFormatsLine(null);
         }
+      }
+
+      function appendMineruBackendField(formData) {
+        if (!formData || !mineruBackendSelect) return;
+        const v = String(mineruBackendSelect.value || "").trim();
+        if (v) formData.append("mineru_backend", v);
       }
 
       const TASK_PAGE_SIZES = [10, 20, 50];
@@ -1270,15 +1315,7 @@ if (selectedList) selectedList.innerHTML = "";
                   job.queue_total +
                   " 位</div>"
                 : "";
-            const partialPagesLine =
-              job.status === "succeeded" &&
-              Array.isArray(job.pdf_vl_failed_pages) &&
-              job.pdf_vl_failed_pages.length
-                ? '<div class="task-queue-meta">部分页转写未完成（页码：' +
-                  job.pdf_vl_failed_pages.join("、") +
-                  "）</div>"
-                : "";
-                    let progressBlock = "";
+            let progressBlock = "";
         if (job.status === "running") {
           let pct = Number(job.progress_percent);
           if (!Number.isFinite(pct)) {
@@ -1307,35 +1344,16 @@ if (selectedList) selectedList.innerHTML = "";
             fileHint = " · 文件 " + currentIdx + "/" + job.total_files;
           }
 
-          let pageHint = "";
-          if (
-            job.progress_pages_done != null &&
-            job.progress_pages_total != null &&
-            Number(job.progress_pages_total) > 0
-          ) {
-            pageHint =
-              " · 第 " + job.progress_pages_done + "/" + job.progress_pages_total + " 页";
-          }
-
           let progressNote = note;
-          const pdfPageMatch = noteRaw.match(/PDF 已完成\s+(\d+)\/(\d+)\s*页/);
-          if (pdfPageMatch) {
-            pageHint = "";
-            if (job.current_file_name) {
-              const currentName = String(job.current_file_name).split('/').pop().split('\\').pop();
-              progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
-            }
-          } else {
-            const noteMatch = noteRaw.match(/正在处理\s+\d+\/\d+\s*[:：]\s*(.+)$/);
-            if (noteMatch && noteMatch[1]) {
-              let currentName = noteMatch[1].trim();
-              currentName = String(currentName).split('/').pop().split('\\').pop();
-              progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
-            } else if (job.current_file_name || job.current_filename) {
-              let currentName = job.current_file_name || job.current_filename;
-              currentName = String(currentName).split('/').pop().split('\\').pop();
-              progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
-            }
+          const noteMatch = noteRaw.match(/正在处理\s+\d+\/\d+\s*[:：]\s*(.+)$/);
+          if (noteMatch && noteMatch[1]) {
+            let currentName = noteMatch[1].trim();
+            currentName = String(currentName).split('/').pop().split('\\').pop();
+            progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
+          } else if (job.current_file_name || job.current_filename) {
+            let currentName = job.current_file_name || job.current_filename;
+            currentName = String(currentName).split('/').pop().split('\\').pop();
+            progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
           }
 
           progressBlock =
@@ -1348,7 +1366,6 @@ if (selectedList) selectedList.innerHTML = "";
             '<div class="task-progress-note">' +
             progressNote +
             fileHint +
-            pageHint +
             " · " +
             pct +
             "%</div></div>";
@@ -1514,7 +1531,6 @@ if (selectedList) selectedList.innerHTML = "";
               metaElapsed +
               "</div>" +
               queueLine +
-              partialPagesLine +
               messageLine +
               progressBlock +
               err +
@@ -1725,10 +1741,6 @@ if (selectedList) selectedList.innerHTML = "";
     const f = parseIsoMs(job.finished_at);
     if (st != null && f != null && f >= st) {
       msg += "，耗时 " + formatDurationZh(f - st);
-    }
-
-    if (Array.isArray(job.pdf_vl_failed_pages) && job.pdf_vl_failed_pages.length) {
-      msg += "（部分页未成功：第 " + job.pdf_vl_failed_pages.join("、") + " 页）";
     }
 
     setStatus("success", msg);
@@ -2571,6 +2583,7 @@ folderInput.addEventListener("change", () => {
               formData.append("relative_paths", rel);
               formData.append("upload_kind", "file");
               formData.append("root_name", "");
+              appendMineruBackendField(formData);
 
               const { ok, status, payload } = await postJobsWithUploadProgress(
                 formData,
@@ -2606,6 +2619,7 @@ folderInput.addEventListener("change", () => {
             formData.append("relative_paths", f.name);
             formData.append("upload_kind", "file");
             formData.append("root_name", "");
+            appendMineruBackendField(formData);
 
             const { ok, status, payload } = await postJobsWithUploadProgress(formData, myGen, f.size || 0);
             if (status === 401) {
@@ -2647,6 +2661,7 @@ folderInput.addEventListener("change", () => {
               formData.append("relative_paths", f.name);
               formData.append("upload_kind", "file");
               formData.append("root_name", "");
+              appendMineruBackendField(formData);
 
               const { ok, status, payload } = await postJobsWithUploadProgress(formData, myGen, f.size || 0);
               if (status === 401) {

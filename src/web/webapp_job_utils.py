@@ -5,8 +5,6 @@ import os
 import re
 import shutil
 import tempfile
-import time
-from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -50,6 +48,7 @@ def job_to_api_dict(
         "processed_files": job.processed_files,
         "succeeded_files": job.succeeded_files,
         "failed_files": job.failed_files,
+        "mineru_backend": job.mineru_backend,
     }
     if job.status == "succeeded":
         out["download_url"] = f"/jobs/{job.job_id}/download"
@@ -78,23 +77,11 @@ def job_to_api_dict(
         out["progress_pages_total"] = None
         out["current_file_name"] = None
 
-    out["pdf_vl_failed_pages"] = None
     out["failed_files_preview"] = None
     if job.status == "succeeded" and job.result_extra:
         try:
             data = json.loads(job.result_extra)
             if isinstance(data, dict):
-                pages = data.get("pdf_vl_failed_pages")
-                if isinstance(pages, list) and pages:
-                    nums: list[int] = []
-                    for x in pages:
-                        if isinstance(x, int):
-                            nums.append(x)
-                        elif isinstance(x, str) and x.strip().isdigit():
-                            nums.append(int(x.strip()))
-                    if nums:
-                        out["pdf_vl_failed_pages"] = nums
-
                 failed_files = data.get("failed_files")
                 if isinstance(failed_files, list) and failed_files:
                     preview: list[dict[str, str]] = []
@@ -109,22 +96,9 @@ def job_to_api_dict(
                     if preview:
                         out["failed_files_preview"] = preview
         except (json.JSONDecodeError, TypeError, ValueError):
-            out["pdf_vl_failed_pages"] = None
+            out["failed_files_preview"] = None
 
     return out
-
-
-def wait_job_terminal(
-    job_id: str,
-    get_job: Callable[[str], JobRecord | None],
-    poll_seconds: float = 0.25,
-) -> JobRecord:
-    terminal = frozenset({"succeeded", "failed", "cancelled"})
-    while True:
-        row = get_job(job_id)
-        if row and row.status in terminal:
-            return row
-        time.sleep(poll_seconds)
 
 
 def safe_rel_path(raw: str) -> Path:

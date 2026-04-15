@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from config import AppConfig
-from src.converter import IndustrialDocConverter
+from src.mineru_client import MinerUError, mineru_client_config_from_app, run_mineru_convert
 
 
 class ConversionError(Exception):
@@ -26,18 +26,14 @@ class ConversionJobPaths:
 
 @dataclass(frozen=True)
 class ConvertToMarkdownResult:
-    """convert_to_markdown 返回值：输出路径 + pdf-vl 单页失败页码（1-based，无则为空元组）。"""
-
     output_path: Path
-    pdf_vl_failed_pages: tuple[int, ...]
 
 
 class ConversionService:
+    """上传工作区；解析通过 MinerU HTTP API（默认 MINERU_BASE_URL 见 config）。"""
+
     def __init__(self, app_config: AppConfig) -> None:
         self.app_config = app_config
-        self.converter = IndustrialDocConverter(
-            config=self.app_config.build_converter_config()
-        )
 
     def validate_extension(self, filename: str) -> str:
         ext = Path(filename).suffix.lower().lstrip(".")
@@ -120,20 +116,35 @@ class ConversionService:
         input_path: str,
         output_path: str,
         *,
+        backend_override: str | None = None,
+        remote_task_id: str | None = None,
+        on_remote_task_id: Callable[[str], None] | None = None,
         progress_callback: Callable[[int, int], None] | None = None,
         cancel_check: Callable[[], bool] | None = None,
     ) -> ConvertToMarkdownResult:
         src = Path(input_path).resolve()
         dst = Path(output_path).resolve()
-        self.converter.convert_path_to_markdown(
-            src,
-            dst,
-            progress_callback=progress_callback,
-            cancel_check=cancel_check,
-        )
-        failed = self.converter.last_pdf_vl_failed_pages
-        pages = tuple(failed) if failed else ()
-        return ConvertToMarkdownResult(dst, pages)
+        if not src.is_file():
+            raise ConversionError("输入文件不存在")
+        if not str(self.app_config.mineru_base_url).strip():
+            raise ConversionError(
+                "未配置 MINERU_BASE_URL。请在环境变量中设置为 mineru-api 根地址（默认 http://192.168.2.60:8011）。"
+            )
+        mcfg = mineru_client_config_from_app(self.app_config)
+        try:
+            run_mineru_convert(
+                input_path=src,
+                output_path=dst,
+                cfg=mcfg,
+                backend_override=backend_override,
+                resume_task_id=remote_task_id,
+                on_remote_task_id=on_remote_task_id,
+                progress_callback=progress_callback,
+                cancel_check=cancel_check,
+            )
+        except MinerUError as exc:
+            raise ConversionError(str(exc)) from exc
+        return ConvertToMarkdownResult(dst)
 
     def iter_supported_files(self, input_root: Path):
         for path in sorted(input_root.rglob("*")):

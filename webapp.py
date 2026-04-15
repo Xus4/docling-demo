@@ -36,7 +36,6 @@ from src.web.webapp_job_utils import (
     normalize_job_id as _normalize_job_id,
     remove_job_workspace as _remove_job_workspace,
     safe_rel_path as _safe_rel_path,
-    wait_job_terminal as _wait_job_terminal,
     zip_job_output_folder as _zip_job_output_folder,
 )
 from src.web.webapp_uploads import ingest_uploads_create_job
@@ -57,8 +56,6 @@ from src.web.webapp_job_actions import (
     get_job_detail_payload,
     retry_job_payload,
 )
-from src.web.webapp_legacy_convert import handle_legacy_convert
-
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "static"
 
@@ -147,7 +144,7 @@ async def _lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="鏅烘灑鏂囨。",
+    title="智枢文档",
     debug=config.debug,
     lifespan=_lifespan,
 )
@@ -187,6 +184,7 @@ async def _ingest_uploads_create_job(
     relative_paths: list[str] | None,
     upload_kind: str,
     root_name: str,
+    mineru_backend: str | None,
 ) -> str:
     return await ingest_uploads_create_job(
         request,
@@ -195,6 +193,7 @@ async def _ingest_uploads_create_job(
         relative_paths=relative_paths,
         upload_kind=upload_kind,
         root_name=root_name,
+        mineru_backend=mineru_backend,
         require_auth_user=_require_auth_user,
         safe_rel_path=_safe_rel_path,
         remove_job_workspace=_remove_job_workspace_for_app,
@@ -227,6 +226,14 @@ def app_config_public() -> dict[str, object]:
     return {
         "allowed_types": sorted(config.allowed_types),
         "max_file_size_bytes": config.max_file_size_bytes,
+        "mineru_backend_default": config.mineru_backend,
+        "mineru_backend_options": [
+            "pipeline",
+            "vlm-auto-engine",
+            "vlm-http-client",
+            "hybrid-auto-engine",
+            "hybrid-http-client",
+        ],
     }
 
 
@@ -300,6 +307,7 @@ async def create_job(
     relative_paths: list[str] | None = Form(None),
     upload_kind: str = Form("file"),
     root_name: str = Form(""),
+    mineru_backend: str | None = Form(None),
 ) -> dict[str, object]:
     job_id = await _ingest_uploads_create_job(
         request,
@@ -308,6 +316,7 @@ async def create_job(
         relative_paths=relative_paths,
         upload_kind=upload_kind,
         root_name=root_name,
+        mineru_backend=mineru_backend,
     )
     rec = auth_store.get_job(job_id)
     if not rec:
@@ -426,23 +435,3 @@ def batch_download_jobs(
         log=log,
         background_tasks=background_tasks,
     )
-
-
-@app.post("/convert")
-async def convert(request: Request, file: UploadFile = File(...)) -> dict[str, str]:
-    return await handle_legacy_convert(
-        request=request,
-        file=file,
-        ingest_uploads_create_job=_ingest_uploads_create_job,
-        wait_job_terminal=_wait_job_terminal,
-        get_job=auth_store.get_job,
-    )
-
-
-@app.get("/download/{job_id}")
-def download_legacy(
-    job_id: str, request: Request, background_tasks: BackgroundTasks
-) -> FileResponse:
-    return download_job_result(job_id, request, background_tasks)
-
-

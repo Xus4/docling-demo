@@ -6,15 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# OpenCV/PIL/Docling 常见系统依赖（CPU 版）
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libglib2.0-0 \
-    libgl1 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
-    && rm -rf /var/lib/apt/lists/*
-
+# Pillow 等轮子多为 manylinux，一般无需系统库；若镜像内处理 TIFF/WebP 等异常再按需安装 libjpeg/zlib 等
 COPY requirements.txt ./
 RUN pip install --upgrade pip && pip install -r requirements.txt
 

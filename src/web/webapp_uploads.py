@@ -20,6 +20,7 @@ async def ingest_uploads_create_job(
     relative_paths: list[str] | None,
     upload_kind: str,
     root_name: str,
+    mineru_backend: str | None = None,
     require_auth_user: Callable[[Request], AuthUser],
     safe_rel_path: Callable[[str], Path],
     remove_job_workspace: Callable[[str], None],
@@ -31,6 +32,18 @@ async def ingest_uploads_create_job(
     short_job_id: Callable[[str], str],
 ) -> str:
     user = require_auth_user(request)
+    backend_raw = (mineru_backend or "").strip()
+    if backend_raw:
+        allowed_backends = {
+            "pipeline",
+            "vlm-auto-engine",
+            "vlm-http-client",
+            "hybrid-auto-engine",
+            "hybrid-http-client",
+        }
+        if backend_raw not in allowed_backends:
+            raise HTTPException(status_code=400, detail=f"不支持的 mineru_backend: {backend_raw}")
+    backend_value = backend_raw or None
 
     upload_kind = (upload_kind or "file").strip().lower()
     if upload_kind not in {"file", "folder"}:
@@ -98,6 +111,7 @@ async def ingest_uploads_create_job(
                 processed_files=0,
                 succeeded_files=0,
                 failed_files=0,
+                mineru_backend=backend_value,
             )
             job_worker.enqueue(paths.job_id)
             log.info(
@@ -154,6 +168,7 @@ async def ingest_uploads_create_job(
             processed_files=0,
             succeeded_files=0,
             failed_files=0,
+            mineru_backend=backend_value,
         )
         job_worker.enqueue(paths.job_id)
         log_event(

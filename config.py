@@ -3,12 +3,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, cast
+from typing import Literal
 
 from dotenv import load_dotenv
-
-if TYPE_CHECKING:
-    from src.converter import ConverterConfig
 
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env", override=False)
@@ -43,7 +40,6 @@ def _parse_size_to_bytes(size_str: str | None, default_bytes: int) -> int:
 
 
 def env_str(key: str, default: str) -> str:
-    """读取环境变量字符串；空或未设置时用 default（供 Web/CLI 共用）。"""
     v = os.getenv(key)
     if v is None or not str(v).strip():
         return default
@@ -58,14 +54,6 @@ def env_int(key: str, default: int) -> int:
 def env_float(key: str, default: float) -> float:
     v = os.getenv(key, "").strip()
     return float(v) if v else default
-
-
-def env_optional_int(key: str, default: int | None) -> int | None:
-    """未设置或空字符串时返回 default；否则解析为 int。"""
-    v = os.getenv(key, "").strip()
-    if not v:
-        return default
-    return int(v)
 
 
 def env_bool(key: str, default: bool) -> bool:
@@ -102,6 +90,20 @@ def _parse_allowed_types(value: str | None) -> set[str]:
     return parsed or default_types
 
 
+def _parse_lang_list(raw: str | None) -> tuple[str, ...]:
+    if not raw or not str(raw).strip():
+        return ("ch",)
+    parts = [x.strip() for x in str(raw).split(",") if x.strip()]
+    return tuple(parts) if parts else ("ch",)
+
+
+def _normalize_mineru_parse_mode(value: str | None) -> Literal["async", "sync"]:
+    v = (value or "async").strip().lower()
+    if v == "sync":
+        return "sync"
+    return "async"
+
+
 def _normalize_db_type(value: str | None) -> str:
     raw = (value or "sqlite").strip().lower()
     if raw in {"sqlite", "mysql"}:
@@ -111,6 +113,8 @@ def _normalize_db_type(value: str | None) -> str:
 
 @dataclass(frozen=True)
 class AppConfig:
+    """Web 服务、上传目录与认证；文档解析由后续 MinerU API 接入。"""
+
     max_file_size_bytes: int
     allowed_types: set[str]
     debug: bool
@@ -118,43 +122,6 @@ class AppConfig:
     input_dir: Path
     output_dir: Path
     worker_max_parallel_jobs: int
-    pdf_vl_primary: bool
-    pdf_vl_dpi: float
-    pdf_vl_workers: int
-    llm_model: str
-    llm_base_url: str
-    llm_api_key_env: str
-    pdf_vl_table_second_pass_max_tables: int
-    max_num_pages: int | None
-    llm_max_tokens: int | None
-    llm_temperature: float
-    llm_max_retries: int
-    llm_retry_backoff_sec: float
-    llm_max_reasoning_tokens: int | None
-    llm_table_caption: bool
-    llm_table_caption_max_chars: int
-    llm_table_caption_max_tables: int
-    llm_table_caption_context_lines: int
-    llm_image_caption: bool
-    llm_image_caption_max_images: int
-    llm_image_caption_max_chars: int
-    llm_image_caption_context_lines: int
-    pdf_caption_crop_figures: bool
-    pdf_caption_crop_max_per_page: int
-    llm_enable_thinking: bool
-    llm_timeout_sec: float
-    llm_empty_content_max_attempts: int
-    llm_log_stream_response: bool
-    llm_vl_image_mode: str
-    llm_cleanup_max_images: int
-    enable_llm_refine: bool
-    llm_table_refine: bool
-    llm_table_cleanup_max_tables: int
-    llm_table_cleanup_max_images_per_table: int
-    llm_table_context_lines: int
-    llm_allow_rerun: bool
-    llm_rerun_max_attempts: int
-    pdf_vl_table_second_pass: bool
     db_type: str
     database_url: str
     auth_db_path: Path
@@ -164,7 +131,6 @@ class AppConfig:
     initial_password: str
     auth_admin_username: str
     auth_users: list[str]
-    # 公司 OA 登录（启用后仅走 OA + 会话，不读写本地 users 表，见 OA_AUTH_*）
     oa_auth_enabled: bool
     oa_auth_login_url: str
     oa_auth_tenant_id: str
@@ -177,6 +143,29 @@ class AppConfig:
     oa_auth_user_agent: str
     oa_auth_cookie: str
     oa_auth_trust_env: bool
+    # --- MinerU（HTTP 客户端 → mineru-api；字段与官方表单一一对应）---
+    mineru_base_url: str  # 服务根 URL；默认内网部署地址
+    mineru_api_key: str | None  # 可选 Bearer；无网关鉴权时 None
+    mineru_timeout_sec: float  # 单次请求超时
+    mineru_poll_interval_sec: float  # async 轮询间隔
+    mineru_max_wait_sec: float  # async 等待终态上限
+    mineru_verify_ssl: bool  # HTTPS 校验开关
+    mineru_parse_mode: Literal["async", "sync"]  # async=/tasks+轮询；sync=/file_parse
+    mineru_backend: str  # pipeline / vlm-* / hybrid-* 等
+    mineru_parse_method: str  # auto | txt | ocr
+    mineru_formula_enable: bool
+    mineru_table_enable: bool
+    mineru_server_url: str | None  # *-http-client 时 OpenAI 兼容根 URL
+    mineru_lang_list: tuple[str, ...]  # 多语言 OCR，多项为多个 lang_list 表单
+    mineru_return_md: bool
+    mineru_return_middle_json: bool
+    mineru_return_model_output: bool
+    mineru_return_content_list: bool
+    mineru_return_images: bool
+    mineru_response_format_zip: bool
+    mineru_return_original_file: bool  # 仅 zip 模式有意义
+    mineru_start_page_id: int  # PDF 起始页，从 0 起
+    mineru_end_page_id: int  # PDF 结束页，从 0 起
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -187,24 +176,7 @@ class AppConfig:
             os.getenv("MAX_FILE_SIZE", "20MB"),
             default_bytes=20 * 1024 * 1024,
         )
-        max_num_pages_raw = os.getenv("MAX_NUM_PAGES", "").strip()
-        llm_max_tokens_raw = os.getenv("LLM_MAX_TOKENS", "").strip()
-        llm_max_tokens = int(llm_max_tokens_raw) if llm_max_tokens_raw else 16384
-        llm_base_url_raw = os.getenv("LLM_BASE_URL", "").strip()
-        _default_llm_base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-        # 表格/图片转述长度：未配置时与 LLM_MAX_TOKENS 对齐，便于单一旋钮调参
-        _table_cap_chars = os.getenv("LLM_TABLE_CAPTION_MAX_CHARS", "").strip()
-        llm_table_caption_max_chars = (
-            max(20, int(_table_cap_chars))
-            if _table_cap_chars
-            else max(20, llm_max_tokens)
-        )
-        _img_cap_chars = os.getenv("LLM_IMAGE_CAPTION_MAX_CHARS", "").strip()
-        llm_image_caption_max_chars = (
-            max(0, int(_img_cap_chars)) if _img_cap_chars else max(0, llm_max_tokens)
-        )
         _oa_tenant_name_raw = os.getenv("OA_AUTH_TENANT_NAME")
-        # 未配置时与常见管理端前端一致（四个空格）；要真正空串请设 OA_AUTH_TENANT_NAME=
         if _oa_tenant_name_raw is None:
             oa_tenant_name = "    "
         else:
@@ -232,7 +204,6 @@ class AppConfig:
                         f"@{mysql_host}:{mysql_port}/{mysql_db}?charset=utf8mb4"
                     )
         else:
-            # _normalize_db_type already validates allowed values.
             database_url = "sqlite:///" + auth_db_path.as_posix()
         return cls(
             max_file_size_bytes=max_file_size_bytes,
@@ -245,61 +216,6 @@ class AppConfig:
                 1,
                 env_int("WORKER_MAX_PARALLEL_JOBS", 1),
             ),
-            pdf_vl_primary=_parse_bool(os.getenv("PDF_VL_PRIMARY"), default=True),
-            pdf_vl_dpi=float(os.getenv("PDF_VL_DPI", "180")),
-            pdf_vl_workers=max(1, int(os.getenv("PDF_VL_WORKERS", "10"))),
-            llm_model=env_str("LLM_MODEL", "qwen3.5:35b-a3b"),
-            llm_base_url=llm_base_url_raw or _default_llm_base_url,
-            llm_api_key_env=env_str("LLM_API_KEY_ENV", "DASHSCOPE_API_KEY"),
-            pdf_vl_table_second_pass_max_tables=max(
-                0, env_int("PDF_VL_TABLE_SECOND_PASS_MAX_TABLES", 0)
-            ),
-            max_num_pages=(int(max_num_pages_raw) if max_num_pages_raw else None),
-            llm_max_tokens=llm_max_tokens,
-            llm_temperature=env_float("LLM_TEMPERATURE", 0.0),
-            llm_max_retries=max(1, env_int("LLM_MAX_RETRIES", 3)),
-            llm_retry_backoff_sec=max(0.1, env_float("LLM_RETRY_BACKOFF_SEC", 1.5)),
-            llm_max_reasoning_tokens=env_int("LLM_MAX_REASONING_TOKENS", 256),
-            llm_table_caption=env_bool("LLM_TABLE_CAPTION", True),
-            llm_table_caption_max_chars=llm_table_caption_max_chars,
-            llm_table_caption_max_tables=max(
-                0, env_int("LLM_TABLE_CAPTION_MAX_TABLES", 0)
-            ),
-            llm_table_caption_context_lines=max(
-                0, env_int("LLM_TABLE_CAPTION_CONTEXT_LINES", 3)
-            ),
-            llm_image_caption=env_bool("LLM_IMAGE_CAPTION", True),
-            llm_image_caption_max_images=max(
-                0, env_int("LLM_IMAGE_CAPTION_MAX_IMAGES", 0)
-            ),
-            llm_image_caption_max_chars=llm_image_caption_max_chars,
-            llm_image_caption_context_lines=max(
-                0, env_int("LLM_IMAGE_CAPTION_CONTEXT_LINES", 3)
-            ),
-            pdf_caption_crop_figures=env_bool("PDF_CAPTION_CROP_FIGURES", True),
-            pdf_caption_crop_max_per_page=max(
-                1, env_int("PDF_CAPTION_CROP_MAX_PER_PAGE", 4)
-            ),
-            llm_enable_thinking=env_bool("LLM_ENABLE_THINKING", True),
-            llm_timeout_sec=max(30.0, env_float("LLM_TIMEOUT_SEC", 300.0)),
-            llm_empty_content_max_attempts=max(
-                1, min(10, env_int("LLM_EMPTY_CONTENT_MAX_ATTEMPTS", 3))
-            ),
-            llm_log_stream_response=env_bool("LLM_LOG_STREAM_RESPONSE", False),
-            llm_vl_image_mode=env_str("LLM_VL_IMAGE_MODE", "local_abs"),
-            llm_cleanup_max_images=max(1, env_int("LLM_CLEANUP_MAX_IMAGES", 6)),
-            enable_llm_refine=env_bool("LLM_ENABLE_REFINE", False),
-            llm_table_refine=env_bool("LLM_TABLE_REFINE", False),
-            llm_table_cleanup_max_tables=max(
-                1, env_int("LLM_TABLE_CLEANUP_MAX_TABLES", 10)
-            ),
-            llm_table_cleanup_max_images_per_table=max(
-                1, env_int("LLM_TABLE_CLEANUP_MAX_IMAGES_PER_TABLE", 6)
-            ),
-            llm_table_context_lines=max(0, env_int("LLM_TABLE_CONTEXT_LINES", 2)),
-            llm_allow_rerun=env_bool("LLM_ALLOW_RERUN", False),
-            llm_rerun_max_attempts=max(0, env_int("LLM_RERUN_MAX_ATTEMPTS", 1)),
-            pdf_vl_table_second_pass=env_bool("PDF_VL_TABLE_SECOND_PASS", True),
             db_type=db_type,
             database_url=database_url,
             auth_db_path=auth_db_path,
@@ -334,56 +250,34 @@ class AppConfig:
             oa_auth_user_agent=os.getenv("OA_AUTH_USER_AGENT", "").strip(),
             oa_auth_cookie=os.getenv("OA_AUTH_COOKIE", "").strip(),
             oa_auth_trust_env=env_bool("OA_AUTH_TRUST_ENV", False),
+            # --- MinerU：与 mineru-api multipart 表单一致（详见 .env 中长注释）---
+            mineru_base_url=env_str(
+                "MINERU_BASE_URL",
+                "http://192.168.2.60:8011",
+            ),
+            mineru_api_key=(os.getenv("MINERU_API_KEY") or "").strip() or None,
+            mineru_timeout_sec=max(30.0, env_float("MINERU_TIMEOUT_SEC", 300.0)),
+            mineru_poll_interval_sec=max(0.2, env_float("MINERU_POLL_INTERVAL_SEC", 1.5)),
+            mineru_max_wait_sec=max(60.0, env_float("MINERU_MAX_WAIT_SEC", 3600.0)),
+            mineru_verify_ssl=env_bool("MINERU_VERIFY_SSL", True),
+            mineru_parse_mode=_normalize_mineru_parse_mode(os.getenv("MINERU_PARSE_MODE")),
+            mineru_backend=env_str("MINERU_BACKEND", "hybrid-auto-engine"),
+            mineru_parse_method=env_str("MINERU_PARSE_METHOD", "auto"),
+            mineru_formula_enable=env_bool("MINERU_FORMULA_ENABLE", True),
+            mineru_table_enable=env_bool("MINERU_TABLE_ENABLE", True),
+            mineru_server_url=(os.getenv("MINERU_SERVER_URL") or "").strip() or None,
+            mineru_lang_list=_parse_lang_list(os.getenv("MINERU_LANG_LIST")),
+            mineru_return_md=env_bool("MINERU_RETURN_MD", True),
+            mineru_return_middle_json=env_bool("MINERU_RETURN_MIDDLE_JSON", False),
+            mineru_return_model_output=env_bool("MINERU_RETURN_MODEL_OUTPUT", False),
+            mineru_return_content_list=env_bool("MINERU_RETURN_CONTENT_LIST", False),
+            mineru_return_images=env_bool("MINERU_RETURN_IMAGES", False),
+            mineru_response_format_zip=env_bool("MINERU_RESPONSE_FORMAT_ZIP", False),
+            mineru_return_original_file=env_bool("MINERU_RETURN_ORIGINAL_FILE", False),
+            mineru_start_page_id=max(0, env_int("MINERU_START_PAGE_ID", 0)),
+            mineru_end_page_id=max(0, env_int("MINERU_END_PAGE_ID", 99999)),
         )
 
     def ensure_dirs(self) -> None:
         self.input_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-
-    def build_converter_config(self) -> "ConverterConfig":
-        from src.converter import ConverterConfig
-
-        vim = self.llm_vl_image_mode.strip().lower()
-        if vim not in ("local_abs", "url"):
-            vim = "local_abs"
-        vim_mode = cast(Literal["local_abs", "url"], vim)
-
-        return ConverterConfig(
-            enable_llm_refine=self.enable_llm_refine,
-            llm_api_key_env=self.llm_api_key_env,
-            pdf_vl_primary=self.pdf_vl_primary,
-            pdf_vl_dpi=self.pdf_vl_dpi,
-            pdf_vl_workers=self.pdf_vl_workers,
-            llm_model=self.llm_model,
-            llm_base_url=self.llm_base_url,
-            pdf_vl_table_second_pass_max_tables=self.pdf_vl_table_second_pass_max_tables,
-            max_num_pages=self.max_num_pages,
-            llm_max_tokens=self.llm_max_tokens,
-            llm_temperature=self.llm_temperature,
-            llm_max_retries=self.llm_max_retries,
-            llm_retry_backoff_sec=self.llm_retry_backoff_sec,
-            llm_max_reasoning_tokens=self.llm_max_reasoning_tokens,
-            llm_table_caption=self.llm_table_caption,
-            llm_table_caption_max_chars=self.llm_table_caption_max_chars,
-            llm_table_caption_max_tables=self.llm_table_caption_max_tables,
-            llm_table_caption_context_lines=self.llm_table_caption_context_lines,
-            llm_image_caption=self.llm_image_caption,
-            llm_image_caption_max_images=self.llm_image_caption_max_images,
-            llm_image_caption_max_chars=self.llm_image_caption_max_chars,
-            llm_image_caption_context_lines=self.llm_image_caption_context_lines,
-            pdf_caption_crop_figures=self.pdf_caption_crop_figures,
-            pdf_caption_crop_max_per_page=self.pdf_caption_crop_max_per_page,
-            llm_enable_thinking=self.llm_enable_thinking,
-            llm_timeout_sec=self.llm_timeout_sec,
-            llm_empty_content_max_attempts=self.llm_empty_content_max_attempts,
-            llm_log_stream_response=self.llm_log_stream_response,
-            llm_vl_image_mode=vim_mode,
-            llm_cleanup_max_images=self.llm_cleanup_max_images,
-            llm_table_refine=self.llm_table_refine,
-            llm_table_cleanup_max_tables=self.llm_table_cleanup_max_tables,
-            llm_table_cleanup_max_images_per_table=self.llm_table_cleanup_max_images_per_table,
-            llm_table_context_lines=self.llm_table_context_lines,
-            llm_allow_rerun=self.llm_allow_rerun,
-            llm_rerun_max_attempts=self.llm_rerun_max_attempts,
-            pdf_vl_table_second_pass=self.pdf_vl_table_second_pass,
-        )

@@ -89,7 +89,7 @@ def build_batch_download_response(
     if len(job_ids) > 500:
         raise HTTPException(status_code=400, detail="批量下载数量过多")
 
-    staging = Path(tempfile.mkdtemp(prefix="docling_jobs_"))
+    staging = Path(tempfile.mkdtemp(prefix="docparse_jobs_"))
     try:
         for jid in job_ids:
             job = auth_store.get_job(jid)
