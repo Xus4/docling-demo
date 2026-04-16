@@ -167,6 +167,8 @@ class ConversionService:
                 model=self.app_config.table_semantic_model,
                 timeout_sec=self.app_config.table_semantic_timeout_sec,
                 thinking_enable=self.app_config.table_semantic_thinking_enable,
+                max_tokens=self.app_config.table_semantic_max_tokens,
+                temperature=self.app_config.table_semantic_temperature,
             )
             base_url = str(self.app_config.table_semantic_base_url).strip()
             log_event(

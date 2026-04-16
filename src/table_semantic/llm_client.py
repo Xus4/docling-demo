@@ -20,6 +20,8 @@ class OpenAICompatibleConfig:
     model: str
     timeout_sec: float
     thinking_enable: bool = False
+    max_tokens: int | None = None  # 最大生成 token 数
+    temperature: float | None = None  # 温度参数 (0-2)
 
 
 @dataclass(frozen=True)
@@ -43,6 +45,16 @@ def _apply_thinking_to_body(
 ) -> None:
     """Ollama ``/v1/chat/completions`` 等：顶层 ``thinking`` 与配置一致，true/false 均显式传入。"""
     body["thinking"] = bool(cfg.thinking_enable)
+
+
+def _apply_generation_params(
+    body: dict[str, Any], cfg: OpenAICompatibleConfig
+) -> None:
+    """应用生成参数到请求体（仅非 None 值）。"""
+    if cfg.max_tokens is not None:
+        body["max_tokens"] = cfg.max_tokens
+    if cfg.temperature is not None:
+        body["temperature"] = cfg.temperature
 
 
 def _safe_int(value: Any) -> int | None:
@@ -98,6 +110,7 @@ def chat_completion_text(
         body["response_format"] = {"type": "json_object"}
 
     _apply_thinking_to_body(body, cfg)
+    _apply_generation_params(body, cfg)
 
     timeout = httpx.Timeout(cfg.timeout_sec, connect=min(30.0, cfg.timeout_sec))
     owns_client = http_client is None
@@ -149,6 +162,7 @@ def chat_completion_text_with_meta(
     if json_mode:
         body["response_format"] = {"type": "json_object"}
     _apply_thinking_to_body(body, cfg)
+    _apply_generation_params(body, cfg)
 
     timeout = httpx.Timeout(cfg.timeout_sec, connect=min(30.0, cfg.timeout_sec))
     owns_client = http_client is None

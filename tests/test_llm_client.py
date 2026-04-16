@@ -139,6 +139,60 @@ class TestOpenAICompatibleClient(unittest.TestCase):
         self.assertNotIn("enable_thinking", body)
         self.assertNotIn("chat_template_kwargs", body)
 
+    def test_generation_params_in_request(self) -> None:
+        """测试生成参数是否正确传递到请求体"""
+        captured: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["body"] = json.loads(request.content.decode())
+            return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}]})
+
+        cfg = OpenAICompatibleConfig(
+            base_url="http://example.com",
+            api_key="k",
+            model="m",
+            timeout_sec=10.0,
+            max_tokens=4000,
+            temperature=0.7,
+        )
+        transport = httpx.MockTransport(handler)
+        with httpx.Client(transport=transport) as client:
+            chat_completion_json_object(
+                cfg=cfg,
+                messages=[{"role": "user", "content": "test"}],
+                http_client=client,
+            )
+        body = captured["body"]
+        assert isinstance(body, dict)
+        self.assertEqual(body.get("max_tokens"), 4000)
+        self.assertEqual(body.get("temperature"), 0.7)
+
+    def test_none_generation_params_not_in_request(self) -> None:
+        """测试 None 值参数不会出现在请求体中"""
+        captured: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["body"] = json.loads(request.content.decode())
+            return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}]})
+
+        cfg = OpenAICompatibleConfig(
+            base_url="http://example.com",
+            api_key="k",
+            model="m",
+            timeout_sec=10.0,
+        )
+        transport = httpx.MockTransport(handler)
+        with httpx.Client(transport=transport) as client:
+            chat_completion_json_object(
+                cfg=cfg,
+                messages=[{"role": "user", "content": "test"}],
+                http_client=client,
+            )
+        body = captured["body"]
+        assert isinstance(body, dict)
+        self.assertNotIn("max_tokens", body)
+        self.assertNotIn("temperature", body)
+
 
 if __name__ == "__main__":
     unittest.main()

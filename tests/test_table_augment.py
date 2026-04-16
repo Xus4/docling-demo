@@ -43,6 +43,28 @@ class TestAugmentMarkdownText(unittest.TestCase):
         self.assertEqual(out1, out2)
         p2.assert_not_called()
 
+    def test_with_generation_params(self) -> None:
+        """测试带有生成参数的配置"""
+        md = "|a|\n|---|\n|1|\n"
+        cfg = OpenAICompatibleConfig(
+            base_url="http://unused",
+            api_key=None,
+            model="m",
+            timeout_sec=5.0,
+            max_tokens=2000,
+            temperature=0.7,
+        )
+
+        def fake_json(*_a: object, **_k: object) -> tuple[dict[str, object], ChatCompletionMeta]:
+            return {"summary": "带参数的语义"}, ChatCompletionMeta()
+
+        with mock.patch(
+            "src.table_semantic.augment.chat_completion_json_object_with_meta",
+            side_effect=fake_json,
+        ):
+            out = augment_markdown_text(md, cfg=cfg, max_concurrency=1)
+        self.assertIn("带参数的语义", out)
+
 
 class TestAugmentMarkdownFile(unittest.TestCase):
     def test_file_roundtrip(self) -> None:

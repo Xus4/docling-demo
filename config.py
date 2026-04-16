@@ -114,6 +114,16 @@ def _env_optional_int(key: str) -> int | None:
     return int(s)
 
 
+def _env_optional_float(key: str) -> float | None:
+    raw = os.getenv(key)
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    return float(s)
+
+
 def _normalize_mineru_parse_mode(value: str | None) -> Literal["async", "sync"]:
     v = (value or "async").strip().lower()
     if v == "sync":
@@ -194,6 +204,8 @@ class AppConfig:
     table_semantic_context_after_chars: int | None  # None 表示取全文后缀
     table_semantic_on_error: Literal["skip", "fail"]
     table_semantic_thinking_enable: bool
+    table_semantic_max_tokens: int | None  # 最大生成 token 数
+    table_semantic_temperature: float | None  # 温度参数 (0-2)
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -321,6 +333,12 @@ class AppConfig:
             ),
             table_semantic_thinking_enable=env_bool(
                 "TABLE_SEMANTIC_THINKING_ENABLE", False
+            ),
+            table_semantic_max_tokens=_env_optional_int(
+                "TABLE_SEMANTIC_MAX_TOKENS"
+            ),
+            table_semantic_temperature=_env_optional_float(
+                "TABLE_SEMANTIC_TEMPERATURE"
             ),
         )
 
