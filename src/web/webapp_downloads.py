@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 
 
 class _JobLike(Protocol):
+    job_id: str
     output_root: str | None
     output_file: str | None
     original_filename: str
@@ -22,17 +23,27 @@ class _AuthStoreLike(Protocol):
     def get_job(self, jid: str) -> _JobLike | None: ...
 
 
-def _job_output_dir(job: _JobLike) -> Path:
-    if job.output_root:
-        job_dir = Path(job.output_root)
-    elif job.output_file:
+def _job_output_dir(job: _JobLike, *, workspace_output_root: Path | None = None) -> Path:
+    """解析任务输出目录：依次尝试库里的 output_root、output_file 所在目录、以及当前配置的 output_dir/job_id。"""
+    candidates: list[Path] = []
+    if job.output_root and str(job.output_root).strip():
+        candidates.append(Path(job.output_root))
+    if job.output_file and str(job.output_file).strip():
         out_path = Path(job.output_file)
-        job_dir = out_path if out_path.is_dir() else out_path.parent
-    else:
-        raise HTTPException(status_code=404, detail="未找到转换结果")
-    if not job_dir.is_dir():
-        raise HTTPException(status_code=404, detail="未找到转换结果目录")
-    return job_dir
+        candidates.append(out_path if out_path.is_dir() else out_path.parent)
+    if workspace_output_root is not None:
+        jid = str(getattr(job, "job_id", "") or "").strip()
+        if jid:
+            candidates.append(Path(workspace_output_root) / jid)
+    for job_dir in candidates:
+        if job_dir.is_dir():
+            return job_dir
+    if candidates:
+        raise HTTPException(
+            status_code=400,
+            detail="未找到转换结果目录，输出可能已被移动或删除",
+        )
+    raise HTTPException(status_code=400, detail="未找到转换结果")
 
 
 def build_single_download_response(
@@ -45,6 +56,7 @@ def build_single_download_response(
     short_job_id: Callable[[str], str],
     log: logging.Logger,
     background_tasks: BackgroundTasks,
+    workspace_output_root: Path | None = None,
 ) -> FileResponse:
     job = auth_store.get_job(jid)
     if not job:
@@ -54,7 +66,7 @@ def build_single_download_response(
     if job.status != "succeeded":
         raise HTTPException(status_code=400, detail="任务未完成或不可下载")
 
-    job_dir = _job_output_dir(job)
+    job_dir = _job_output_dir(job, workspace_output_root=workspace_output_root)
     try:
         zip_path = zip_job_output_folder(job_dir)
     except Exception as exc:
@@ -78,6 +90,8 @@ def build_batch_download_response(
     zip_job_output_folder: Callable[[Path], Path],
     log: logging.Logger,
     background_tasks: BackgroundTasks,
+    workspace_output_root: Path | None = None,
+    zip_filename: str | None = None,
 ) -> FileResponse:
     job_ids: list[str] = []
     for x in raw_ids:
@@ -86,8 +100,6 @@ def build_batch_download_response(
             job_ids.append(jid)
     if not job_ids:
         raise HTTPException(status_code=400, detail="未选择可下载的任务")
-    if len(job_ids) > 500:
-        raise HTTPException(status_code=400, detail="批量下载数量过多")
 
     staging = Path(tempfile.mkdtemp(prefix="docparse_jobs_"))
     try:
@@ -100,7 +112,15 @@ def build_batch_download_response(
             if job.status != "succeeded":
                 raise HTTPException(status_code=400, detail="仅支持下载已完成任务")
 
-            job_dir = _job_output_dir(job)
+            try:
+                job_dir = _job_output_dir(job, workspace_output_root=workspace_output_root)
+            except HTTPException as exc:
+                if exc.status_code == 400 and exc.detail:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"{exc.detail}（任务 {jid[:8]}）",
+                    ) from exc
+                raise
             stem = Path(job.original_filename).stem or "result"
             target = staging / f"{stem}_{jid[:8]}"
             shutil.copytree(job_dir, target, dirs_exist_ok=True)
@@ -119,6 +139,6 @@ def build_batch_download_response(
     return FileResponse(
         path=zip_path,
         media_type="application/zip",
-        filename="jobs.zip",
+        filename=zip_filename or "jobs.zip",
     )
 

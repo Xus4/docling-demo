@@ -255,14 +255,34 @@
                     <span>全选当前页</span>
                   </label>
                   <span id="taskSelectedLabel" class="task-selected-label">已选择 0 项</span>
-                  <button id="batchDownloadBtn" class="task-primary-btn" type="button" disabled>
-                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M12 3V14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-                      <path d="M8 10L12 14L16 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                      <path d="M4 17.5C4 18.8807 5.11929 20 6.5 20H17.5C18.8807 20 20 18.8807 20 17.5V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-                    </svg>
-                    <span>批量下载</span>
-                  </button>
+                  <div class="task-batch-split" id="taskBatchSplit">
+                    <button id="batchDownloadBtn" class="task-primary-btn task-batch-split-main" type="button" disabled>
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M12 3V14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                        <path d="M8 10L12 14L16 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                        <path d="M4 17.5C4 18.8807 5.11929 20 6.5 20H17.5C18.8807 20 20 18.8807 20 17.5V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                      </svg>
+                      <span>批量下载</span>
+                    </button>
+                    <button
+                      id="batchDownloadSplitBtn"
+                      type="button"
+                      class="task-split-trigger"
+                      disabled
+                      aria-label="更多下载方式"
+                      aria-haspopup="menu"
+                      aria-expanded="false"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="16" height="16">
+                        <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                      </svg>
+                    </button>
+                    <div id="batchDownloadDropdown" class="task-dropdown-panel hidden" role="menu" aria-hidden="true">
+                      <button type="button" class="task-dropdown-item" role="menuitem" id="batchDownloadRangeMenuItem">
+                        按时间区间打包…
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -315,6 +335,51 @@
       </div>
     </div>
 
+    <div
+      id="rangeExportModal"
+      class="modal-overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rangeExportTitle"
+      hidden
+    >
+      <div class="modal-dialog modal-dialog-wide range-export-dialog">
+        <h2 id="rangeExportTitle" class="modal-title">按时间区间打包下载</h2>
+        <p id="rangeExportDesc" class="modal-desc">
+          仅打包「已完成」任务，输出为 ZIP。时间区间与下方「关键词」「提交人」筛选（若已设置）一并生效，便于与列表核对。
+        </p>
+        <div class="range-export-form">
+          <fieldset class="range-export-fieldset">
+            <legend class="range-export-legend">时间依据</legend>
+            <div class="range-export-seg" role="radiogroup" aria-label="时间依据">
+              <label class="range-export-radio">
+                <input type="radio" name="rangeExportTimeField" value="created_at" checked />
+                <span>提交时间</span>
+              </label>
+              <label class="range-export-radio">
+                <input type="radio" name="rangeExportTimeField" value="finished_at" />
+                <span>完成时间</span>
+              </label>
+            </div>
+          </fieldset>
+          <div class="range-export-row">
+            <label class="range-export-label" for="rangeExportStart">开始</label>
+            <input id="rangeExportStart" class="range-export-input" type="datetime-local" autocomplete="off" />
+          </div>
+          <div class="range-export-row">
+            <label class="range-export-label" for="rangeExportEnd">结束</label>
+            <input id="rangeExportEnd" class="range-export-input" type="datetime-local" autocomplete="off" />
+          </div>
+          <p id="rangeExportFilterHint" class="range-export-hint" aria-live="polite"></p>
+          <p id="rangeExportCount" class="range-export-count" aria-live="polite">请输入起止时间以预览数量。</p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="modal-btn modal-btn-cancel" id="rangeExportCancel">取消</button>
+          <button type="button" class="modal-btn modal-btn-confirm" id="rangeExportSubmit" disabled>下载 ZIP</button>
+        </div>
+      </div>
+    </div>
+
     <script>
 
       const folderInput = document.getElementById("folderInput");
@@ -353,6 +418,17 @@ const selectedList = document.getElementById("selectedList");
       const historyList = document.getElementById("historyList");
       const refreshTasksBtn = document.getElementById("refreshTasksBtn");
       const batchDownloadBtn = document.getElementById("batchDownloadBtn");
+      const batchDownloadSplitBtn = document.getElementById("batchDownloadSplitBtn");
+      const batchDownloadDropdown = document.getElementById("batchDownloadDropdown");
+      const batchDownloadRangeMenuItem = document.getElementById("batchDownloadRangeMenuItem");
+      const taskBatchSplit = document.getElementById("taskBatchSplit");
+      const rangeExportModal = document.getElementById("rangeExportModal");
+      const rangeExportStart = document.getElementById("rangeExportStart");
+      const rangeExportEnd = document.getElementById("rangeExportEnd");
+      const rangeExportCount = document.getElementById("rangeExportCount");
+      const rangeExportFilterHint = document.getElementById("rangeExportFilterHint");
+      const rangeExportCancel = document.getElementById("rangeExportCancel");
+      const rangeExportSubmit = document.getElementById("rangeExportSubmit");
       const taskPrevBtn = document.getElementById("taskPrevBtn");
       const taskNextBtn = document.getElementById("taskNextBtn");
       const taskPageLabel = document.getElementById("taskPageLabel");
@@ -389,7 +465,7 @@ const selectedList = document.getElementById("selectedList");
       }
       if (batchDownloadBtn) {
         batchDownloadBtn.style.whiteSpace = "nowrap";
-        batchDownloadBtn.style.minWidth = "112px";
+        batchDownloadBtn.style.minWidth = "96px";
       }
 
       const STORAGE_KEYS = {
@@ -474,7 +550,192 @@ const selectedList = document.getElementById("selectedList");
           taskCompletedActions.classList.toggle("hidden", !enabled);
         }
         batchDownloadBtn.disabled = !enabled || n <= 0;
+        if (batchDownloadSplitBtn) {
+          batchDownloadSplitBtn.disabled = !enabled;
+        }
         if (taskSelectedLabel) taskSelectedLabel.textContent = "已选择 " + n + " 项";
+      }
+
+      function localDatetimeLocalToIso(val) {
+        if (!val) return "";
+        const d = new Date(val);
+        if (Number.isNaN(d.getTime())) return "";
+        return d.toISOString();
+      }
+
+      function pad2(n) {
+        return String(n).padStart(2, "0");
+      }
+
+      function dateToDatetimeLocalValue(d) {
+        return (
+          d.getFullYear() +
+          "-" +
+          pad2(d.getMonth() + 1) +
+          "-" +
+          pad2(d.getDate()) +
+          "T" +
+          pad2(d.getHours()) +
+          ":" +
+          pad2(d.getMinutes())
+        );
+      }
+
+      function defaultRangeExportBounds() {
+        const end = new Date();
+        const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return { start: dateToDatetimeLocalValue(start), end: dateToDatetimeLocalValue(end) };
+      }
+
+      function getRangeExportTimeField() {
+        const r = document.querySelector('input[name="rangeExportTimeField"]:checked');
+        return r && r.value === "finished_at" ? "finished_at" : "created_at";
+      }
+
+      function updateRangeExportFilterHint() {
+        if (!rangeExportFilterHint) return;
+        const parts = [];
+        if (taskSearchQuery) parts.push("关键词「" + taskSearchQuery + "」");
+        if (currentUser && currentUser.role === "admin" && taskOwnerFilter && taskOwnerFilter.value) {
+          parts.push("提交人「" + taskOwnerFilter.value + "」");
+        }
+        rangeExportFilterHint.textContent = parts.length
+          ? "当前筛选：" + parts.join("，") + "。"
+          : "当前未设置文件名关键词或提交人筛选。";
+      }
+
+      let rangeExportPreviewTimer = 0;
+      let rangeExportPreviewSeq = 0;
+      let rangeExportLastPreview = null;
+
+      function closeBatchDownloadDropdown() {
+        if (!batchDownloadDropdown) return;
+        batchDownloadDropdown.classList.add("hidden");
+        batchDownloadDropdown.setAttribute("aria-hidden", "true");
+        if (batchDownloadSplitBtn) batchDownloadSplitBtn.setAttribute("aria-expanded", "false");
+      }
+
+      function toggleBatchDownloadDropdown() {
+        if (!batchDownloadDropdown || !batchDownloadSplitBtn || batchDownloadSplitBtn.disabled) return;
+        const open = batchDownloadDropdown.classList.contains("hidden");
+        if (open) {
+          batchDownloadDropdown.classList.remove("hidden");
+          batchDownloadDropdown.setAttribute("aria-hidden", "false");
+          batchDownloadSplitBtn.setAttribute("aria-expanded", "true");
+        } else {
+          closeBatchDownloadDropdown();
+        }
+      }
+
+      function closeRangeExportModal() {
+        if (!rangeExportModal) return;
+        rangeExportModal.classList.add("hidden");
+        rangeExportModal.setAttribute("hidden", "");
+        document.removeEventListener("keydown", onRangeExportModalKey);
+        rangeExportPreviewSeq += 1;
+      }
+
+      function onRangeExportModalKey(e) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          closeRangeExportModal();
+        }
+      }
+
+      function openRangeExportModal() {
+        if (!rangeExportModal || !rangeExportStart || !rangeExportEnd) return;
+        closeBatchDownloadDropdown();
+        const b = defaultRangeExportBounds();
+        rangeExportStart.value = b.start;
+        rangeExportEnd.value = b.end;
+        const rCreated = document.querySelector('input[name="rangeExportTimeField"][value="created_at"]');
+        if (rCreated) rCreated.checked = true;
+        updateRangeExportFilterHint();
+        if (rangeExportCount) rangeExportCount.textContent = "正在统计…";
+        if (rangeExportSubmit) rangeExportSubmit.disabled = true;
+        rangeExportLastPreview = null;
+        rangeExportModal.classList.remove("hidden");
+        rangeExportModal.removeAttribute("hidden");
+        document.addEventListener("keydown", onRangeExportModalKey);
+        scheduleRangeExportPreview(true);
+        setTimeout(function () {
+          try {
+            rangeExportStart.focus();
+          } catch (e) {
+            /* ignore */
+          }
+        }, 0);
+      }
+
+      function scheduleRangeExportPreview(immediate) {
+        if (rangeExportPreviewTimer) {
+          clearTimeout(rangeExportPreviewTimer);
+          rangeExportPreviewTimer = 0;
+        }
+        const delay = immediate ? 0 : 420;
+        rangeExportPreviewTimer = setTimeout(function () {
+          rangeExportPreviewTimer = 0;
+          runRangeExportPreview();
+        }, delay);
+      }
+
+      async function runRangeExportPreview() {
+        if (!rangeExportModal || rangeExportModal.classList.contains("hidden")) return;
+        if (!rangeExportStart || !rangeExportEnd || !rangeExportCount) return;
+        const seq = ++rangeExportPreviewSeq;
+        const ts = localDatetimeLocalToIso(rangeExportStart.value);
+        const te = localDatetimeLocalToIso(rangeExportEnd.value);
+        if (!ts || !te) {
+          rangeExportCount.textContent = "请填写有效的开始与结束时间。";
+          if (rangeExportSubmit) rangeExportSubmit.disabled = true;
+          rangeExportLastPreview = null;
+          return;
+        }
+        const params = new URLSearchParams();
+        params.set("time_field", getRangeExportTimeField());
+        params.set("time_start", ts);
+        params.set("time_end", te);
+        if (taskSearchQuery) params.set("q", taskSearchQuery);
+        if (currentUser && currentUser.role === "admin" && taskOwnerFilter && taskOwnerFilter.value) {
+          params.set("owner", taskOwnerFilter.value);
+        }
+        try {
+          const resp = await fetch("/jobs/succeeded-range-preview?" + params.toString(), {
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: mergeAuthHeaders({}),
+          });
+          if (seq !== rangeExportPreviewSeq) return;
+          if (resp.status === 401) {
+            setAuthState(null);
+            return;
+          }
+          const data = await resp.json().catch(function () {
+            return {};
+          });
+          if (seq !== rangeExportPreviewSeq) return;
+          if (!resp.ok) {
+            rangeExportCount.textContent = data.detail || "预览失败，请检查时间或稍后重试。";
+            if (rangeExportSubmit) rangeExportSubmit.disabled = true;
+            rangeExportLastPreview = null;
+            return;
+          }
+          const n = Number(data.count) || 0;
+          rangeExportLastPreview = { count: n };
+          if (n === 0) {
+            rangeExportCount.textContent = "符合当前条件的已完成任务：0 个，无法打包。";
+            if (rangeExportSubmit) rangeExportSubmit.disabled = true;
+          } else {
+            rangeExportCount.textContent =
+              "符合当前条件的已完成任务：" + n + " 个，将被打包为一个 ZIP。请核对后点击下载。";
+            if (rangeExportSubmit) rangeExportSubmit.disabled = false;
+          }
+        } catch (e) {
+          if (seq !== rangeExportPreviewSeq) return;
+          rangeExportCount.textContent = "预览失败，请检查网络后重试。";
+          if (rangeExportSubmit) rangeExportSubmit.disabled = true;
+          rangeExportLastPreview = null;
+        }
       }
 
       function clearTaskSelections() {
@@ -765,11 +1026,18 @@ const selectedList = document.getElementById("selectedList");
           (isSuccess ? "toast-success" : isWarn ? "toast-warn" : "toast-error");
         toast.textContent =
           (isSuccess ? "✔ " : isWarn ? "⚠ " : "✖ ") + t;
-        var ms = isSuccess ? 3200 : Math.min(9000, Math.max(4500, 800 + t.length * 40));
+        var ms = isSuccess ? 4200 : Math.min(9000, Math.max(4500, 800 + t.length * 40));
         toastTimer = setTimeout(() => {
           toast.className = "toast";
           toast.textContent = "";
         }, ms);
+      }
+
+      /** 在系统/弹层处理完点击后再弹出成功条，避免被遮挡或一闪而过 */
+      function showDownloadSuccessToast(msg) {
+        window.setTimeout(function () {
+          showToast("success", msg || "已开始下载");
+        }, 120);
       }
 
       /** 将 FastAPI / HTTP JSON 里的 detail 转成可读字符串 */
@@ -1942,11 +2210,137 @@ if (selectedList) selectedList.innerHTML = "";
             a.click();
             a.remove();
             URL.revokeObjectURL(url);
-            showToast("success", "已开始下载");
+            showDownloadSuccessToast("已开始下载");
           } catch (e) {
             showToast("error", "批量下载失败");
           } finally {
             syncBatchDownloadButton();
+          }
+        });
+      }
+
+      if (batchDownloadSplitBtn) {
+        batchDownloadSplitBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          e.preventDefault();
+          toggleBatchDownloadDropdown();
+        });
+      }
+
+      if (batchDownloadDropdown) {
+        batchDownloadDropdown.addEventListener("mousedown", function (e) {
+          e.stopPropagation();
+        });
+      }
+
+      if (batchDownloadRangeMenuItem) {
+        batchDownloadRangeMenuItem.addEventListener("click", function () {
+          openRangeExportModal();
+        });
+      }
+
+      document.addEventListener("click", function (e) {
+        if (!taskBatchSplit || !batchDownloadDropdown) return;
+        if (batchDownloadDropdown.classList.contains("hidden")) return;
+        if (!taskBatchSplit.contains(e.target)) {
+          closeBatchDownloadDropdown();
+        }
+      });
+
+      if (rangeExportStart) {
+        rangeExportStart.addEventListener("input", function () {
+          scheduleRangeExportPreview();
+        });
+      }
+      if (rangeExportEnd) {
+        rangeExportEnd.addEventListener("input", function () {
+          scheduleRangeExportPreview();
+        });
+      }
+
+      document.querySelectorAll('input[name="rangeExportTimeField"]').forEach(function (el) {
+        el.addEventListener("change", function () {
+          scheduleRangeExportPreview();
+        });
+      });
+
+      if (rangeExportCancel) {
+        rangeExportCancel.addEventListener("click", function () {
+          closeRangeExportModal();
+        });
+      }
+
+      if (rangeExportModal) {
+        rangeExportModal.addEventListener("click", function (e) {
+          if (e.target === rangeExportModal) {
+            closeRangeExportModal();
+          }
+        });
+      }
+
+      if (rangeExportSubmit) {
+        rangeExportSubmit.addEventListener("click", async function () {
+          if (!rangeExportLastPreview || rangeExportLastPreview.count <= 0) {
+            return;
+          }
+          const ts = localDatetimeLocalToIso(rangeExportStart && rangeExportStart.value);
+          const te = localDatetimeLocalToIso(rangeExportEnd && rangeExportEnd.value);
+          if (!ts || !te) {
+            showToast("error", "请填写有效的开始与结束时间");
+            return;
+          }
+          try {
+            rangeExportSubmit.disabled = true;
+            const body = {
+              time_field: getRangeExportTimeField(),
+              time_start: ts,
+              time_end: te,
+              q: taskSearchQuery || null,
+              owner:
+                currentUser && currentUser.role === "admin" && taskOwnerFilter && taskOwnerFilter.value
+                  ? taskOwnerFilter.value
+                  : null,
+            };
+            const resp = await fetch("/jobs/batch-download-by-range", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: mergeAuthHeaders({ "Content-Type": "application/json" }),
+              body: JSON.stringify(body),
+            });
+            if (resp.status === 401) {
+              setAuthState(null);
+              return;
+            }
+            if (!resp.ok) {
+              const data = await resp.json().catch(function () {
+                return {};
+              });
+              showToast("error", data.detail || "打包下载失败");
+              return;
+            }
+            const blob = await resp.blob();
+            let filename = "jobs.zip";
+            const cd = resp.headers.get("content-disposition") || "";
+            const m = cd.match(/filename=\"?([^\";]+)\"?/i);
+            if (m && m[1]) {
+              filename = m[1];
+            }
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            closeRangeExportModal();
+            showDownloadSuccessToast("已开始下载");
+          } catch (e) {
+            showToast("error", "打包下载失败");
+          } finally {
+            if (rangeExportSubmit) {
+              rangeExportSubmit.disabled = !(rangeExportLastPreview && rangeExportLastPreview.count > 0);
+            }
           }
         });
       }

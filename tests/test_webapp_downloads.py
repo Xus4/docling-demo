@@ -30,14 +30,16 @@ class _FakeAuthStore:
 
 def _job(
     *,
+    job_id: str | None = None,
     status: str = "succeeded",
     output_root: str | None = None,
     output_file: str | None = None,
     owner: str = "u1",
     name: str = "doc.pdf",
 ):
+    jid = job_id or ("a" * 32)
     return SimpleNamespace(
-        job_id="a" * 32,
+        job_id=jid,
         owner_username=owner,
         status=status,
         output_root=output_root,
@@ -80,25 +82,10 @@ class TestWebappDownloads(unittest.TestCase):
                 short_job_id=lambda x: x[:8],
                 log=SimpleNamespace(exception=lambda *a, **k: None),
                 background_tasks=tasks,
+                workspace_output_root=None,
             )
             self.assertIsInstance(resp, FileResponse)
             self.assertEqual(len(tasks.tasks), 1)
-
-    def test_batch_limit_exceeded(self) -> None:
-        tasks = _FakeBackgroundTasks()
-        raw_ids = [f"{i:032x}" for i in range(501)]
-        with self.assertRaises(HTTPException) as ctx:
-            build_batch_download_response(
-                raw_ids=raw_ids,
-                user=SimpleNamespace(username="u1", role="user"),
-                normalize_job_id=lambda x: x,
-                auth_store=_FakeAuthStore({}),
-                can_access_job=lambda _u, _j: True,
-                zip_job_output_folder=lambda _d: Path("x.zip"),
-                log=SimpleNamespace(exception=lambda *a, **k: None),
-                background_tasks=tasks,
-            )
-        self.assertEqual(ctx.exception.status_code, 400)
 
     def test_batch_forbidden(self) -> None:
         tasks = _FakeBackgroundTasks()
@@ -116,6 +103,7 @@ class TestWebappDownloads(unittest.TestCase):
                     zip_job_output_folder=lambda _d: Path("x.zip"),
                     log=SimpleNamespace(exception=lambda *a, **k: None),
                     background_tasks=tasks,
+                    workspace_output_root=None,
                 )
             self.assertEqual(ctx.exception.status_code, 403)
 
@@ -132,8 +120,8 @@ class TestWebappDownloads(unittest.TestCase):
             z.write_bytes(b"zip")
             tasks = _FakeBackgroundTasks()
             jobs = {
-                "a" * 32: _job(output_root=str(out1), name="a.pdf"),
-                "b" * 32: _job(output_root=str(out2), name="b.pdf"),
+                "a" * 32: _job(job_id="a" * 32, output_root=str(out1), name="a.pdf"),
+                "b" * 32: _job(job_id="b" * 32, output_root=str(out2), name="b.pdf"),
             }
             resp = build_batch_download_response(
                 raw_ids=["a" * 32, "b" * 32],
@@ -144,9 +132,43 @@ class TestWebappDownloads(unittest.TestCase):
                 zip_job_output_folder=lambda _d: z,
                 log=SimpleNamespace(exception=lambda *a, **k: None),
                 background_tasks=tasks,
+                workspace_output_root=None,
             )
             self.assertIsInstance(resp, FileResponse)
             self.assertEqual(len(tasks.tasks), 2)
+
+    def test_batch_falls_back_to_workspace_output_dir(self) -> None:
+        """库中绝对路径失效时，使用当前 output 根目录 + job_id 定位任务目录。"""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            ws = root / "server_output"
+            jid = "c" * 32
+            real_dir = ws / jid
+            real_dir.mkdir(parents=True)
+            (real_dir / "out.md").write_text("x", encoding="utf-8")
+            z = root / "pack.zip"
+            z.write_bytes(b"zip")
+            tasks = _FakeBackgroundTasks()
+            jobs = {
+                jid: _job(
+                    job_id=jid,
+                    output_root=str(root / "stale_missing_root"),
+                    output_file=str(root / "stale_missing" / "out.md"),
+                    name="legacy.pdf",
+                ),
+            }
+            resp = build_batch_download_response(
+                raw_ids=[jid],
+                user=SimpleNamespace(username="u1", role="user"),
+                normalize_job_id=lambda x: x,
+                auth_store=_FakeAuthStore(jobs),
+                can_access_job=lambda _u, _j: True,
+                zip_job_output_folder=lambda _d: z,
+                log=SimpleNamespace(exception=lambda *a, **k: None),
+                background_tasks=tasks,
+                workspace_output_root=ws,
+            )
+            self.assertIsInstance(resp, FileResponse)
 
 
 if __name__ == "__main__":

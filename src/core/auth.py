@@ -935,6 +935,112 @@ class AuthStore:
             out[s] = int(r.get("c") or 0)
         return out
 
+    def _job_viewer_filters(
+        self,
+        *,
+        viewer_username: str,
+        viewer_role: str,
+        owner_filter: str | None,
+        query: str | None,
+    ) -> tuple[list[str], dict[str, object]]:
+        """与 list_jobs 一致的可见性与文件名筛选（不含 status）。"""
+        is_admin = viewer_role == "admin"
+        where: list[str] = []
+        params: dict[str, object] = {}
+
+        if not is_admin:
+            where.append("owner_username = :viewer_username")
+            params["viewer_username"] = viewer_username
+        elif owner_filter and owner_filter.strip():
+            where.append("owner_username = :owner_filter")
+            params["owner_filter"] = owner_filter.strip()
+
+        if query and query.strip():
+            where.append("LOWER(original_filename) LIKE :q")
+            params["q"] = "%" + query.strip().lower() + "%"
+
+        return where, params
+
+    def count_succeeded_jobs_in_time_range(
+        self,
+        *,
+        viewer_username: str,
+        viewer_role: str,
+        owner_filter: str | None = None,
+        query: str | None = None,
+        time_field: str,
+        time_start: str,
+        time_end: str,
+    ) -> int:
+        """统计已完成任务在指定时间字段区间内的数量（与列表筛选一致）。"""
+        if time_field not in ("created_at", "finished_at"):
+            raise ValueError("time_field 必须为 created_at 或 finished_at")
+        where, params = self._job_viewer_filters(
+            viewer_username=viewer_username,
+            viewer_role=viewer_role,
+            owner_filter=owner_filter,
+            query=query,
+        )
+        where.append("status = 'succeeded'")
+        where.append(f"{time_field} >= :time_start")
+        where.append(f"{time_field} <= :time_end")
+        params["time_start"] = time_start
+        params["time_end"] = time_end
+        if time_field == "finished_at":
+            where.append("finished_at IS NOT NULL")
+        where_sql = " WHERE " + " AND ".join(where)
+        with self.engine.connect() as conn:
+            row = (
+                conn.execute(
+                    text(f"SELECT COUNT(*) AS c FROM jobs{where_sql}"),
+                    params,
+                )
+                .mappings()
+                .fetchone()
+            )
+        return int(row["c"]) if row else 0
+
+    def list_succeeded_job_ids_in_time_range(
+        self,
+        *,
+        viewer_username: str,
+        viewer_role: str,
+        owner_filter: str | None = None,
+        query: str | None = None,
+        time_field: str,
+        time_start: str,
+        time_end: str,
+        limit: int | None = None,
+    ) -> list[str]:
+        """列出时间区间内已完成任务的 job_id，按时间字段降序；limit 为 None 时不限制条数。"""
+        if time_field not in ("created_at", "finished_at"):
+            raise ValueError("time_field 必须为 created_at 或 finished_at")
+        where, params = self._job_viewer_filters(
+            viewer_username=viewer_username,
+            viewer_role=viewer_role,
+            owner_filter=owner_filter,
+            query=query,
+        )
+        where.append("status = 'succeeded'")
+        where.append(f"{time_field} >= :time_start")
+        where.append(f"{time_field} <= :time_end")
+        params["time_start"] = time_start
+        params["time_end"] = time_end
+        if time_field == "finished_at":
+            where.append("finished_at IS NOT NULL")
+        where_sql = " WHERE " + " AND ".join(where)
+        order_sql = f"SELECT job_id FROM jobs{where_sql} ORDER BY {time_field} DESC, job_id DESC"
+        exec_params: dict[str, object] = {**params}
+        if limit is not None:
+            lim = max(1, int(limit))
+            order_sql += " LIMIT :lim"
+            exec_params["lim"] = lim
+        with self.engine.connect() as conn:
+            rows = (
+                conn.execute(text(order_sql), exec_params).mappings().fetchall()
+            )
+        return [str(r["job_id"]) for r in rows]
+
     def count_queued_jobs(self) -> int:
         with self.engine.connect() as conn:
             row = (
