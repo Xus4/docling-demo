@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from src.table_semantic.llm_client import (
+    ChatCompletionMeta,
     LLMClientError,
     OpenAICompatibleConfig,
     chat_completion_text_with_meta,
@@ -135,6 +136,33 @@ def _log_preview(text: str, *, max_chars: int = 100) -> str:
     return collapsed[: max_chars - 1] + "…"
 
 
+def _log_llm_call_detail(
+    *,
+    table_index: int,
+    table_total: int,
+    elapsed_sec: float,
+    usage: ChatCompletionMeta,
+    prompt_chars: int,
+    completion_chars: int,
+) -> None:
+    """单独一行：大模型调用的 token 与耗时（及请求/响应字数，便于对账）。"""
+    pt = usage.prompt_tokens
+    ct = usage.completion_tokens
+    tt = usage.total_tokens
+    log.info(
+        "表格语义 | LLM调用 | 表 %s/%s | 耗时=%ss | 输入token=%s 输出token=%s 合计token=%s | "
+        "请求约%s字 响应约%s字",
+        table_index,
+        table_total,
+        elapsed_sec,
+        pt if pt is not None else "-",
+        ct if ct is not None else "-",
+        tt if tt is not None else "-",
+        prompt_chars,
+        completion_chars,
+    )
+
+
 def _llm_one_block(
     *,
     full_text: str,
@@ -175,14 +203,24 @@ def _llm_one_block(
 
     raw_content, usage_meta = chat_completion_text_with_meta(cfg=cfg, messages=messages)
     elapsed_sec = round(time.perf_counter() - t0, 3)
+    prompt_char_count = sys_len + usr_len
+    completion_chars_raw = len(raw_content) if isinstance(raw_content, str) else 0
+    _log_llm_call_detail(
+        table_index=table_index,
+        table_total=table_total,
+        elapsed_sec=elapsed_sec,
+        usage=usage_meta,
+        prompt_chars=prompt_char_count,
+        completion_chars=completion_chars_raw,
+    )
+
     summary = _normalize_caption_output(raw_content)
 
     if not summary:
         log.warning(
-            "表格语义 | 表 %s/%s | 失败 | 用时=%ss | 模型返回空或仅空白 | 片段=%s",
+            "表格语义 | 表 %s/%s | 失败 | 模型返回空或仅空白 | 片段=%s",
             table_index,
             table_total,
-            elapsed_sec,
             _log_preview(raw_content or "", max_chars=120),
         )
         return None
@@ -194,20 +232,11 @@ def _llm_one_block(
         f"<!-- /table-semantic -->\n"
     )
 
-    pt, ct, tt = (
-        usage_meta.prompt_tokens,
-        usage_meta.completion_tokens,
-        usage_meta.total_tokens,
-    )
-    tok = f"{pt or '-'}/{ct or '-'}/{tt or '-'}"
     log.info(
-        "表格语义 | 表 %s/%s | 完成 | 用时=%ss | prompt≈%s字 说明=%s字 | tok p/c/t=%s | %s",
+        "表格语义 | 表 %s/%s | 完成 | 说明=%s字 | %s",
         table_index,
         table_total,
-        elapsed_sec,
-        len(full_input),
         len(summary),
-        tok,
         _log_preview(summary, max_chars=100),
     )
 
