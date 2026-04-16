@@ -1536,12 +1536,25 @@ if (selectedList) selectedList.innerHTML = "";
           .replace(/</g, "&lt;");
       }
 
+      /** 从 progress_note 解析后端写入的「预计剩余 N 秒」（语义补充阶段） */
+      function parseProgressNoteEtaSeconds(note) {
+        const m = String(note || "").match(/预计剩余\s+(\d+)\s*秒/);
+        if (!m) return null;
+        const n = parseInt(m[1], 10);
+        return Number.isFinite(n) && n > 1 ? n : null;
+      }
+
+      function stripProgressNoteEtaSegment(note) {
+        return String(note || "")
+          .replace(/\s*预计剩余\s+\d+\s*秒\s*/g, "")
+          .trim();
+      }
+
       function updateLiveElapsedSpans() {
         document.querySelectorAll(".task-live-elapsed").forEach(function (el) {
           const s = el.getAttribute("data-started-at");
           const st = el.getAttribute("data-st");
-          const stage = el.getAttribute("data-processing-stage") || "";
-          const pctStr = el.getAttribute("data-progress-percent");
+          const etaSecStr = el.getAttribute("data-progress-eta-sec");
           const t1 = parseIsoMs(s);
           const now = Date.now();
           let txt = "";
@@ -1549,13 +1562,9 @@ if (selectedList) selectedList.innerHTML = "";
             const processingMs = now - t1;
             txt = "耗时 " + formatDurationZh(processingMs);
 
-            const pct = parseFloat(pctStr);
-            if (stage === "semantic_enhance" && Number.isFinite(pct) && pct > 1 && pct < 100) {
-              const estimatedTotal = processingMs / (pct / 100);
-              const remaining = estimatedTotal - processingMs;
-              if (remaining > 1000) {
-                txt += " · 预计剩余 " + formatDurationZh(remaining);
-              }
+            const etaSec = etaSecStr != null && etaSecStr !== "" ? parseInt(etaSecStr, 10) : NaN;
+            if (Number.isFinite(etaSec) && etaSec > 1) {
+              txt += " · 预计剩余 " + formatDurationZh(etaSec * 1000);
             }
           }
           el.textContent = txt;
@@ -1699,6 +1708,8 @@ if (selectedList) selectedList.innerHTML = "";
             progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
           }
 
+          progressNote = stripProgressNoteEtaSegment(progressNote);
+
           progressBlock =
             '<div class="task-progress-wrap" role="progressbar" aria-valuenow="' +
             pct +
@@ -1828,6 +1839,8 @@ if (selectedList) selectedList.innerHTML = "";
               '<span class="task-meta-item"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12H19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><path d="M12 5V19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"></circle></svg><span>解析模式：' +
               backendLabel +
               "</span></span>";
+            const progressEtaSec =
+              job.status === "running" ? parseProgressNoteEtaSeconds(job.progress_note) : null;
             const liveElapsedHtml =
               job.status === "running"
                 ? ' <span class="task-live-elapsed" data-created-at="' +
@@ -1838,6 +1851,8 @@ if (selectedList) selectedList.innerHTML = "";
                   escapeAttr(job.processing_stage || "") +
                   '" data-progress-percent="' +
                   escapeAttr(job.progress_percent || "0") +
+                  '" data-progress-eta-sec="' +
+                  escapeAttr(progressEtaSec != null ? String(progressEtaSec) : "") +
                   '" data-st="' +
                   escapeAttr(job.status) +
                   '"></span>'
