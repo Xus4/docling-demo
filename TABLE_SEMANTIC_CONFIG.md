@@ -26,10 +26,7 @@
 
 ### 上下文配置
 
-| 环境变量 | 类型 | 默认值 | 说明 |
-|---------|------|--------|------|
-| `TABLE_SEMANTIC_CONTEXT_BEFORE_CHARS` | int | None | 表格前上下文字符数（0表示不限制） |
-| `TABLE_SEMANTIC_CONTEXT_AFTER_CHARS` | int | None | 表格后上下文字符数（0表示不限制） |
+已移除上下文功能，现在只发送表格内容本身给大模型，大幅减少 token 消耗。
 
 ### 高级配置
 
@@ -113,8 +110,6 @@ TABLE_SEMANTIC_TIMEOUT_SEC=600
 TABLE_SEMANTIC_MAX_CONCURRENCY=2
 TABLE_SEMANTIC_MAX_TOKENS=4000
 TABLE_SEMANTIC_TEMPERATURE=0.7
-TABLE_SEMANTIC_CONTEXT_BEFORE_CHARS=0
-TABLE_SEMANTIC_CONTEXT_AFTER_CHARS=0
 TABLE_SEMANTIC_ON_ERROR=skip
 TABLE_SEMANTIC_THINKING_ENABLE=false
 ```

@@ -200,8 +200,6 @@ class AppConfig:
     table_semantic_model: str
     table_semantic_timeout_sec: float
     table_semantic_max_concurrency: int
-    table_semantic_context_before_chars: int | None  # None 表示取全文前缀
-    table_semantic_context_after_chars: int | None  # None 表示取全文后缀
     table_semantic_on_error: Literal["skip", "fail"]
     table_semantic_thinking_enable: bool
     table_semantic_max_tokens: int | None  # 最大生成 token 数
@@ -322,12 +320,6 @@ class AppConfig:
             table_semantic_model=(os.getenv("TABLE_SEMANTIC_MODEL") or "").strip(),
             table_semantic_timeout_sec=max(5.0, env_float("TABLE_SEMANTIC_TIMEOUT_SEC", 120.0)),
             table_semantic_max_concurrency=max(1, env_int("TABLE_SEMANTIC_MAX_CONCURRENCY", 4)),
-            table_semantic_context_before_chars=_env_optional_int(
-                "TABLE_SEMANTIC_CONTEXT_BEFORE_CHARS"
-            ),
-            table_semantic_context_after_chars=_env_optional_int(
-                "TABLE_SEMANTIC_CONTEXT_AFTER_CHARS"
-            ),
             table_semantic_on_error=_normalize_table_semantic_on_error(
                 os.getenv("TABLE_SEMANTIC_ON_ERROR")
             ),

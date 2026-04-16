@@ -29,7 +29,7 @@ class TestAugmentMarkdownText(unittest.TestCase):
             side_effect=fake_json,
         ):
             out1 = augment_markdown_text(
-                md, cfg=cfg, context_before_chars=None, context_after_chars=None, max_concurrency=1
+                md, cfg=cfg, max_concurrency=1
             )
         self.assertIn("这是表格语义", out1)
         self.assertIn("table-semantic", out1)

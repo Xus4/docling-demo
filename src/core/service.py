@@ -180,8 +180,6 @@ class ConversionService:
                 base_url=base_url[:200],
                 timeout_sec=self.app_config.table_semantic_timeout_sec,
                 max_concurrency=self.app_config.table_semantic_max_concurrency,
-                context_before_chars=self.app_config.table_semantic_context_before_chars,
-                context_after_chars=self.app_config.table_semantic_context_after_chars,
                 on_error=self.app_config.table_semantic_on_error,
                 has_api_key=bool((self.app_config.table_semantic_api_key or "").strip()),
                 thinking_enable=self.app_config.table_semantic_thinking_enable,
@@ -190,8 +188,6 @@ class ConversionService:
                 augment_markdown_file(
                     dst,
                     cfg=llm_cfg,
-                    context_before_chars=self.app_config.table_semantic_context_before_chars,
-                    context_after_chars=self.app_config.table_semantic_context_after_chars,
                     max_concurrency=self.app_config.table_semantic_max_concurrency,
                     progress_callback=semantic_progress_callback,
                 )

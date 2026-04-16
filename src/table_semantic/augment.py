@@ -99,8 +99,6 @@ def _slice_context(
 def _build_user_payload(
     *,
     block: TableBlock,
-    context_before: str,
-    context_after: str,
 ) -> str:
     return json.dumps(
         {
@@ -108,8 +106,6 @@ def _build_user_payload(
             "requirement": "请输出与表格信息等价的完整语义文本，不要摘要化",
             "table_kind": block.kind,
             "table_markdown_or_html": block.raw,
-            "context_before": context_before,
-            "context_after": context_after,
         },
         ensure_ascii=False,
     )
@@ -133,22 +129,11 @@ def _llm_one_block(
     full_text: str,
     block: TableBlock,
     cfg: OpenAICompatibleConfig,
-    context_before_chars: int | None,
-    context_after_chars: int | None,
     run_id: str,
     table_index: int,
     table_total: int,
 ) -> tuple[int, str] | None:
-    ctx_b, ctx_a = _slice_context(
-        full_text,
-        start=block.start,
-        end=block.end,
-        before_chars=context_before_chars,
-        after_chars=context_after_chars,
-    )
-    user_content = _build_user_payload(
-        block=block, context_before=ctx_b, context_after=ctx_a
-    )
+    user_content = _build_user_payload(block=block)
     messages = [
         {"role": "system", "content": _SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
@@ -166,8 +151,6 @@ def _llm_one_block(
         span_start=block.start,
         span_end=block.end,
         table_chars=len(block.raw),
-        ctx_before_chars=len(ctx_b),
-        ctx_after_chars=len(ctx_a),
         user_payload_chars=len(user_content),
         model=cfg.model,
         thinking_enable=cfg.thinking_enable,
@@ -225,8 +208,6 @@ def augment_markdown_text(
     text: str,
     *,
     cfg: OpenAICompatibleConfig,
-    context_before_chars: int | None = None,
-    context_after_chars: int | None = None,
     max_concurrency: int = 4,
     source: str = "",
     progress_callback: Callable[[int, int, float | None], None] | None = None,
@@ -253,8 +234,6 @@ def augment_markdown_text(
         tables_skipped_augmented=skipped,
         max_concurrency=workers,
         pool_workers=pool_workers,
-        context_before_chars=context_before_chars,
-        context_after_chars=context_after_chars,
         model=cfg.model,
         thinking_enable=cfg.thinking_enable,
     )
@@ -289,8 +268,6 @@ def augment_markdown_text(
                 full_text=text,
                 block=b,
                 cfg=cfg,
-                context_before_chars=context_before_chars,
-                context_after_chars=context_after_chars,
                 run_id=run_id,
                 table_index=idx,
                 table_total=len(pending),
@@ -402,8 +379,6 @@ def augment_markdown_file(
     path: Path,
     *,
     cfg: OpenAICompatibleConfig,
-    context_before_chars: int | None = None,
-    context_after_chars: int | None = None,
     max_concurrency: int = 4,
     progress_callback: Callable[[int, int, float | None], None] | None = None,
 ) -> None:
@@ -423,8 +398,6 @@ def augment_markdown_file(
     new_text = augment_markdown_text(
         raw,
         cfg=cfg,
-        context_before_chars=context_before_chars,
-        context_after_chars=context_after_chars,
         max_concurrency=max_concurrency,
         source=src,
         progress_callback=progress_callback,
