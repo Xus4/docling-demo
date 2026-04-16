@@ -136,36 +136,51 @@ def _llm_one_block(
         {"role": "user", "content": user_content},
     ]
     t0 = time.perf_counter()
-    log.info(
-        f"[表格{table_index}/{table_total}] 开始调用大模型 | "
-        f"表格类型: {block.kind} | "
-        f"表格大小: {len(block.raw)}字符 | "
-        f"输入大小: {len(user_content)}字符"
-    )
+    
+    # 打印输入信息
+    log.info("=" * 80)
+    log.info(f"🔵 [表格{table_index}/{table_total}] 开始调用大模型")
+    log.info(f"   表格类型: {block.kind}")
+    log.info(f"   表格大小: {len(block.raw)}字符")
+    log.info(f"   输入总大小: {len(user_content)}字符")
+    log.info(f"   输入内容预览:\n{user_content[:500]}{'...' if len(user_content) > 500 else ''}")
+    log.info("=" * 80)
+    
     prompt_chars_estimated = _calc_prompt_chars(messages)
     data, usage_meta = chat_completion_json_object_with_meta(cfg=cfg, messages=messages)
     elapsed_sec = round(time.perf_counter() - t0, 3)
     usage_fields = _usage_log_fields(usage_meta, prompt_chars_estimated)
     summary = _extract_equivalent_text(data)
+    
     if not summary:
         log.warning(
-            f"[表格{table_index}/{table_total}] 大模型返回空结果，已跳过 | "
-            f"耗时: {elapsed_sec}秒"
+            f"\n{'=' * 80}\n"
+            f"🔴 [表格{table_index}/{table_total}] 大模型返回空结果，已跳过\n"
+            f"   耗时: {elapsed_sec}秒\n"
+            f"   原始返回: {str(data)[:500]}\n"
+            f"{'=' * 80}"
         )
         return None
+    
     mid = _marker_prefix(block)
     insert = (
         f"\n\n{mid} -->\n"
         f"**表格说明**：{summary}\n"
         f"<!-- /table-semantic -->\n"
     )
+    
+    # 打印输出信息
     log.info(
-        f"[表格{table_index}/{table_total}] 分析完成 | "
-        f"耗时: {elapsed_sec}秒 | "
-        f"输出: {len(summary)}字符 | "
-        f"Prompt Tokens: {usage_meta.prompt_tokens or 'N/A'} | "
-        f"Completion Tokens: {usage_meta.completion_tokens or 'N/A'}"
+        f"\n{'=' * 80}\n"
+        f"🟢 [表格{table_index}/{table_total}] 大模型返回成功\n"
+        f"   ⏱️  耗时: {elapsed_sec}秒\n"
+        f"   📥 输入: {len(user_content)}字符 | Prompt Tokens: {usage_meta.prompt_tokens or 'N/A'}\n"
+        f"   📤 输出: {len(summary)}字符 | Completion Tokens: {usage_meta.completion_tokens or 'N/A'}\n"
+        f"   📊 总Tokens: {usage_meta.total_tokens or 'N/A'}\n"
+        f"   输出内容预览:\n{summary[:500]}{'...' if len(summary) > 500 else ''}\n"
+        f"{'=' * 80}"
     )
+    
     return block.end, insert
 
 
@@ -232,16 +247,7 @@ def augment_markdown_text(
             try:
                 got = fut.result()
             except (LLMClientError, OSError, ValueError, TypeError, RuntimeError) as exc:
-                log_event(
-                    log,
-                    logging.WARNING,
-                    "table_semantic.future.error",
-                    zh="并发任务异常，已忽略该结果",
-                    run_id=run_id,
-                    source=source or "-",
-                    err_type=type(exc).__name__,
-                    err=str(exc)[:1200],
-                )
+                log.warning(f"并发任务异常，已忽略 | 错误: {type(exc).__name__}: {str(exc)[:200]}")
                 continue
             if got is None:
                 done_count += 1

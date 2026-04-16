@@ -171,18 +171,11 @@ class ConversionService:
                 temperature=self.app_config.table_semantic_temperature,
             )
             base_url = str(self.app_config.table_semantic_base_url).strip()
-            log_event(
-                log,
-                logging.INFO,
-                "conversion.semantic_enhance.start",
-                output_path=str(dst),
-                model=self.app_config.table_semantic_model,
-                base_url=base_url[:200],
-                timeout_sec=self.app_config.table_semantic_timeout_sec,
-                max_concurrency=self.app_config.table_semantic_max_concurrency,
-                on_error=self.app_config.table_semantic_on_error,
-                has_api_key=bool((self.app_config.table_semantic_api_key or "").strip()),
-                thinking_enable=self.app_config.table_semantic_thinking_enable,
+            log.info(
+                f"开始表格语义增强 | "
+                f"模型: {self.app_config.table_semantic_model} | "
+                f"并发数: {self.app_config.table_semantic_max_concurrency} | "
+                f"超时: {self.app_config.table_semantic_timeout_sec}秒"
             )
             try:
                 augment_markdown_file(
@@ -191,21 +184,12 @@ class ConversionService:
                     max_concurrency=self.app_config.table_semantic_max_concurrency,
                     progress_callback=semantic_progress_callback,
                 )
-                log_event(
-                    log,
-                    logging.INFO,
-                    "conversion.semantic_enhance.done",
-                    output_path=str(dst),
-                )
+                log.info("表格语义增强完成")
             except Exception as exc:  # noqa: BLE001
-                log_event(
-                    log,
-                    logging.ERROR,
-                    "conversion.semantic_enhance.fail",
-                    output_path=str(dst),
-                    err_type=type(exc).__name__,
-                    err=str(exc)[:1200],
-                    on_error=self.app_config.table_semantic_on_error,
+                log.error(
+                    f"表格语义增强失败 | "
+                    f"错误: {type(exc).__name__}: {str(exc)[:200]} | "
+                    f"策略: {self.app_config.table_semantic_on_error}"
                 )
                 if self.app_config.table_semantic_on_error == "fail":
                     raise ConversionError(f"表格语义增强失败: {exc!s}") from exc
