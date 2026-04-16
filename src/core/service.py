@@ -13,6 +13,7 @@ from config import AppConfig
 from src.logging_utils import log_event
 from src.mineru_client import MinerUError, mineru_client_config_from_app, run_mineru_convert
 from src.table_semantic.augment import TableCaptionParams, augment_markdown_file
+from src.xlsx_to_markdown import XlsxConversionError, write_xlsx_as_markdown
 from src.table_semantic.llm_client import OpenAICompatibleConfig
 
 log = logging.getLogger(__name__)
@@ -136,27 +137,46 @@ class ConversionService:
         dst = Path(output_path).resolve()
         if not src.is_file():
             raise ConversionError("输入文件不存在")
-        if not str(self.app_config.mineru_base_url).strip():
-            raise ConversionError(
-                "未配置 MINERU_BASE_URL。请在环境变量中设置为 mineru-api 根地址（默认 http://192.168.2.60:8011）。"
-            )
-        mcfg = mineru_client_config_from_app(self.app_config)
-        try:
-            run_mineru_convert(
-                input_path=src,
-                output_path=dst,
-                cfg=mcfg,
-                backend_override=backend_override,
-                resume_task_id=remote_task_id,
-                on_remote_task_id=on_remote_task_id,
-                progress_callback=progress_callback,
-                cancel_check=cancel_check,
-                on_processing_stage=processing_stage_callback,
-            )
-        except MinerUError as exc:
-            raise ConversionError(str(exc)) from exc
-        except httpx.RequestError as exc:
-            raise ConversionError(f"MinerU 网络异常: {exc!s}") from exc
+
+        ext = src.suffix.lower().lstrip(".")
+        if ext == "xlsx":
+            if processing_stage_callback is not None:
+                processing_stage_callback("xlsx_extract")
+            try:
+                write_xlsx_as_markdown(
+                    src,
+                    dst,
+                    max_rows_per_sheet=self.app_config.xlsx_max_rows_per_sheet,
+                    max_cols=self.app_config.xlsx_max_cols,
+                    skip_hidden_sheets=self.app_config.xlsx_skip_hidden_sheets,
+                    row_cancel_stride=self.app_config.xlsx_cancel_check_row_stride,
+                    cancel_check=cancel_check,
+                    progress_callback=progress_callback,
+                )
+            except XlsxConversionError as exc:
+                raise ConversionError(str(exc)) from exc
+        else:
+            if not str(self.app_config.mineru_base_url).strip():
+                raise ConversionError(
+                    "未配置 MINERU_BASE_URL。请在环境变量中设置为 mineru-api 根地址（默认 http://192.168.2.60:8011）。"
+                )
+            mcfg = mineru_client_config_from_app(self.app_config)
+            try:
+                run_mineru_convert(
+                    input_path=src,
+                    output_path=dst,
+                    cfg=mcfg,
+                    backend_override=backend_override,
+                    resume_task_id=remote_task_id,
+                    on_remote_task_id=on_remote_task_id,
+                    progress_callback=progress_callback,
+                    cancel_check=cancel_check,
+                    on_processing_stage=processing_stage_callback,
+                )
+            except MinerUError as exc:
+                raise ConversionError(str(exc)) from exc
+            except httpx.RequestError as exc:
+                raise ConversionError(f"MinerU 网络异常: {exc!s}") from exc
 
         if (
             self.app_config.table_semantic_enable

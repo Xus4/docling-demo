@@ -25,6 +25,7 @@ _STAGE_NOTES: dict[str, str] = {
     "mineru_upload": "正在提交至解析服务…",
     "mineru_remote": "正在解析…",
     "mineru_materialize": "正在整理输出文件…",
+    "xlsx_extract": "正在将 Excel 转为 Markdown…",
     "semantic_enhance": "表格语义补充中…",
 }
 

@@ -209,6 +209,11 @@ class AppConfig:
     table_semantic_context_after_chars: int  # 表后截取字符数
     table_semantic_caption_target_chars: int  # system 中「约 N 字」提示
     table_semantic_max_table_chars: int  # 表体超过该字数则跳过语义补充；0=不限制
+    # --- Excel（.xlsx）本地转 Markdown（不经 MinerU）---
+    xlsx_max_rows_per_sheet: int
+    xlsx_max_cols: int
+    xlsx_skip_hidden_sheets: bool
+    xlsx_cancel_check_row_stride: int
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -352,6 +357,12 @@ class AppConfig:
             ),
             table_semantic_max_table_chars=max(
                 0, env_int("TABLE_SEMANTIC_MAX_TABLE_CHARS", 2000)
+            ),
+            xlsx_max_rows_per_sheet=max(1, env_int("XLSX_MAX_ROWS_PER_SHEET", 10000)),
+            xlsx_max_cols=max(1, env_int("XLSX_MAX_COLS", 512)),
+            xlsx_skip_hidden_sheets=env_bool("XLSX_SKIP_HIDDEN_SHEETS", True),
+            xlsx_cancel_check_row_stride=max(
+                1, env_int("XLSX_CANCEL_CHECK_ROW_STRIDE", 256)
             ),
         )
 
