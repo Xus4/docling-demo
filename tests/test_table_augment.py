@@ -7,7 +7,11 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from src.table_semantic.augment import augment_markdown_file, augment_markdown_text
+from src.table_semantic.augment import (
+    TableCaptionParams,
+    augment_markdown_file,
+    augment_markdown_text,
+)
 from src.table_semantic.llm_client import ChatCompletionMeta, OpenAICompatibleConfig
 
 
@@ -64,6 +68,27 @@ class TestAugmentMarkdownText(unittest.TestCase):
         ):
             out = augment_markdown_text(md, cfg=cfg, max_concurrency=1)
         self.assertIn("带参数的语义", out)
+
+    def test_skips_table_over_max_table_chars(self) -> None:
+        """表体超过 max_table_chars 时不调用大模型。"""
+        wide = "x" * 100
+        md = f"|a|\n|---|\n|{wide}|\n"
+        cfg = OpenAICompatibleConfig(
+            base_url="http://unused",
+            api_key=None,
+            model="m",
+            timeout_sec=5.0,
+        )
+        cap = TableCaptionParams(max_table_chars=50)
+        with mock.patch(
+            "src.table_semantic.augment.chat_completion_text_with_meta",
+        ) as p_llm:
+            out = augment_markdown_text(
+                md, cfg=cfg, max_concurrency=1, caption_params=cap
+            )
+        p_llm.assert_not_called()
+        self.assertEqual(md, out)
+        self.assertNotIn("table-semantic", out)
 
 
 class TestAugmentMarkdownFile(unittest.TestCase):

@@ -179,6 +179,7 @@ class ConversionService:
                         context_before_chars=self.app_config.table_semantic_context_before_chars,
                         context_after_chars=self.app_config.table_semantic_context_after_chars,
                         caption_target_chars=self.app_config.table_semantic_caption_target_chars,
+                        max_table_chars=self.app_config.table_semantic_max_table_chars,
                     ),
                     progress_callback=semantic_progress_callback,
                 )

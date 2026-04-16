@@ -207,6 +207,7 @@ class AppConfig:
     table_semantic_context_before_chars: int  # 表前截取字符数（送入「表格附近上下文」）
     table_semantic_context_after_chars: int  # 表后截取字符数
     table_semantic_caption_target_chars: int  # system 中「约 N 字」提示
+    table_semantic_max_table_chars: int  # 表体超过该字数则跳过语义补充；0=不限制
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -343,6 +344,9 @@ class AppConfig:
             ),
             table_semantic_caption_target_chars=max(
                 1, env_int("TABLE_SEMANTIC_CAPTION_TARGET_CHARS", 800)
+            ),
+            table_semantic_max_table_chars=max(
+                0, env_int("TABLE_SEMANTIC_MAX_TABLE_CHARS", 2000)
             ),
         )
 
