@@ -19,7 +19,6 @@ from src.mineru_client import (
 
 
 class TestHttpxRetry(unittest.TestCase):
-    @patch("src.mineru_client.time.sleep", lambda *_a, **_k: None)
     def test_retry_then_success(self) -> None:
         n = {"c": 0}
 
@@ -31,19 +30,28 @@ class TestHttpxRetry(unittest.TestCase):
                 )
             return 42
 
-        self.assertEqual(_httpx_call_with_retry(op, what="测试", max_attempts=6), 42)
+        with patch("src.mineru_client.time.sleep", lambda *_a, **_k: None):
+            with patch("src.mineru_client.time.monotonic", return_value=0.0):
+                self.assertEqual(
+                    _httpx_call_with_retry(op, what="测试", retry_duration_sec=60.0),
+                    42,
+                )
         self.assertEqual(n["c"], 3)
 
-    @patch("src.mineru_client.time.sleep", lambda *_a, **_k: None)
     def test_retry_exhausted_raises_mineru_error(self) -> None:
         def op() -> int:
             raise httpx.RemoteProtocolError(
                 "Server disconnected without sending a response."
             )
 
-        with self.assertRaises(MinerUError) as ctx:
-            _httpx_call_with_retry(op, what="测试", max_attempts=3)
-        self.assertIn("已重试 3 次", str(ctx.exception))
+        with patch("src.mineru_client.time.sleep", lambda *_a, **_k: None):
+            with patch(
+                "src.mineru_client.time.monotonic",
+                side_effect=[0.0, 0.0, 100.0],
+            ):
+                with self.assertRaises(MinerUError) as ctx:
+                    _httpx_call_with_retry(op, what="测试", retry_duration_sec=10.0)
+        self.assertIn("已持续重试约 10 秒", str(ctx.exception))
 
 
 class TestMinerUForm(unittest.TestCase):

@@ -28,31 +28,40 @@ class MinerUError(Exception):
 _T = TypeVar("_T")
 
 
-def _sleep_before_http_retry(attempt_idx: int) -> None:
-    """attempt_idx 为 0 表示首次失败后、第二次尝试前。"""
+def _sleep_before_http_retry(attempt_idx: int, *, max_sleep: float) -> None:
+    """attempt_idx 为 0 表示首次失败后、第二次尝试前；max_sleep 不超过距重试截止的剩余时间。"""
     delay = min(12.0, 0.35 * (2**attempt_idx))
-    time.sleep(delay)
+    delay = min(delay, max(0.0, max_sleep))
+    if delay > 0:
+        time.sleep(delay)
 
 
 def _httpx_call_with_retry(
     op: Callable[[], _T],
     *,
     what: str,
-    max_attempts: int = 6,
+    retry_duration_sec: float,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> _T:
-    """对连接抖动、服务端半开断开等 RequestError 做有限次重试。"""
-    last: BaseException | None = None
-    for attempt in range(max_attempts):
+    """对连接抖动、连不上接口等 ``RequestError``，在 ``retry_duration_sec`` 内持续重试。"""
+    budget = max(1.0, float(retry_duration_sec))
+    deadline = time.monotonic() + budget
+    attempt = 0
+    while True:
         try:
             return op()
         except httpx.RequestError as exc:
-            last = exc
-            if attempt + 1 >= max_attempts:
+            now = time.monotonic()
+            if now >= deadline:
+                secs = int(round(budget))
                 raise MinerUError(
-                    f"MinerU {what}失败（网络不稳定，已重试 {max_attempts} 次）: {exc!s}"
+                    f"MinerU {what}失败（网络不稳定，已持续重试约 {secs} 秒）: {exc!s}"
                 ) from exc
-            _sleep_before_http_retry(attempt)
-    raise AssertionError(last)  # pragma: no cover
+            if cancel_check is not None and cancel_check():
+                raise MinerUError("任务已取消") from exc
+            remaining = deadline - now
+            _sleep_before_http_retry(attempt, max_sleep=remaining)
+            attempt += 1
 
 
 def _form_bool(v: bool) -> str:
@@ -287,6 +296,7 @@ class MinerUClientConfig:
     return_original_file: bool
     start_page_id: int
     end_page_id: int
+    connect_retry_duration_sec: float
 
 
 def _emit_processing_stage(
@@ -377,6 +387,8 @@ def run_mineru_convert(
                 multipart_items=multipart_items,
                 stem=stem,
                 output_path=output_path,
+                connect_retry_duration_sec=cfg.connect_retry_duration_sec,
+                cancel_check=cancel_check,
                 progress_callback=progress_callback,
                 on_processing_stage=on_processing_stage,
             )
@@ -402,6 +414,8 @@ def _run_sync_parse(
     multipart_items: list[tuple[str, tuple[None, str] | tuple[str, bytes, str]]],
     stem: str,
     output_path: Path,
+    connect_retry_duration_sec: float,
+    cancel_check: Callable[[], bool] | None,
     progress_callback: Callable[[int, int], None] | None,
     on_processing_stage: Callable[[str], None] | None,
 ) -> None:
@@ -411,6 +425,8 @@ def _run_sync_parse(
     resp = _httpx_call_with_retry(
         lambda: client.post("/file_parse", files=multipart_items),
         what="同步解析",
+        retry_duration_sec=connect_retry_duration_sec,
+        cancel_check=cancel_check,
     )
     if resp.status_code == 409:
         raise MinerUError(_parse_error_body(resp))
@@ -458,6 +474,8 @@ def _run_async_parse(
         resp = _httpx_call_with_retry(
             lambda: client.post("/tasks", files=multipart_items),
             what="提交解析任务",
+            retry_duration_sec=cfg.connect_retry_duration_sec,
+            cancel_check=cancel_check,
         )
         if resp.status_code not in (200, 202):
             raise MinerUError(_parse_error_body(resp))
@@ -487,6 +505,8 @@ def _run_async_parse(
         st_resp = _httpx_call_with_retry(
             lambda: client.get(f"/tasks/{task_id}"),
             what="查询任务状态",
+            retry_duration_sec=cfg.connect_retry_duration_sec,
+            cancel_check=cancel_check,
         )
         if st_resp.status_code == 404:
             raise MinerUError("MinerU 任务不存在（404）")
@@ -518,6 +538,8 @@ def _run_async_parse(
     res_resp = _httpx_call_with_retry(
         lambda: client.get(f"/tasks/{task_id}/result"),
         what="拉取解析结果",
+        retry_duration_sec=cfg.connect_retry_duration_sec,
+        cancel_check=cancel_check,
     )
     if res_resp.status_code == 409:
         raise MinerUError(_parse_error_body(res_resp))
@@ -550,6 +572,7 @@ def mineru_client_config_from_app(app: "AppConfig") -> MinerUClientConfig:
         timeout_sec=app.mineru_timeout_sec,
         poll_interval_sec=app.mineru_poll_interval_sec,
         max_wait_sec=app.mineru_max_wait_sec,
+        connect_retry_duration_sec=app.mineru_connect_retry_duration_sec,
         verify_ssl=app.mineru_verify_ssl,
         parse_mode=app.mineru_parse_mode,
         backend=app.mineru_backend,

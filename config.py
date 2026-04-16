@@ -176,6 +176,7 @@ class AppConfig:
     mineru_timeout_sec: float  # 单次请求超时
     mineru_poll_interval_sec: float  # async 轮询间隔
     mineru_max_wait_sec: float  # async 等待终态上限
+    mineru_connect_retry_duration_sec: float  # 单次请求遇连接类错误时，在该时长内持续重试
     mineru_verify_ssl: bool  # HTTPS 校验开关
     mineru_parse_mode: Literal["async", "sync"]  # async=/tasks+轮询；sync=/file_parse
     mineru_backend: str  # pipeline / vlm-* / hybrid-* 等
@@ -301,6 +302,10 @@ class AppConfig:
             mineru_timeout_sec=max(30.0, env_float("MINERU_TIMEOUT_SEC", 300.0)),
             mineru_poll_interval_sec=max(0.2, env_float("MINERU_POLL_INTERVAL_SEC", 1.5)),
             mineru_max_wait_sec=max(60.0, env_float("MINERU_MAX_WAIT_SEC", 3600.0)),
+            mineru_connect_retry_duration_sec=max(
+                1.0,
+                env_float("MINERU_CONNECT_RETRY_DURATION_SEC", 3600.0),
+            ),
             mineru_verify_ssl=env_bool("MINERU_VERIFY_SSL", True),
             mineru_parse_mode=_normalize_mineru_parse_mode(os.getenv("MINERU_PARSE_MODE")),
             mineru_backend=env_str("MINERU_BACKEND", "hybrid-auto-engine"),

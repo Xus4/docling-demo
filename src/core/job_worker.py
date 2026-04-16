@@ -58,7 +58,7 @@ def _job_log_fields(job_id: str, rec: JobRecord | None) -> tuple[str, str, str]:
 
 
 def _should_requeue_network_instead_of_fail(exc: BaseException) -> bool:
-    """上游半开连接、超时等瞬时错误：回队重试，避免任务直接失败。"""
+    """MinerU 连不上或连接抖动：回队重试，不把任务标为失败。"""
     text = str(exc)
     if "任务已取消" in text:
         return False
@@ -72,6 +72,11 @@ def _should_requeue_network_instead_of_fail(exc: BaseException) -> bool:
         "ConnectTimeout",
         "ConnectError",
         "网络不稳定，已重试",
+        "网络不稳定，已持续重试",
+        "MinerU 网络异常",
+        "All connection attempts failed",
+        "getaddrinfo failed",
+        "Name or service not known",
         "Broken pipe",
         "WriteTimeout",
         "RemoteProtocolError",
