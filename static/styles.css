@@ -54,6 +54,8 @@
         --success-text: rgba(152, 255, 218, 0.92);
         --error-bg: rgba(239, 68, 68, 0.16);
         --error-text: rgba(255, 190, 190, 0.96);
+        --warn-bg: rgba(234, 179, 8, 0.14);
+        --warn-text: rgba(253, 224, 71, 0.95);
         --shadow-xl: 0 14px 34px rgba(1, 7, 20, 0.42);
       }
 
@@ -113,6 +115,8 @@
         --success-text: #059669;
         --error-bg: rgba(254, 242, 242, 0.8);
         --error-text: #dc2626;
+        --warn-bg: rgba(254, 252, 232, 0.92);
+        --warn-text: #b45309;
         --shadow-xl: 0 10px 24px rgba(33, 67, 128, 0.1);
       }
 
@@ -1240,58 +1244,119 @@
 
       .toast {
         position: fixed;
-        top: 18px;
+        top: 20px;
         left: 50%;
         transform: translateX(-50%);
-        /* 高于 .modal-overlay(1100)，避免被「按时间区间」等弹层挡住 */
-        z-index: 12000;
+        /* 高于 .modal-overlay(1100) 与系统对话框层级尽量靠前 */
+        z-index: 2147483000;
         display: none;
-        align-items: center;
-        gap: 10px;
-        min-width: 200px;
-        max-width: min(560px, calc(100vw - 32px));
-        padding: 12px 14px;
-        border-radius: 12px;
+        align-items: flex-start;
+        gap: 12px;
+        min-width: 240px;
+        max-width: min(520px, calc(100vw - 28px));
+        padding: 14px 18px 14px 16px;
+        border-radius: 14px;
         border: 1px solid var(--panel-border);
         background: var(--panel-bg);
         color: var(--text-main);
-        box-shadow: 0 18px 46px rgba(0, 0, 0, 0.25);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        text-align: center;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        text-align: left;
+        font-size: 14px;
+        line-height: 1.45;
+        font-weight: 650;
+        pointer-events: none;
       }
 
       .toast.show {
         display: flex;
-        animation: toastIn 0.18s ease-out both;
+        animation: toastIn 0.22s ease-out both;
       }
 
+      /* 仅用透明度动画，避免与 translateX(-50%) 居中冲突导致不显示 */
       @keyframes toastIn {
         from {
-          transform: translate(-50%, -8px);
           opacity: 0;
         }
         to {
-          transform: translate(-50%, 0);
           opacity: 1;
         }
+      }
+
+      .toast-icon {
+        flex: 0 0 auto;
+        width: 26px;
+        height: 26px;
+        margin-top: 1px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: 800;
+        line-height: 1;
+      }
+
+      .toast-message {
+        flex: 1 1 auto;
+        min-width: 0;
       }
 
       .toast-success {
         background: var(--success-bg);
         color: var(--success-text);
-        border: 1px solid color-mix(in srgb, var(--success-text) 35%, transparent);
+        border: 1px solid color-mix(in srgb, var(--success-text) 42%, transparent);
         box-shadow:
-          0 14px 40px color-mix(in srgb, var(--success-text) 12%, transparent),
-          0 0 0 1px color-mix(in srgb, var(--success-text) 8%, transparent) inset;
+          0 16px 42px color-mix(in srgb, var(--success-text) 14%, transparent),
+          0 0 0 1px color-mix(in srgb, var(--success-text) 10%, transparent) inset;
+      }
+
+      .toast-success .toast-icon {
+        background: color-mix(in srgb, var(--success-text) 22%, transparent);
+        color: var(--success-text);
       }
 
       .toast-error {
-        border-color: color-mix(in srgb, var(--error-text) 32%, transparent);
+        background: var(--error-bg);
+        color: var(--error-text);
+        border: 1px solid color-mix(in srgb, var(--error-text) 45%, transparent);
+        box-shadow:
+          0 16px 42px color-mix(in srgb, var(--error-text) 12%, transparent),
+          0 0 0 1px color-mix(in srgb, var(--error-text) 10%, transparent) inset;
+      }
+
+      .toast-error .toast-icon {
+        background: color-mix(in srgb, var(--error-text) 22%, transparent);
+        color: var(--error-text);
       }
 
       .toast-warn {
-        border-color: color-mix(in srgb, var(--warning-text, #d4a017) 35%, transparent);
+        background: var(--warn-bg);
+        color: var(--warn-text);
+        border: 1px solid color-mix(in srgb, var(--warn-text) 38%, transparent);
+        box-shadow:
+          0 16px 42px color-mix(in srgb, var(--warn-text) 10%, transparent),
+          0 0 0 1px color-mix(in srgb, var(--warn-text) 8%, transparent) inset;
+      }
+
+      .toast-warn .toast-icon {
+        background: color-mix(in srgb, var(--warn-text) 20%, transparent);
+        color: var(--warn-text);
+      }
+
+      .toast-progress {
+        background: var(--status-loading-bg);
+        color: var(--status-loading-text);
+        border: 1px solid color-mix(in srgb, var(--status-loading-text) 35%, transparent);
+        box-shadow:
+          0 16px 40px color-mix(in srgb, var(--brand) 12%, transparent),
+          0 0 0 1px color-mix(in srgb, var(--brand) 8%, transparent) inset;
+      }
+
+      .toast-progress .toast-icon {
+        background: color-mix(in srgb, var(--brand) 24%, transparent);
+        color: var(--status-loading-text);
       }
 
       .status-loading {

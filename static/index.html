@@ -7,6 +7,11 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body data-theme="dark">
+    <div id="toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+      <span class="toast-icon" aria-hidden="true"></span>
+      <span class="toast-message"></span>
+    </div>
+
     <main class="page">
       <header class="brand">
         <div class="brand-inner">
@@ -313,8 +318,6 @@
         </section>
       </section>
     </main>
-
-    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <div
       id="confirmModal"
@@ -1014,6 +1017,9 @@ const selectedList = document.getElementById("selectedList");
 
       function showToast(type, text) {
         if (!toast) return;
+        var msgEl = toast.querySelector(".toast-message");
+        var icEl = toast.querySelector(".toast-icon");
+        if (!msgEl || !icEl) return;
         if (toastTimer) {
           clearTimeout(toastTimer);
           toastTimer = null;
@@ -1021,24 +1027,51 @@ const selectedList = document.getElementById("selectedList");
         var t = String(text || "");
         var isSuccess = type === "success";
         var isWarn = type === "warn";
-        toast.className =
-          "toast show " +
-          (isSuccess ? "toast-success" : isWarn ? "toast-warn" : "toast-error");
-        toast.textContent =
-          (isSuccess ? "✔ " : isWarn ? "⚠ " : "✖ ") + t;
-        var ms = isSuccess ? 4200 : Math.min(9000, Math.max(4500, 800 + t.length * 40));
-        toastTimer = setTimeout(() => {
+        var isProgress = type === "progress";
+        var toastKind = isProgress ? "toast-progress" : isSuccess ? "toast-success" : isWarn ? "toast-warn" : "toast-error";
+        icEl.textContent = isProgress ? "\u2026" : isSuccess ? "\u2713" : isWarn ? "\u26A0" : "\u2715";
+        msgEl.textContent = t;
+        toast.className = "toast show " + toastKind;
+        var ms = isProgress
+          ? Math.min(20000, Math.max(8000, 1200 + t.length * 40))
+          : isSuccess
+            ? 4800
+            : Math.min(9000, Math.max(4500, 800 + t.length * 40));
+        toastTimer = setTimeout(function () {
           toast.className = "toast";
-          toast.textContent = "";
+          msgEl.textContent = "";
+          icEl.textContent = "";
         }, ms);
       }
 
-      /** 在系统/弹层处理完点击后再弹出成功条，避免被遮挡或一闪而过 */
-      function showDownloadSuccessToast(msg) {
-        window.setTimeout(function () {
-          showToast("success", msg || "已开始下载");
-        }, 120);
+      function showDownloadProgressToast() {
+        showToast("progress", "正在请求服务器并生成 ZIP，请稍候…");
       }
+
+      function showDownloadReadyToast(msg) {
+        showToast("success", msg || "下载已开始；若未弹出保存窗口，请检查浏览器下载拦截设置");
+      }
+
+      /* 任务列表 / 结果区 通过 <a target=_blank> 打开单任务下载时，立即给出反馈（不拦截默认行为） */
+      document.addEventListener(
+        "click",
+        function (e) {
+          var el = e.target;
+          if (!el || typeof el.closest !== "function") return;
+          var a = el.closest("a[href]");
+          if (!a) return;
+          var href = a.getAttribute("href") || "";
+          if (href === "#" || href.indexOf("/jobs/") === -1 || href.indexOf("/download") === -1) return;
+          try {
+            var u = new URL(a.href, window.location.href);
+            if (!/\/jobs\/[a-f0-9]{32}\/download$/i.test(u.pathname)) return;
+          } catch (err) {
+            return;
+          }
+          showToast("success", "正在打开下载…");
+        },
+        true
+      );
 
       /** 将 FastAPI / HTTP JSON 里的 detail 转成可读字符串 */
       function formatApiDetail(payload) {
@@ -2180,6 +2213,7 @@ if (selectedList) selectedList.innerHTML = "";
           if (!ids.length) return;
           try {
             batchDownloadBtn.disabled = true;
+            showDownloadProgressToast();
             const resp = await fetch("/jobs/batch-download", {
               method: "POST",
               credentials: "same-origin",
@@ -2202,6 +2236,7 @@ if (selectedList) selectedList.innerHTML = "";
             if (m && m[1]) {
               filename = m[1];
             }
+            showDownloadReadyToast("打包完成，正在保存到本地…");
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -2210,7 +2245,6 @@ if (selectedList) selectedList.innerHTML = "";
             a.click();
             a.remove();
             URL.revokeObjectURL(url);
-            showDownloadSuccessToast("已开始下载");
           } catch (e) {
             showToast("error", "批量下载失败");
           } finally {
@@ -2291,6 +2325,7 @@ if (selectedList) selectedList.innerHTML = "";
           }
           try {
             rangeExportSubmit.disabled = true;
+            showDownloadProgressToast();
             const body = {
               time_field: getRangeExportTimeField(),
               time_start: ts,
@@ -2325,6 +2360,8 @@ if (selectedList) selectedList.innerHTML = "";
             if (m && m[1]) {
               filename = m[1];
             }
+            closeRangeExportModal();
+            showDownloadReadyToast("打包完成，正在保存到本地…");
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -2333,8 +2370,6 @@ if (selectedList) selectedList.innerHTML = "";
             a.click();
             a.remove();
             URL.revokeObjectURL(url);
-            closeRangeExportModal();
-            showDownloadSuccessToast("已开始下载");
           } catch (e) {
             showToast("error", "打包下载失败");
           } finally {
