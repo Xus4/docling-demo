@@ -21,12 +21,12 @@ class TestAugmentMarkdownText(unittest.TestCase):
             timeout_sec=5.0,
         )
 
-        def fake_json(*_a: object, **_k: object) -> tuple[dict[str, object], ChatCompletionMeta]:
-            return {"summary": "这是表格语义。"}, ChatCompletionMeta()
+        def fake_text(*_a: object, **_k: object) -> tuple[str, ChatCompletionMeta]:
+            return "这是表格语义。", ChatCompletionMeta()
 
         with mock.patch(
-            "src.table_semantic.augment.chat_completion_json_object_with_meta",
-            side_effect=fake_json,
+            "src.table_semantic.augment.chat_completion_text_with_meta",
+            side_effect=fake_text,
         ):
             out1 = augment_markdown_text(
                 md, cfg=cfg, max_concurrency=1
@@ -35,7 +35,7 @@ class TestAugmentMarkdownText(unittest.TestCase):
         self.assertIn("table-semantic", out1)
 
         with mock.patch(
-            "src.table_semantic.augment.chat_completion_json_object_with_meta",
+            "src.table_semantic.augment.chat_completion_text_with_meta",
         ) as p2:
             out2 = augment_markdown_text(
                 out1, cfg=cfg, max_concurrency=1
@@ -55,12 +55,12 @@ class TestAugmentMarkdownText(unittest.TestCase):
             temperature=0.7,
         )
 
-        def fake_json(*_a: object, **_k: object) -> tuple[dict[str, object], ChatCompletionMeta]:
-            return {"summary": "带参数的语义"}, ChatCompletionMeta()
+        def fake_text(*_a: object, **_k: object) -> tuple[str, ChatCompletionMeta]:
+            return "带参数的语义", ChatCompletionMeta()
 
         with mock.patch(
-            "src.table_semantic.augment.chat_completion_json_object_with_meta",
-            side_effect=fake_json,
+            "src.table_semantic.augment.chat_completion_text_with_meta",
+            side_effect=fake_text,
         ):
             out = augment_markdown_text(md, cfg=cfg, max_concurrency=1)
         self.assertIn("带参数的语义", out)
@@ -76,15 +76,15 @@ class TestAugmentMarkdownFile(unittest.TestCase):
             timeout_sec=5.0,
         )
 
-        def fake_json(*_a: object, **_k: object) -> tuple[dict[str, object], ChatCompletionMeta]:
-            return {"summary": "文件内语义"}, ChatCompletionMeta()
+        def fake_text(*_a: object, **_k: object) -> tuple[str, ChatCompletionMeta]:
+            return "文件内语义", ChatCompletionMeta()
 
         with tempfile.TemporaryDirectory() as td:
             p = Path(td) / "t.md"
             p.write_text(md, encoding="utf-8")
             with mock.patch(
-                "src.table_semantic.augment.chat_completion_json_object_with_meta",
-                side_effect=fake_json,
+                "src.table_semantic.augment.chat_completion_text_with_meta",
+                side_effect=fake_text,
             ):
                 augment_markdown_file(p, cfg=cfg, max_concurrency=1)
             body = p.read_text(encoding="utf-8")

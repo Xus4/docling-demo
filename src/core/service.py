@@ -10,7 +10,7 @@ from pathlib import Path
 from config import AppConfig
 from src.logging_utils import log_event
 from src.mineru_client import MinerUError, mineru_client_config_from_app, run_mineru_convert
-from src.table_semantic.augment import augment_markdown_file
+from src.table_semantic.augment import TableCaptionParams, augment_markdown_file
 from src.table_semantic.llm_client import OpenAICompatibleConfig
 
 log = logging.getLogger(__name__)
@@ -182,6 +182,11 @@ class ConversionService:
                     dst,
                     cfg=llm_cfg,
                     max_concurrency=self.app_config.table_semantic_max_concurrency,
+                    caption_params=TableCaptionParams(
+                        context_before_chars=self.app_config.table_semantic_context_before_chars,
+                        context_after_chars=self.app_config.table_semantic_context_after_chars,
+                        caption_target_chars=self.app_config.table_semantic_caption_target_chars,
+                    ),
                     progress_callback=semantic_progress_callback,
                 )
                 log.info("表格语义增强完成")

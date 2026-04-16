@@ -204,6 +204,9 @@ class AppConfig:
     table_semantic_thinking_enable: bool
     table_semantic_max_tokens: int | None  # 最大生成 token 数
     table_semantic_temperature: float | None  # 温度参数 (0-2)
+    table_semantic_context_before_chars: int  # 表前截取字符数（送入「表格附近上下文」）
+    table_semantic_context_after_chars: int  # 表后截取字符数
+    table_semantic_caption_target_chars: int  # system 中「约 N 字」提示
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -331,6 +334,15 @@ class AppConfig:
             ),
             table_semantic_temperature=_env_optional_float(
                 "TABLE_SEMANTIC_TEMPERATURE"
+            ),
+            table_semantic_context_before_chars=max(
+                0, env_int("TABLE_SEMANTIC_CONTEXT_BEFORE_CHARS", 3000)
+            ),
+            table_semantic_context_after_chars=max(
+                0, env_int("TABLE_SEMANTIC_CONTEXT_AFTER_CHARS", 3000)
+            ),
+            table_semantic_caption_target_chars=max(
+                1, env_int("TABLE_SEMANTIC_CAPTION_TARGET_CHARS", 800)
             ),
         )
 
