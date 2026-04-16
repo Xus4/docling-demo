@@ -346,8 +346,15 @@
       aria-labelledby="rangeExportTitle"
       hidden
     >
-      <div class="modal-dialog modal-dialog-wide range-export-dialog">
-        <h2 id="rangeExportTitle" class="modal-title">按时间区间打包下载</h2>
+      <div class="modal-dialog modal-dialog-wide range-export-dialog" role="document">
+        <div class="range-export-header">
+          <h2 id="rangeExportTitle" class="modal-title range-export-title">按时间区间打包下载</h2>
+          <button type="button" class="range-export-close" id="rangeExportClose" aria-label="关闭">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="20" height="20">
+              <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            </svg>
+          </button>
+        </div>
         <p id="rangeExportDesc" class="modal-desc">
           仅打包「已完成」任务，输出为 ZIP。时间区间与下方「关键词」「提交人」筛选（若已设置）一并生效，便于与列表核对。
         </p>
@@ -431,6 +438,7 @@ const selectedList = document.getElementById("selectedList");
       const rangeExportCount = document.getElementById("rangeExportCount");
       const rangeExportFilterHint = document.getElementById("rangeExportFilterHint");
       const rangeExportCancel = document.getElementById("rangeExportCancel");
+      const rangeExportClose = document.getElementById("rangeExportClose");
       const rangeExportSubmit = document.getElementById("rangeExportSubmit");
       const taskPrevBtn = document.getElementById("taskPrevBtn");
       const taskNextBtn = document.getElementById("taskNextBtn");
@@ -1027,16 +1035,15 @@ const selectedList = document.getElementById("selectedList");
         var t = String(text || "");
         var isSuccess = type === "success";
         var isWarn = type === "warn";
-        var isProgress = type === "progress";
-        var toastKind = isProgress ? "toast-progress" : isSuccess ? "toast-success" : isWarn ? "toast-warn" : "toast-error";
-        icEl.textContent = isProgress ? "\u2026" : isSuccess ? "\u2713" : isWarn ? "\u26A0" : "\u2715";
+        var toastKind = isSuccess ? "toast-success" : isWarn ? "toast-warn" : "toast-error";
+        icEl.textContent = isSuccess ? "\u2713" : isWarn ? "\u26A0" : "\u2715";
         msgEl.textContent = t;
         toast.className = "toast show " + toastKind;
-        var ms = isProgress
-          ? Math.min(20000, Math.max(8000, 1200 + t.length * 40))
-          : isSuccess
-            ? 4800
-            : Math.min(9000, Math.max(4500, 800 + t.length * 40));
+        var ms = isSuccess
+          ? t.indexOf("\u6b63\u5728\u4e0b\u8f7d") >= 0
+            ? 6200
+            : 5000
+          : Math.min(9000, Math.max(4500, 800 + t.length * 40));
         toastTimer = setTimeout(function () {
           toast.className = "toast";
           msgEl.textContent = "";
@@ -1045,11 +1052,11 @@ const selectedList = document.getElementById("selectedList");
       }
 
       function showDownloadProgressToast() {
-        showToast("progress", "正在请求服务器并生成 ZIP，请稍候…");
+        showToast("success", "正在下载，请稍后…");
       }
 
       function showDownloadReadyToast(msg) {
-        showToast("success", msg || "下载已开始；若未弹出保存窗口，请检查浏览器下载拦截设置");
+        showToast("success", msg || "下载已开始");
       }
 
       /* 任务列表 / 结果区 通过 <a target=_blank> 打开单任务下载时，立即给出反馈（不拦截默认行为） */
@@ -1068,7 +1075,7 @@ const selectedList = document.getElementById("selectedList");
           } catch (err) {
             return;
           }
-          showToast("success", "正在打开下载…");
+          showToast("success", "正在下载，请稍后…");
         },
         true
       );
@@ -2236,7 +2243,7 @@ if (selectedList) selectedList.innerHTML = "";
             if (m && m[1]) {
               filename = m[1];
             }
-            showDownloadReadyToast("打包完成，正在保存到本地…");
+            showDownloadReadyToast("下载已开始");
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -2245,6 +2252,7 @@ if (selectedList) selectedList.innerHTML = "";
             a.click();
             a.remove();
             URL.revokeObjectURL(url);
+            closeBatchDownloadDropdown();
           } catch (e) {
             showToast("error", "批量下载失败");
           } finally {
@@ -2300,6 +2308,13 @@ if (selectedList) selectedList.innerHTML = "";
 
       if (rangeExportCancel) {
         rangeExportCancel.addEventListener("click", function () {
+          closeRangeExportModal();
+        });
+      }
+
+      if (rangeExportClose) {
+        rangeExportClose.addEventListener("click", function (e) {
+          e.stopPropagation();
           closeRangeExportModal();
         });
       }
@@ -2361,7 +2376,7 @@ if (selectedList) selectedList.innerHTML = "";
               filename = m[1];
             }
             closeRangeExportModal();
-            showDownloadReadyToast("打包完成，正在保存到本地…");
+            showDownloadReadyToast("下载已开始");
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -2370,6 +2385,7 @@ if (selectedList) selectedList.innerHTML = "";
             a.click();
             a.remove();
             URL.revokeObjectURL(url);
+            closeBatchDownloadDropdown();
           } catch (e) {
             showToast("error", "打包下载失败");
           } finally {
