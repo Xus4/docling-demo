@@ -125,7 +125,11 @@ class TestWebappUploads(unittest.TestCase):
                     auth_store=auth_store,
                     job_worker=worker,
                     max_file_size_bytes=1024 * 1024,
-                    log=SimpleNamespace(info=lambda *a, **k: None, exception=lambda *a, **k: None),
+                    log=SimpleNamespace(
+                        log=lambda *a, **k: None,
+                        info=lambda *a, **k: None,
+                        exception=lambda *a, **k: None,
+                    ),
                     short_job_id=lambda x: x[:8],
                 )
             )
@@ -161,7 +165,11 @@ class TestWebappUploads(unittest.TestCase):
                         auth_store=auth_store,
                         job_worker=worker,
                         max_file_size_bytes=1024 * 1024,
-                        log=SimpleNamespace(info=lambda *a, **k: None, exception=lambda *a, **k: None),
+                        log=SimpleNamespace(
+                        log=lambda *a, **k: None,
+                        info=lambda *a, **k: None,
+                        exception=lambda *a, **k: None,
+                    ),
                         short_job_id=lambda x: x[:8],
                     )
                 )
@@ -193,7 +201,11 @@ class TestWebappUploads(unittest.TestCase):
                         auth_store=auth_store,
                         job_worker=worker,
                         max_file_size_bytes=1024 * 1024,
-                        log=SimpleNamespace(info=lambda *a, **k: None, exception=lambda *a, **k: None),
+                        log=SimpleNamespace(
+                        log=lambda *a, **k: None,
+                        info=lambda *a, **k: None,
+                        exception=lambda *a, **k: None,
+                    ),
                         short_job_id=lambda x: x[:8],
                     )
                 )

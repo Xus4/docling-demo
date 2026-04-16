@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 import math
 
+import httpx
+
 from src.core.auth import AuthStore, JobRecord
 from config import AppConfig
 from src.core.service import ConversionError, ConversionService
@@ -22,7 +24,6 @@ _STAGE_NOTES: dict[str, str] = {
     "mineru_prepare": "准备解析…",
     "mineru_upload": "正在提交至解析服务…",
     "mineru_remote": "正在解析…",
-    "mineru_download": "正在拉取解析结果…",
     "mineru_materialize": "正在整理输出文件…",
     "semantic_enhance": "表格语义补充中…",
 }
@@ -56,6 +57,29 @@ def _job_log_fields(job_id: str, rec: JobRecord | None) -> tuple[str, str, str]:
     return job_id, user, name
 
 
+def _should_requeue_network_instead_of_fail(exc: BaseException) -> bool:
+    """上游半开连接、超时等瞬时错误：回队重试，避免任务直接失败。"""
+    text = str(exc)
+    if "任务已取消" in text:
+        return False
+    if isinstance(exc, httpx.RequestError):
+        return True
+    markers = (
+        "Server disconnected",
+        "disconnected without sending",
+        "Connection reset",
+        "ReadTimeout",
+        "ConnectTimeout",
+        "ConnectError",
+        "网络不稳定，已重试",
+        "Broken pipe",
+        "WriteTimeout",
+        "RemoteProtocolError",
+        "LocalProtocolError",
+    )
+    return any(m in text for m in markers)
+
+
 def _run_single_file_conversion(
     *,
     job_id: str,
@@ -84,8 +108,8 @@ def _run_single_file_conversion(
             pct = 99
             note = "解析完成，正在整理结果…"
         elif d * 100 >= 90 * t:
-            # MinerU 端多已完成，client 在拉取 /result 或写盘；避免仍显示「正在解析」
-            note = "正在拉取解析结果…"
+            # 接近完成：仍归为解析阶段（不再单独显示「拉取结果」）
+            note = "正在解析中…"
         elif pct >= 10:
             note = "正在解析中…"
         if parse_t0["t"] is None:
@@ -177,6 +201,17 @@ def _run_single_file_conversion(
         )
 
     except ConversionError as exc:
+        if _should_requeue_network_instead_of_fail(exc) and auth.requeue_running_job_for_resume(job_id):
+            log_event(
+                log,
+                logging.WARNING,
+                "job.transient_network.requeue",
+                job=short_job_id(jid),
+                user=user,
+                file=fname,
+                error=str(exc)[:500],
+            )
+            return
         auth.update_job_file_counts(
             job_id,
             total_files=1,
@@ -187,6 +222,17 @@ def _run_single_file_conversion(
         auth.mark_job_failed(job_id, str(exc))
         return
     except Exception as exc:  # noqa: BLE001
+        if _should_requeue_network_instead_of_fail(exc) and auth.requeue_running_job_for_resume(job_id):
+            log_event(
+                log,
+                logging.WARNING,
+                "job.transient_network.requeue",
+                job=short_job_id(jid),
+                user=user,
+                file=fname,
+                error=str(exc)[:500],
+            )
+            return
         auth.update_job_file_counts(
             job_id,
             total_files=1,
@@ -290,7 +336,7 @@ def _run_directory_conversion(
                     combined_pct = min(99, max(combined_pct, int(round(100.0 * file_idx / file_total)) - 1))
                     note = f"文件解析完成（{file_idx}/{file_total}），正在整理结果…"
                 elif d * 100 >= 90 * t:
-                    note = f"正在拉取解析结果（{file_idx}/{file_total}）…"
+                    note = f"正在解析（{file_idx}/{file_total}）…"
                 if parse_t0["t"] is None:
                     parse_t0["t"] = time.time()
                 eta_sec = None

@@ -7,6 +7,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+import httpx
+
 from config import AppConfig
 from src.logging_utils import log_event
 from src.mineru_client import MinerUError, mineru_client_config_from_app, run_mineru_convert
@@ -153,6 +155,8 @@ class ConversionService:
             )
         except MinerUError as exc:
             raise ConversionError(str(exc)) from exc
+        except httpx.RequestError as exc:
+            raise ConversionError(f"MinerU 网络异常: {exc!s}") from exc
 
         if (
             self.app_config.table_semantic_enable

@@ -3,15 +3,47 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
+
+import httpx
 
 from src.mineru_client import (
     MinerUError,
+    _httpx_call_with_retry,
     build_multipart_form_fields,
     build_multipart_request_items,
     markdown_from_results_json,
     markdown_from_zip_bytes,
     persist_zip_artifacts,
 )
+
+
+class TestHttpxRetry(unittest.TestCase):
+    @patch("src.mineru_client.time.sleep", lambda *_a, **_k: None)
+    def test_retry_then_success(self) -> None:
+        n = {"c": 0}
+
+        def op() -> int:
+            n["c"] += 1
+            if n["c"] < 3:
+                raise httpx.RemoteProtocolError(
+                    "Server disconnected without sending a response."
+                )
+            return 42
+
+        self.assertEqual(_httpx_call_with_retry(op, what="测试", max_attempts=6), 42)
+        self.assertEqual(n["c"], 3)
+
+    @patch("src.mineru_client.time.sleep", lambda *_a, **_k: None)
+    def test_retry_exhausted_raises_mineru_error(self) -> None:
+        def op() -> int:
+            raise httpx.RemoteProtocolError(
+                "Server disconnected without sending a response."
+            )
+
+        with self.assertRaises(MinerUError) as ctx:
+            _httpx_call_with_retry(op, what="测试", max_attempts=3)
+        self.assertIn("已重试 3 次", str(ctx.exception))
 
 
 class TestMinerUForm(unittest.TestCase):

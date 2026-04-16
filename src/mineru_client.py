@@ -11,7 +11,7 @@ import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 if TYPE_CHECKING:
     from config import AppConfig
@@ -23,6 +23,36 @@ from src.mineru_zip_layout import normalize_mineru_zip_layout
 
 class MinerUError(Exception):
     """MinerU HTTP 或结果解析错误。"""
+
+
+_T = TypeVar("_T")
+
+
+def _sleep_before_http_retry(attempt_idx: int) -> None:
+    """attempt_idx 为 0 表示首次失败后、第二次尝试前。"""
+    delay = min(12.0, 0.35 * (2**attempt_idx))
+    time.sleep(delay)
+
+
+def _httpx_call_with_retry(
+    op: Callable[[], _T],
+    *,
+    what: str,
+    max_attempts: int = 6,
+) -> _T:
+    """对连接抖动、服务端半开断开等 RequestError 做有限次重试。"""
+    last: BaseException | None = None
+    for attempt in range(max_attempts):
+        try:
+            return op()
+        except httpx.RequestError as exc:
+            last = exc
+            if attempt + 1 >= max_attempts:
+                raise MinerUError(
+                    f"MinerU {what}失败（网络不稳定，已重试 {max_attempts} 次）: {exc!s}"
+                ) from exc
+            _sleep_before_http_retry(attempt)
+    raise AssertionError(last)  # pragma: no cover
 
 
 def _form_bool(v: bool) -> str:
@@ -378,7 +408,10 @@ def _run_sync_parse(
     if progress_callback:
         progress_callback(1, 10)
     _emit_processing_stage(on_processing_stage, "mineru_upload")
-    resp = client.post("/file_parse", files=multipart_items)
+    resp = _httpx_call_with_retry(
+        lambda: client.post("/file_parse", files=multipart_items),
+        what="同步解析",
+    )
     if resp.status_code == 409:
         raise MinerUError(_parse_error_body(resp))
     if resp.status_code == 503:
@@ -386,7 +419,6 @@ def _run_sync_parse(
     resp.raise_for_status()
     if progress_callback:
         progress_callback(9, 10)
-    _emit_processing_stage(on_processing_stage, "mineru_download")
     ct = (resp.headers.get("content-type") or "").lower()
     body = resp.content
     if "application/zip" in ct or body.startswith(b"PK\x03\x04"):
@@ -423,7 +455,10 @@ def _run_async_parse(
     task_id = str(resume_task_id or "").strip()
     if not task_id:
         _emit_processing_stage(on_processing_stage, "mineru_upload")
-        resp = client.post("/tasks", files=multipart_items)
+        resp = _httpx_call_with_retry(
+            lambda: client.post("/tasks", files=multipart_items),
+            what="提交解析任务",
+        )
         if resp.status_code not in (200, 202):
             raise MinerUError(_parse_error_body(resp))
         try:
@@ -449,7 +484,10 @@ def _run_async_parse(
             _emit_processing_stage(on_processing_stage, "mineru_remote")
             remote_stage_emitted = True
 
-        st_resp = client.get(f"/tasks/{task_id}")
+        st_resp = _httpx_call_with_retry(
+            lambda: client.get(f"/tasks/{task_id}"),
+            what="查询任务状态",
+        )
         if st_resp.status_code == 404:
             raise MinerUError("MinerU 任务不存在（404）")
         st_resp.raise_for_status()
@@ -477,8 +515,10 @@ def _run_async_parse(
     if progress_callback:
         progress_callback(92, 100)
 
-    _emit_processing_stage(on_processing_stage, "mineru_download")
-    res_resp = client.get(f"/tasks/{task_id}/result")
+    res_resp = _httpx_call_with_retry(
+        lambda: client.get(f"/tasks/{task_id}/result"),
+        what="拉取解析结果",
+    )
     if res_resp.status_code == 409:
         raise MinerUError(_parse_error_body(res_resp))
     if res_resp.status_code == 202:

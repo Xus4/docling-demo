@@ -1478,13 +1478,14 @@ if (selectedList) selectedList.innerHTML = "";
         mineru_prepare: "准备解析",
         mineru_upload: "提交任务",
         mineru_remote: "解析中",
-        mineru_download: "拉取解析结果",
         mineru_materialize: "整理输出",
         semantic_enhance: "表格语义补充",
       };
 
       function processingStageLabel(stage) {
         if (!stage) return "";
+        // 旧任务可能仍存 mineru_download，与「解析中」合并展示
+        if (stage === "mineru_download") return PROCESSING_STAGE_LABELS.mineru_remote;
         return PROCESSING_STAGE_LABELS[stage] || String(stage);
       }
 
