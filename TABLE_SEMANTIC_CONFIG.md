@@ -67,37 +67,20 @@ TABLE_SEMANTIC_ENABLE=true
 TABLE_SEMANTIC_MODEL=qwen3.5:35b-a3b
 TABLE_SEMANTIC_MAX_TOKENS=6000
 TABLE_SEMANTIC_TEMPERATURE=0.8
-TABLE_SEMANTIC_TOP_P=0.95
-TABLE_SEMANTIC_FREQUENCY_PENALTY=0.5
 ```
 
 ## 参数调优建议
-
-### Temperature（温度）
-- **0.0-0.3**: 非常确定，适合数值型、事实性表格
-- **0.4-0.7**: 平衡模式，适合大多数场景（推荐）
-- **0.8-1.0**: 更有创意，适合需要推断的复杂表格
-- **>1.0**: 高度随机，一般不推荐用于表格分析
 
 ### Max Tokens（最大token）
 - **2000-3000**: 简单表格，少量数据
 - **4000-5000**: 中等复杂度表格（推荐默认值）
 - **6000-8000**: 复杂表格，包含大量数据和关系
 
-### Top P（核采样）
-- **0.7-0.85**: 更聚焦，减少不相关输出
-- **0.85-0.95**: 平衡模式（推荐）
-- **>0.95**: 更多样化，但可能引入不相关内容
-
-### Presence Penalty（存在惩罚）
-- **0.0**: 无惩罚（默认）
-- **0.2-0.4**: 轻微惩罚，减少话题重复
-- **0.5-0.8**: 中等惩罚，适合长表格避免重复描述
-
-### Frequency Penalty（频率惩罚）
-- **0.0**: 无惩罚（默认）
-- **0.3-0.6**: 轻微惩罚，减少相同词汇重复
-- **0.7-1.0**: 中等惩罚，提高表达多样性
+### Temperature（温度）
+- **0.0-0.3**: 非常确定，适合数值型、事实性表格
+- **0.4-0.7**: 平衡模式，适合大多数场景（推荐）
+- **0.8-1.0**: 更有创意，适合需要推断的复杂表格
+- **>1.0**: 高度随机，一般不推荐用于表格分析
 
 ## 注意事项
 
@@ -130,9 +113,6 @@ TABLE_SEMANTIC_TIMEOUT_SEC=600
 TABLE_SEMANTIC_MAX_CONCURRENCY=2
 TABLE_SEMANTIC_MAX_TOKENS=4000
 TABLE_SEMANTIC_TEMPERATURE=0.7
-TABLE_SEMANTIC_TOP_P=0.9
-TABLE_SEMANTIC_PRESENCE_PENALTY=0.0
-TABLE_SEMANTIC_FREQUENCY_PENALTY=0.0
 TABLE_SEMANTIC_CONTEXT_BEFORE_CHARS=0
 TABLE_SEMANTIC_CONTEXT_AFTER_CHARS=0
 TABLE_SEMANTIC_ON_ERROR=skip
