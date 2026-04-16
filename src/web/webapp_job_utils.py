@@ -61,18 +61,21 @@ def job_to_api_dict(
     if job.status == "running":
         out["progress_percent"] = job.progress_percent
         out["progress_note"] = job.progress_note
+        out["processing_stage"] = job.processing_stage
         out["progress_pages_done"] = job.progress_pages_done
         out["progress_pages_total"] = job.progress_pages_total
         out["current_file_name"] = job.current_file_name
     elif job.status == "succeeded":
         out["progress_percent"] = 100
         out["progress_note"] = "已完成"
+        out["processing_stage"] = None
         out["progress_pages_done"] = None
         out["progress_pages_total"] = None
         out["current_file_name"] = None
     else:
         out["progress_percent"] = None
         out["progress_note"] = None
+        out["processing_stage"] = None
         out["progress_pages_done"] = None
         out["progress_pages_total"] = None
         out["current_file_name"] = None

@@ -94,7 +94,7 @@ class TestMinerUMarkdownExtract(unittest.TestCase):
         md = markdown_from_zip_bytes(buf.getvalue(), "doc")
         self.assertEqual(md, "# Z")
 
-    def test_persist_zip_artifacts_extracts_all_files(self) -> None:
+    def test_persist_zip_artifacts_keeps_main_md_and_images_only(self) -> None:
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as zf:
             zf.writestr("doc/auto/doc.md", "# Main")
@@ -109,8 +109,9 @@ class TestMinerUMarkdownExtract(unittest.TestCase):
             )
             self.assertTrue(output_path.is_file())
             self.assertEqual(output_path.read_text(encoding="utf-8"), "# Main")
-            self.assertTrue((Path(td) / "doc/auto/images/a.png").is_file())
-            self.assertTrue((Path(td) / "doc/auto/doc_middle.json").is_file())
+            self.assertTrue((Path(td) / "images/a.png").is_file())
+            self.assertFalse((Path(td) / "doc").exists())
+            self.assertFalse((Path(td) / "doc_middle.json").exists())
 
     def test_persist_zip_artifacts_without_md_raises(self) -> None:
         buf = io.BytesIO()

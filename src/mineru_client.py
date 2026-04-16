@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 
 import httpx
 
+from src.mineru_zip_layout import normalize_mineru_zip_layout
+
 
 class MinerUError(Exception):
     """MinerU HTTP 或结果解析错误。"""
@@ -152,7 +154,6 @@ def persist_zip_artifacts(
     out_root.mkdir(parents=True, exist_ok=True)
     try:
         with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
-            md_paths: list[Path] = []
             for info in zf.infolist():
                 if info.is_dir():
                     continue
@@ -163,10 +164,15 @@ def persist_zip_artifacts(
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 with zf.open(info, "r") as src, dst.open("wb") as out:
                     shutil.copyfileobj(src, out)
-                if dst.suffix.lower() == ".md":
-                    md_paths.append(dst)
     except zipfile.BadZipFile as exc:
         raise MinerUError("MinerU 返回的 ZIP 无效") from exc
+
+    normalize_mineru_zip_layout(out_root, prefer_stem)
+
+    md_paths = sorted(
+        (p for p in out_root.rglob("*.md") if p.is_file()),
+        key=lambda p: p.as_posix(),
+    )
 
     if not md_paths:
         raise MinerUError("MinerU ZIP 结果中未找到 .md 文件")
@@ -174,9 +180,44 @@ def persist_zip_artifacts(
         p for p in md_paths if p.name == f"{prefer_stem}.md" or p.as_posix().endswith(f"/{prefer_stem}.md")
     ]
     chosen = preferred[0] if preferred else sorted(md_paths, key=lambda p: p.as_posix())[0]
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     if chosen.resolve() != output_path.resolve():
-        output_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(chosen, output_path)
+
+    # images 以“主 md 同级目录下的 images”为准，统一归并到 out_root/images。
+    source_images = chosen.parent / "images"
+    keep_images = out_root / "images"
+    if source_images.is_dir():
+        keep_images.mkdir(parents=True, exist_ok=True)
+        for item in source_images.rglob("*"):
+            if not item.is_file():
+                continue
+            rel = item.relative_to(source_images)
+            dst = keep_images / rel
+            try:
+                if item.resolve() == dst.resolve():
+                    continue
+            except OSError:
+                pass
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item, dst)
+
+    # 仅保留一个主 md 与 images 目录（若存在），其余 MinerU 过程文件全部清理。
+    keep_md = output_path.resolve()
+
+    for child in list(out_root.iterdir()):
+        try:
+            child_resolved = child.resolve()
+        except OSError:
+            continue
+        if child_resolved == keep_md:
+            continue
+        if keep_images.is_dir() and child_resolved == keep_images.resolve():
+            continue
+        if child.is_dir():
+            shutil.rmtree(child, ignore_errors=True)
+        else:
+            child.unlink(missing_ok=True)
 
 
 def _parse_error_body(resp: httpx.Response) -> str:
@@ -218,6 +259,13 @@ class MinerUClientConfig:
     end_page_id: int
 
 
+def _emit_processing_stage(
+    cb: Callable[[str], None] | None, name: str
+) -> None:
+    if cb is not None:
+        cb(name)
+
+
 def _headers(api_key: str | None) -> dict[str, str]:
     if api_key and api_key.strip():
         return {"Authorization": f"Bearer {api_key.strip()}"}
@@ -234,6 +282,7 @@ def run_mineru_convert(
     on_remote_task_id: Callable[[str], None] | None,
     progress_callback: Callable[[int, int], None] | None,
     cancel_check: Callable[[], bool] | None,
+    on_processing_stage: Callable[[str], None] | None = None,
 ) -> None:
     base = cfg.base_url.rstrip("/")
     if not base:
@@ -299,6 +348,7 @@ def run_mineru_convert(
                 stem=stem,
                 output_path=output_path,
                 progress_callback=progress_callback,
+                on_processing_stage=on_processing_stage,
             )
             return
 
@@ -312,6 +362,7 @@ def run_mineru_convert(
             on_remote_task_id=on_remote_task_id,
             progress_callback=progress_callback,
             cancel_check=cancel_check,
+            on_processing_stage=on_processing_stage,
         )
 
 
@@ -322,9 +373,11 @@ def _run_sync_parse(
     stem: str,
     output_path: Path,
     progress_callback: Callable[[int, int], None] | None,
+    on_processing_stage: Callable[[str], None] | None,
 ) -> None:
     if progress_callback:
         progress_callback(1, 10)
+    _emit_processing_stage(on_processing_stage, "mineru_upload")
     resp = client.post("/file_parse", files=multipart_items)
     if resp.status_code == 409:
         raise MinerUError(_parse_error_body(resp))
@@ -333,9 +386,11 @@ def _run_sync_parse(
     resp.raise_for_status()
     if progress_callback:
         progress_callback(9, 10)
+    _emit_processing_stage(on_processing_stage, "mineru_download")
     ct = (resp.headers.get("content-type") or "").lower()
     body = resp.content
     if "application/zip" in ct or body.startswith(b"PK\x03\x04"):
+        _emit_processing_stage(on_processing_stage, "mineru_materialize")
         persist_zip_artifacts(zip_bytes=body, output_path=output_path, prefer_stem=stem)
     else:
         try:
@@ -344,6 +399,7 @@ def _run_sync_parse(
             raise MinerUError("MinerU /file_parse 返回非 JSON 且非 ZIP") from exc
         md = markdown_from_results_json(data, stem)
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        _emit_processing_stage(on_processing_stage, "mineru_materialize")
         output_path.write_text(md, encoding="utf-8")
     if progress_callback:
         progress_callback(10, 10)
@@ -360,11 +416,13 @@ def _run_async_parse(
     on_remote_task_id: Callable[[str], None] | None,
     progress_callback: Callable[[int, int], None] | None,
     cancel_check: Callable[[], bool] | None,
+    on_processing_stage: Callable[[str], None] | None,
 ) -> None:
     if progress_callback:
         progress_callback(1, 100)
     task_id = str(resume_task_id or "").strip()
     if not task_id:
+        _emit_processing_stage(on_processing_stage, "mineru_upload")
         resp = client.post("/tasks", files=multipart_items)
         if resp.status_code not in (200, 202):
             raise MinerUError(_parse_error_body(resp))
@@ -381,10 +439,15 @@ def _run_async_parse(
     deadline = time.monotonic() + max(30.0, cfg.max_wait_sec)
     poll = max(0.2, cfg.poll_interval_sec)
     phase = 0
+    remote_stage_emitted = False
 
     while time.monotonic() < deadline:
         if cancel_check is not None and cancel_check():
             raise MinerUError("任务已取消")
+
+        if not remote_stage_emitted:
+            _emit_processing_stage(on_processing_stage, "mineru_remote")
+            remote_stage_emitted = True
 
         st_resp = client.get(f"/tasks/{task_id}")
         if st_resp.status_code == 404:
@@ -414,6 +477,7 @@ def _run_async_parse(
     if progress_callback:
         progress_callback(92, 100)
 
+    _emit_processing_stage(on_processing_stage, "mineru_download")
     res_resp = client.get(f"/tasks/{task_id}/result")
     if res_resp.status_code == 409:
         raise MinerUError(_parse_error_body(res_resp))
@@ -424,6 +488,7 @@ def _run_async_parse(
     body = res_resp.content
     ct = (res_resp.headers.get("content-type") or "").lower()
     if "application/zip" in ct or body.startswith(b"PK\x03\x04"):
+        _emit_processing_stage(on_processing_stage, "mineru_materialize")
         persist_zip_artifacts(zip_bytes=body, output_path=output_path, prefer_stem=stem)
     else:
         try:
@@ -432,6 +497,7 @@ def _run_async_parse(
             raise MinerUError("MinerU /tasks/.../result 返回非 JSON 且非 ZIP") from exc
         md = markdown_from_results_json(data, stem)
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        _emit_processing_stage(on_processing_stage, "mineru_materialize")
         output_path.write_text(md, encoding="utf-8")
     if progress_callback:
         progress_callback(100, 100)

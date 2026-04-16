@@ -1,4 +1,4 @@
-import unittest
+﻿import unittest
 
 from fastapi import HTTPException
 
@@ -38,6 +38,9 @@ def _build_job(**overrides) -> JobRecord:
         processed_files=0,
         succeeded_files=0,
         failed_files=0,
+        mineru_backend=None,
+        mineru_task_id=None,
+        processing_stage=None,
     )
     for k, v in overrides.items():
         setattr(base, k, v)
@@ -74,6 +77,21 @@ class TestWebappJobUtils(unittest.TestCase):
         assert isinstance(preview, list)
         self.assertEqual(preview[0]["file"], "a.pdf")
         self.assertEqual(preview[1]["error"], "oops")
+
+    def test_job_to_api_dict_processing_stage_running(self) -> None:
+        job = _build_job(
+            status="running",
+            progress_percent=50,
+            progress_note="正在解析中…",
+            processing_stage="mineru_remote",
+        )
+        out = job_to_api_dict(job)
+        self.assertEqual(out["processing_stage"], "mineru_remote")
+
+    def test_job_to_api_dict_processing_stage_cleared_when_succeeded(self) -> None:
+        job = _build_job(status="succeeded", processing_stage="semantic_enhance")
+        out = job_to_api_dict(job)
+        self.assertIsNone(out["processing_stage"])
 
 
 if __name__ == "__main__":

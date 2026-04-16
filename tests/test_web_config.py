@@ -43,6 +43,5 @@ class TestAppConfig(unittest.TestCase):
             with self.assertRaises(ValueError):
                 AppConfig.from_env()
 
-
 if __name__ == "__main__":
     unittest.main()

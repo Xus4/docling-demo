@@ -1165,6 +1165,21 @@ if (selectedList) selectedList.innerHTML = "";
         return map[status] || status;
       }
 
+      /** 与后端 jobs.processing_stage 一致（MinerU 解析链 + 语义增强） */
+      var PROCESSING_STAGE_LABELS = {
+        mineru_prepare: "准备解析",
+        mineru_upload: "提交任务",
+        mineru_remote: "解析中",
+        mineru_download: "拉取解析结果",
+        mineru_materialize: "整理输出",
+        semantic_enhance: "表格语义补充",
+      };
+
+      function processingStageLabel(stage) {
+        if (!stage) return "";
+        return PROCESSING_STAGE_LABELS[stage] || String(stage);
+      }
+
       function formatTime(iso) {
         if (!iso) return "—";
         const d = new Date(iso);
@@ -1217,6 +1232,7 @@ if (selectedList) selectedList.innerHTML = "";
         document.querySelectorAll(".task-live-elapsed").forEach(function (el) {
           const s = el.getAttribute("data-started-at");
           const st = el.getAttribute("data-st");
+          const stage = el.getAttribute("data-processing-stage") || "";
           const pctStr = el.getAttribute("data-progress-percent");
           const t1 = parseIsoMs(s);
           const now = Date.now();
@@ -1226,7 +1242,7 @@ if (selectedList) selectedList.innerHTML = "";
             txt = "耗时 " + formatDurationZh(processingMs);
 
             const pct = parseFloat(pctStr);
-            if (Number.isFinite(pct) && pct > 1 && pct < 100) {
+            if (stage === "semantic_enhance" && Number.isFinite(pct) && pct > 1 && pct < 100) {
               const estimatedTotal = processingMs / (pct / 100);
               const remaining = estimatedTotal - processingMs;
               if (remaining > 1000) {
@@ -1364,11 +1380,12 @@ if (selectedList) selectedList.innerHTML = "";
 
           let progressNote = note;
           const noteMatch = noteRaw.match(/正在处理\s+\d+\/\d+\s*[:：]\s*(.+)$/);
-          if (noteMatch && noteMatch[1]) {
+          const allowFileNameHint = job.processing_stage !== "semantic_enhance";
+          if (allowFileNameHint && noteMatch && noteMatch[1]) {
             let currentName = noteMatch[1].trim();
             currentName = String(currentName).split('/').pop().split('\\').pop();
             progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
-          } else if (job.current_file_name || job.current_filename) {
+          } else if (allowFileNameHint && (job.current_file_name || job.current_filename)) {
             let currentName = job.current_file_name || job.current_filename;
             currentName = String(currentName).split('/').pop().split('\\').pop();
             progressNote = "正在处理：" + currentName.replace(/</g, "&lt;");
@@ -1382,11 +1399,13 @@ if (selectedList) selectedList.innerHTML = "";
             pct +
             '%"></div></div>' +
             '<div class="task-progress-note">' +
+            '<span class="task-progress-note-main">' +
             progressNote +
             fileHint +
-            " · " +
+            '</span>' +
+            '<span class="task-progress-note-pct">' +
             pct +
-            "%</div></div>";
+            "%</span></div></div>";
         }
 
 
@@ -1507,6 +1526,8 @@ if (selectedList) selectedList.innerHTML = "";
                   escapeAttr(job.created_at) +
                   '" data-started-at="' +
                   escapeAttr(job.started_at || "") +
+                  '" data-processing-stage="' +
+                  escapeAttr(job.processing_stage || "") +
                   '" data-progress-percent="' +
                   escapeAttr(job.progress_percent || "0") +
                   '" data-st="' +

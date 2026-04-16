@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import shutil
 import uuid
 from collections.abc import Callable
@@ -7,7 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from config import AppConfig
+from src.logging_utils import log_event
 from src.mineru_client import MinerUError, mineru_client_config_from_app, run_mineru_convert
+from src.table_semantic.augment import augment_markdown_file
+from src.table_semantic.llm_client import OpenAICompatibleConfig
+
+log = logging.getLogger(__name__)
 
 
 class ConversionError(Exception):
@@ -120,7 +126,9 @@ class ConversionService:
         remote_task_id: str | None = None,
         on_remote_task_id: Callable[[str], None] | None = None,
         progress_callback: Callable[[int, int], None] | None = None,
+        semantic_progress_callback: Callable[[int, int, float | None], None] | None = None,
         cancel_check: Callable[[], bool] | None = None,
+        processing_stage_callback: Callable[[str], None] | None = None,
     ) -> ConvertToMarkdownResult:
         src = Path(input_path).resolve()
         dst = Path(output_path).resolve()
@@ -141,9 +149,69 @@ class ConversionService:
                 on_remote_task_id=on_remote_task_id,
                 progress_callback=progress_callback,
                 cancel_check=cancel_check,
+                on_processing_stage=processing_stage_callback,
             )
         except MinerUError as exc:
             raise ConversionError(str(exc)) from exc
+
+        if (
+            self.app_config.table_semantic_enable
+            and self.app_config.table_semantic_base_url.strip()
+            and self.app_config.table_semantic_model.strip()
+        ):
+            if processing_stage_callback is not None:
+                processing_stage_callback("semantic_enhance")
+            llm_cfg = OpenAICompatibleConfig(
+                base_url=self.app_config.table_semantic_base_url,
+                api_key=self.app_config.table_semantic_api_key,
+                model=self.app_config.table_semantic_model,
+                timeout_sec=self.app_config.table_semantic_timeout_sec,
+                thinking_enable=self.app_config.table_semantic_thinking_enable,
+            )
+            base_url = str(self.app_config.table_semantic_base_url).strip()
+            log_event(
+                log,
+                logging.INFO,
+                "conversion.semantic_enhance.start",
+                output_path=str(dst),
+                model=self.app_config.table_semantic_model,
+                base_url=base_url[:200],
+                timeout_sec=self.app_config.table_semantic_timeout_sec,
+                max_concurrency=self.app_config.table_semantic_max_concurrency,
+                context_before_chars=self.app_config.table_semantic_context_before_chars,
+                context_after_chars=self.app_config.table_semantic_context_after_chars,
+                on_error=self.app_config.table_semantic_on_error,
+                has_api_key=bool((self.app_config.table_semantic_api_key or "").strip()),
+                thinking_enable=self.app_config.table_semantic_thinking_enable,
+            )
+            try:
+                augment_markdown_file(
+                    dst,
+                    cfg=llm_cfg,
+                    context_before_chars=self.app_config.table_semantic_context_before_chars,
+                    context_after_chars=self.app_config.table_semantic_context_after_chars,
+                    max_concurrency=self.app_config.table_semantic_max_concurrency,
+                    progress_callback=semantic_progress_callback,
+                )
+                log_event(
+                    log,
+                    logging.INFO,
+                    "conversion.semantic_enhance.done",
+                    output_path=str(dst),
+                )
+            except Exception as exc:  # noqa: BLE001
+                log_event(
+                    log,
+                    logging.ERROR,
+                    "conversion.semantic_enhance.fail",
+                    output_path=str(dst),
+                    err_type=type(exc).__name__,
+                    err=str(exc)[:1200],
+                    on_error=self.app_config.table_semantic_on_error,
+                )
+                if self.app_config.table_semantic_on_error == "fail":
+                    raise ConversionError(f"表格语义增强失败: {exc!s}") from exc
+
         return ConvertToMarkdownResult(dst)
 
     def iter_supported_files(self, input_root: Path):

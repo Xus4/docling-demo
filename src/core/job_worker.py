@@ -6,7 +6,9 @@ import multiprocessing as mp
 import os
 import queue
 import threading
+import time
 from pathlib import Path
+import math
 
 from src.core.auth import AuthStore, JobRecord
 from config import AppConfig
@@ -14,6 +16,36 @@ from src.core.service import ConversionError, ConversionService
 from src.logging_utils import configure_logging, log_event, short_job_id
 
 log = logging.getLogger("job_worker")
+
+# 与 mineru_client / ConversionService 的 processing_stage 键一致，用于同步 progress_note
+_STAGE_NOTES: dict[str, str] = {
+    "mineru_prepare": "准备解析…",
+    "mineru_upload": "正在提交至 MinerU…",
+    "mineru_remote": "MinerU 正在解析…",
+    "mineru_download": "正在拉取解析结果…",
+    "mineru_materialize": "正在整理输出文件…",
+    "semantic_enhance": "表格语义补充中…",
+}
+
+
+def _emit_processing_stage_note(auth: AuthStore, job_id: str, stage: str) -> None:
+    auth.set_job_processing_stage(job_id, stage)
+    note = _STAGE_NOTES.get(stage)
+    if note:
+        auth.update_job_progress(job_id, note=note)
+
+
+def _log_stage_enter(job_id: str, user: str, file: str, stage: str) -> None:
+    log_event(
+        log,
+        logging.INFO,
+        "job.stage.enter",
+        job=short_job_id(job_id),
+        user=user,
+        file=file,
+        stage=stage,
+        stage_note=_STAGE_NOTES.get(stage, ""),
+    )
 
 
 def _job_log_fields(job_id: str, rec: JobRecord | None) -> tuple[str, str, str]:
@@ -34,6 +66,10 @@ def _run_single_file_conversion(
     mineru_backend: str | None,
     mineru_task_id: str | None,
 ) -> None:
+    rec0 = auth.get_job(job_id)
+    jid, user, fname = _job_log_fields(job_id, rec0)
+    parse_t0 = {"t": None}
+
     def on_parse_progress(done: int, total: int) -> None:
         # 子进程内协作取消：若任务已不再 running，则立刻抛错中断后续流程
         j = auth.get_job(job_id)
@@ -44,17 +80,42 @@ def _run_single_file_conversion(
         pct = int(round(100.0 * d / t))
         pct = max(0, min(99, pct))
         note = "任务已提交，等待调度…"
-        if pct >= 10:
-            note = "正在解析中…"
         if d >= t:
             pct = 99
             note = "解析完成，正在整理结果…"
+        elif d * 100 >= 90 * t:
+            # MinerU 端多已完成，client 在拉取 /result 或写盘；避免仍显示「正在解析」
+            note = "正在拉取解析结果…"
+        elif pct >= 10:
+            note = "正在解析中…"
+        if parse_t0["t"] is None:
+            parse_t0["t"] = time.time()
+        eta_sec = None
+        if d > 0 and d < t and parse_t0["t"] is not None:
+            elapsed = max(0.001, time.time() - parse_t0["t"])
+            estimated_total = elapsed / (d / t)
+            remain = estimated_total - elapsed
+            if remain > 0:
+                eta_sec = int(round(remain))
         auth.update_job_progress(
             job_id,
             percent=pct,
             note=note,
             pages_done=None,
             pages_total=None,
+        )
+        log_event(
+            log,
+            logging.INFO,
+            "job.stage.progress",
+            job=short_job_id(jid),
+            user=user,
+            file=fname,
+            stage="mineru_remote",
+            stage_progress=f"{d}/{t}",
+            percent=pct,
+            eta_sec=eta_sec if eta_sec is not None else "-",
+            note=note,
         )
 
     if not input_file.is_file():
@@ -65,6 +126,40 @@ def _run_single_file_conversion(
         j = auth.get_job(job_id)
         return (not j) or j.status != "running"
 
+    def _on_stage(name: str) -> None:
+        _emit_processing_stage_note(auth, job_id, name)
+        _log_stage_enter(jid, user, fname, name)
+
+    def on_semantic_progress(done: int, total: int, eta_sec: float | None) -> None:
+        j = auth.get_job(job_id)
+        if not j or j.status != "running":
+            raise RuntimeError("任务已取消")
+        t = max(int(total), 0)
+        d = max(0, min(int(done), t if t > 0 else int(done)))
+        if t > 0:
+            pct = 93 + int(math.floor((d / t) * 6))
+            pct = max(93, min(99, pct))
+            note = f"表格语义补充中（{d}/{t}）…"
+        else:
+            pct = 95
+            note = "表格语义补充中…"
+        if eta_sec is not None and eta_sec > 1:
+            note += f" 预计剩余 {int(round(eta_sec))} 秒"
+        auth.update_job_progress(job_id, percent=pct, note=note)
+        log_event(
+            log,
+            logging.INFO,
+            "job.stage.progress",
+            job=short_job_id(jid),
+            user=user,
+            file=fname,
+            stage="semantic_enhance",
+            stage_progress=f"{d}/{t}" if t > 0 else "-",
+            percent=pct,
+            eta_sec=int(round(eta_sec)) if eta_sec is not None and eta_sec > 0 else "-",
+            note=note,
+        )
+
     try:
         service.convert_to_markdown(
             str(input_file),
@@ -73,7 +168,9 @@ def _run_single_file_conversion(
             remote_task_id=mineru_task_id,
             on_remote_task_id=lambda tid: auth.set_job_mineru_task_id(job_id, tid),
             progress_callback=on_parse_progress,
+            semantic_progress_callback=on_semantic_progress,
             cancel_check=cancel_check,
+            processing_stage_callback=_on_stage,
         )
 
     except ConversionError as exc:
@@ -114,6 +211,22 @@ def _run_single_file_conversion(
         failed_files=0,
     )
     auth.mark_job_succeeded(job_id, str(output_file.resolve()), result_extra=None)
+    latest_done = auth.get_job(job_id)
+    jid, user, fname = _job_log_fields(job_id, latest_done)
+    log_event(
+        log,
+        logging.INFO,
+        "job.done",
+        job=short_job_id(jid),
+        user=user,
+        file=fname,
+        status="succeeded",
+        total_files=1,
+        processed_files=1,
+        succeeded_files=1,
+        failed_files=0,
+        output=str(output_file.resolve()),
+    )
 
 
 def _run_directory_conversion(
@@ -125,6 +238,8 @@ def _run_directory_conversion(
     output_root: Path,
     mineru_backend: str | None,
 ) -> None:
+    rec0 = auth.get_job(job_id)
+    jid, user, fname = _job_log_fields(job_id, rec0)
     if not input_root.is_dir():
         auth.mark_job_failed(job_id, "输入目录不存在")
         return
@@ -158,6 +273,7 @@ def _run_directory_conversion(
         dst.parent.mkdir(parents=True, exist_ok=True)
 
         def make_pdf_callback(file_idx: int, file_total: int, file_name: str):
+            parse_t0 = {"t": None}
             def on_parse_progress(done: int, total: int) -> None:
                 j = auth.get_job(job_id)
                 if not j or j.status != "running":
@@ -170,6 +286,17 @@ def _run_directory_conversion(
                 if d >= t:
                     combined_pct = min(99, max(combined_pct, int(round(100.0 * file_idx / file_total)) - 1))
                     note = f"文件解析完成（{file_idx}/{file_total}），正在整理结果…"
+                elif d * 100 >= 90 * t:
+                    note = f"正在拉取解析结果（{file_idx}/{file_total}）…"
+                if parse_t0["t"] is None:
+                    parse_t0["t"] = time.time()
+                eta_sec = None
+                if d > 0 and d < t and parse_t0["t"] is not None:
+                    elapsed = max(0.001, time.time() - parse_t0["t"])
+                    estimated_total = elapsed / (d / t)
+                    remain = estimated_total - elapsed
+                    if remain > 0:
+                        eta_sec = int(round(remain))
                 auth.update_job_progress(
                     job_id,
                     percent=combined_pct,
@@ -177,6 +304,19 @@ def _run_directory_conversion(
                     pages_done=None,
                     pages_total=None,
                     current_file_name=file_name,
+                )
+                log_event(
+                    log,
+                    logging.INFO,
+                    "job.stage.progress",
+                    job=short_job_id(jid),
+                    user=user,
+                    file=rel.as_posix(),
+                    stage="mineru_remote",
+                    stage_progress=f"{d}/{t}",
+                    percent=combined_pct,
+                    eta_sec=eta_sec if eta_sec is not None else "-",
+                    note=note,
                 )
             return on_parse_progress
 
@@ -194,13 +334,56 @@ def _run_directory_conversion(
             current_file_name=src.name,
         )
 
+        def _on_stage(name: str) -> None:
+            _emit_processing_stage_note(auth, job_id, name)
+            _log_stage_enter(jid, user, rel.as_posix(), name)
+
+        def on_semantic_progress(done: int, total: int, eta_sec: float | None) -> None:
+            j = auth.get_job(job_id)
+            if not j or j.status != "running":
+                raise RuntimeError("任务已取消")
+            t = max(int(total), 0)
+            d = max(0, min(int(done), t if t > 0 else int(done)))
+            if t > 0:
+                file_inner = d / t
+                combined_pct = int(round(100.0 * ((idx - 1) + file_inner) / total))
+                combined_pct = max(0, min(99, combined_pct))
+                note = f"表格语义补充中（{idx}/{total}，表格 {d}/{t}）…"
+            else:
+                combined_pct = int(round(100.0 * ((idx - 1) + 0.5) / total))
+                combined_pct = max(0, min(99, combined_pct))
+                note = f"表格语义补充中（{idx}/{total}）…"
+            if eta_sec is not None and eta_sec > 1:
+                note += f" 预计剩余 {int(round(eta_sec))} 秒"
+            auth.update_job_progress(
+                job_id,
+                percent=combined_pct,
+                note=note,
+                current_file_name=src.name,
+            )
+            log_event(
+                log,
+                logging.INFO,
+                "job.stage.progress",
+                job=short_job_id(jid),
+                user=user,
+                file=rel.as_posix(),
+                stage="semantic_enhance",
+                stage_progress=f"{d}/{t}" if t > 0 else "-",
+                percent=combined_pct,
+                eta_sec=int(round(eta_sec)) if eta_sec is not None and eta_sec > 0 else "-",
+                note=note,
+            )
+
         try:
             service.convert_to_markdown(
                 str(src),
                 str(dst),
                 backend_override=mineru_backend,
                 progress_callback=make_pdf_callback(idx, total, src.name),
+                semantic_progress_callback=on_semantic_progress,
                 cancel_check=cancel_check,
+                processing_stage_callback=_on_stage,
             )
             succeeded += 1
         except Exception as exc:  # noqa: BLE001
@@ -256,6 +439,22 @@ def _run_directory_conversion(
         )
 
     auth.mark_job_succeeded(job_id, str(output_root.resolve()), result_extra=result_extra)
+    latest_done = auth.get_job(job_id)
+    jid, user, fname = _job_log_fields(job_id, latest_done)
+    log_event(
+        log,
+        logging.INFO,
+        "job.done",
+        job=short_job_id(jid),
+        user=user,
+        file=fname,
+        status="succeeded",
+        total_files=total,
+        processed_files=processed,
+        succeeded_files=succeeded,
+        failed_files=failed,
+        output=str(output_root.resolve()),
+    )
 
 
 def _run_conversion_in_subprocess(

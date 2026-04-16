@@ -86,6 +86,8 @@ class JobRecord:
     failed_files: int | None = None
     mineru_backend: str | None = None
     mineru_task_id: str | None = None
+    # 运行中细分子阶段（MinerU 解析 + 语义增强等），终态任务为 None
+    processing_stage: str | None = None
 
 
 class AuthStore:
@@ -167,7 +169,8 @@ class AuthStore:
                             failed_files INTEGER
                             ,
                             mineru_backend VARCHAR(64),
-                            mineru_task_id VARCHAR(128)
+                            mineru_task_id VARCHAR(128),
+                            processing_stage VARCHAR(64)
                         )
                         """
                     )
@@ -218,7 +221,8 @@ class AuthStore:
                             failed_files INTEGER
                             ,
                             mineru_backend TEXT,
-                            mineru_task_id TEXT
+                            mineru_task_id TEXT,
+                            processing_stage TEXT
                         )
                         """
                     )
@@ -264,6 +268,7 @@ class AuthStore:
             ("failed_files", "ALTER TABLE jobs ADD COLUMN failed_files INTEGER"),
             ("mineru_backend", "ALTER TABLE jobs ADD COLUMN mineru_backend TEXT"),
             ("mineru_task_id", "ALTER TABLE jobs ADD COLUMN mineru_task_id TEXT"),
+            ("processing_stage", "ALTER TABLE jobs ADD COLUMN processing_stage TEXT"),
         ]:
             if name not in cols:
                 stmts.append(ddl)
@@ -449,6 +454,11 @@ class AuthStore:
                 if "mineru_task_id" in keys and row["mineru_task_id"] is not None
                 else None
             ),
+            processing_stage=(
+                str(row["processing_stage"]).strip()
+                if "processing_stage" in keys and row["processing_stage"] is not None
+                else None
+            ),
         )
 
     def insert_job(
@@ -538,6 +548,7 @@ class AuthStore:
                         attempt_count = attempt_count + 1,
                         progress_percent = 0,
                         progress_note = '开始处理…',
+                        processing_stage = 'mineru_prepare',
                         progress_pages_done = NULL,
                         progress_pages_total = NULL,
                         result_extra = NULL,
@@ -570,6 +581,7 @@ class AuthStore:
                         error_message = NULL,
                         progress_percent = NULL,
                         progress_note = NULL,
+                        processing_stage = NULL,
                         progress_pages_done = NULL,
                         progress_pages_total = NULL,
                         result_extra = :result_extra
@@ -597,6 +609,7 @@ class AuthStore:
                         error_message = :error_message,
                         progress_percent = NULL,
                         progress_note = NULL,
+                        processing_stage = NULL,
                         progress_pages_done = NULL,
                         progress_pages_total = NULL,
                         result_extra = NULL
@@ -621,6 +634,7 @@ class AuthStore:
                         output_file = NULL,
                         progress_percent = NULL,
                         progress_note = NULL,
+                        processing_stage = NULL,
                         progress_pages_done = NULL,
                         progress_pages_total = NULL,
                         result_extra = NULL
@@ -645,6 +659,7 @@ class AuthStore:
                         created_at = :created_at,
                         progress_percent = NULL,
                         progress_note = NULL,
+                        processing_stage = NULL,
                         progress_pages_done = NULL,
                         progress_pages_total = NULL,
                         current_file_name = NULL,
@@ -693,6 +708,7 @@ class AuthStore:
                         cancel_requested = 0,
                         progress_percent = NULL,
                         progress_note = NULL,
+                        processing_stage = NULL,
                         progress_pages_done = NULL,
                         progress_pages_total = NULL,
                         result_extra = NULL
@@ -714,6 +730,7 @@ class AuthStore:
                         cancel_requested = 0,
                         progress_percent = NULL,
                         progress_note = NULL,
+                        processing_stage = NULL,
                         progress_pages_done = NULL,
                         progress_pages_total = NULL,
                         result_extra = NULL
@@ -737,6 +754,7 @@ class AuthStore:
                         error_message = NULL,
                         progress_percent = NULL,
                         progress_note = NULL,
+                        processing_stage = NULL,
                         progress_pages_done = NULL,
                         progress_pages_total = NULL,
                         result_extra = NULL
@@ -984,6 +1002,18 @@ class AuthStore:
             conn.execute(
                 text(f"UPDATE jobs SET {', '.join(sets)} WHERE job_id = :job_id"),
                 params,
+            )
+
+    def set_job_processing_stage(self, job_id: str, stage: str | None) -> None:
+        """仅更新 ``processing_stage``（运行中任务）；``stage`` 为 None 时写入 NULL。"""
+        raw = str(stage).strip()[:64] if stage else None
+        with self.engine.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE jobs SET processing_stage = :st "
+                    "WHERE job_id = :job_id AND status = 'running'"
+                ),
+                {"st": raw, "job_id": job_id},
             )
 
     def update_job_file_counts(
