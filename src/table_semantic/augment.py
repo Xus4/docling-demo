@@ -57,15 +57,12 @@ _SYSTEM_PROMPT = (
     "3) 不得使用多段响应，不得附加“说明如下”等文字。\n"
     "4) 若无法完成，也必须返回 JSON 对象，不得返回自然语言段落。\n"
     "【内容规则】\n"
-    "1) 只能基于「表格原文」与可选「前后文」推断；前后文与表格可能弱相关，请勿强行关联。\n"
+    "1) 只能基于「表格原文」进行转写\n"
     "2) 禁止编造表格中未出现的数值、实体或结论。\n"
-    "3) 输出必须与表格信息等价，不得只做概述，不得遗漏关键字段、条件、单位、时间、范围、阈值、合计/分项、注释与脚注。\n"
-    "4) 原表未提供的信息可写“原表未说明”，但不能脑补。\n"
+    "3) 输出必须与表格信息等价，不得只做概述，不得遗漏关键字段。\n"
     "【JSON Schema（语义要求）】\n"
     "{\n"
-    "  \"equivalent_text\": string,                // 必填：完整等价转写（中文）\n"
-    "  \"key_facts\": string[],                    // 可选：按行列关系拆分事实点\n"
-    "  \"entities\": string[]                      // 可选：实体词\n"
+    "  \"equivalent_text\": string              // 必填：完整等价转写（中文）\n"
     "}"
 )
 
@@ -139,21 +136,11 @@ def _llm_one_block(
         {"role": "user", "content": user_content},
     ]
     t0 = time.perf_counter()
-    log_event(
-        log,
-        logging.INFO,
-        "table_semantic.llm.request",
-        zh="开始调用大模型分析表格",
-        run_id=run_id,
-        table_index=table_index,
-        table_total=table_total,
-        kind=block.kind,
-        span_start=block.start,
-        span_end=block.end,
-        table_chars=len(block.raw),
-        user_payload_chars=len(user_content),
-        model=cfg.model,
-        thinking_enable=cfg.thinking_enable,
+    log.info(
+        f"[表格{table_index}/{table_total}] 开始调用大模型 | "
+        f"表格类型: {block.kind} | "
+        f"表格大小: {len(block.raw)}字符 | "
+        f"输入大小: {len(user_content)}字符"
     )
     prompt_chars_estimated = _calc_prompt_chars(messages)
     data, usage_meta = chat_completion_json_object_with_meta(cfg=cfg, messages=messages)
@@ -161,21 +148,9 @@ def _llm_one_block(
     usage_fields = _usage_log_fields(usage_meta, prompt_chars_estimated)
     summary = _extract_equivalent_text(data)
     if not summary:
-        log_event(
-            log,
-            logging.INFO,
-            "table_semantic.llm.empty_summary",
-            zh="大模型返回为空摘要，跳过该表格",
-            run_id=run_id,
-            table_index=table_index,
-            table_total=table_total,
-            kind=block.kind,
-            span_start=block.start,
-            span_end=block.end,
-            elapsed_sec=elapsed_sec,
-            model_elapsed_sec=elapsed_sec,
-            **usage_fields,
-            keys_sample=",".join(sorted(data.keys()))[:200] if isinstance(data, dict) else "",
+        log.warning(
+            f"[表格{table_index}/{table_total}] 大模型返回空结果，已跳过 | "
+            f"耗时: {elapsed_sec}秒"
         )
         return None
     mid = _marker_prefix(block)
@@ -184,22 +159,12 @@ def _llm_one_block(
         f"**表格说明**：{summary}\n"
         f"<!-- /table-semantic -->\n"
     )
-    log_event(
-        log,
-        logging.INFO,
-        "table_semantic.llm.ok",
-        zh="大模型分析表格完成",
-        run_id=run_id,
-        table_index=table_index,
-        table_total=table_total,
-        kind=block.kind,
-        span_start=block.start,
-        span_end=block.end,
-        summary_chars=len(summary),
-        insert_chars=len(insert),
-        elapsed_sec=elapsed_sec,
-        model_elapsed_sec=elapsed_sec,
-        **usage_fields,
+    log.info(
+        f"[表格{table_index}/{table_total}] 分析完成 | "
+        f"耗时: {elapsed_sec}秒 | "
+        f"输出: {len(summary)}字符 | "
+        f"Prompt Tokens: {usage_meta.prompt_tokens or 'N/A'} | "
+        f"Completion Tokens: {usage_meta.completion_tokens or 'N/A'}"
     )
     return block.end, insert
 
@@ -221,21 +186,12 @@ def augment_markdown_text(
     workers = max(1, int(max_concurrency))
     pool_workers = min(workers, len(pending)) if pending else 0
 
-    log_event(
-        log,
-        logging.INFO,
-        "table_semantic.text.plan",
-        zh="已生成表格语义增强处理计划",
-        run_id=run_id,
-        source=source or "-",
-        doc_chars=len(text),
-        tables_total=len(blocks),
-        tables_pending=len(pending),
-        tables_skipped_augmented=skipped,
-        max_concurrency=workers,
-        pool_workers=pool_workers,
-        model=cfg.model,
-        thinking_enable=cfg.thinking_enable,
+    log.info(
+        f"========== 开始表格语义增强 ==========\n"
+        f"文档大小: {len(text)}字符\n"
+        f"表格总数: {len(blocks)} | 待处理: {len(pending)} | 已跳过: {skipped}\n"
+        f"并发数: {workers}\n"
+        f"模型: {cfg.model}"
     )
     if progress_callback is not None:
         try:
@@ -244,17 +200,7 @@ def augment_markdown_text(
             pass
 
     if not pending:
-        log_event(
-            log,
-            logging.INFO,
-            "table_semantic.text.skip",
-            zh="无需增强，文档中没有待处理表格",
-            run_id=run_id,
-            source=source or "-",
-            reason="no_pending_tables" if blocks else "no_tables_found",
-            tables_total=len(blocks),
-            elapsed_sec=round(time.perf_counter() - t_all, 3),
-        )
+        log.info("无需增强，文档中没有待处理表格")
         return text
 
     inserts: dict[int, str] = {}
@@ -273,21 +219,9 @@ def augment_markdown_text(
                 table_total=len(pending),
             )
         except (LLMClientError, OSError, ValueError, TypeError, RuntimeError) as exc:
-            log_event(
-                log,
-                logging.WARNING,
-                "table_semantic.block.error",
-                zh="表格语义增强失败，已跳过该表格",
-                run_id=run_id,
-                table_index=idx,
-                table_total=len(pending),
-                source=source or "-",
-                kind=b.kind,
-                span_start=b.start,
-                span_end=b.end,
-                table_chars=len(b.raw),
-                err_type=type(exc).__name__,
-                err=str(exc)[:1200],
+            log.warning(
+                f"[表格{idx}/{len(pending)}] 处理失败，已跳过 | "
+                f"错误: {type(exc).__name__}: {str(exc)[:200]}"
             )
             return None
 
@@ -334,32 +268,18 @@ def augment_markdown_text(
 
     elapsed_sec = round(time.perf_counter() - t_all, 3)
     if not inserts:
-        log_event(
-            log,
-            logging.INFO,
-            "table_semantic.text.no_inserts",
-            zh="未生成可插入的语义内容",
-            run_id=run_id,
-            source=source or "-",
-            tables_pending=len(pending),
-            elapsed_sec=elapsed_sec,
-        )
+        log.info(f"未生成可插入的语义内容 | 耗时: {elapsed_sec}秒")
         return text
 
     out = text
     for end_pos in sorted(inserts.keys(), reverse=True):
         out = out[:end_pos] + inserts[end_pos] + out[end_pos:]
-    log_event(
-        log,
-        logging.INFO,
-        "table_semantic.text.merged",
-        zh="语义内容已合并回文档",
-        run_id=run_id,
-        source=source or "-",
-        inserts=len(inserts),
-        doc_chars_before=len(text),
-        doc_chars_after=len(out),
-        elapsed_sec=elapsed_sec,
+    
+    log.info(
+        f"========== 表格语义增强完成 ==========\n"
+        f"处理表格: {len(inserts)}/{len(pending)} | "
+        f"文档变化: {len(text)} -> {len(out)}字符 | "
+        f"总耗时: {elapsed_sec}秒"
     )
     return out
 
@@ -386,15 +306,7 @@ def augment_markdown_file(
     src = str(path.resolve())
     t0 = time.perf_counter()
     raw = path.read_text(encoding="utf-8")
-    log_event(
-        log,
-        logging.INFO,
-        "table_semantic.file.begin",
-        zh="开始读取并增强 Markdown 文件",
-        path=src,
-        bytes=len(raw.encode("utf-8")),
-        chars=len(raw),
-    )
+    log.info(f"读取文件: {path.name} | 大小: {len(raw)}字符")
     new_text = augment_markdown_text(
         raw,
         cfg=cfg,
@@ -403,14 +315,7 @@ def augment_markdown_file(
         progress_callback=progress_callback,
     )
     if new_text == raw:
-        log_event(
-            log,
-            logging.INFO,
-            "table_semantic.file.unchanged",
-            zh="文件无需改动，未写回",
-            path=src,
-            elapsed_sec=round(time.perf_counter() - t0, 3),
-        )
+        log.info("文件无需改动，未写回")
         return
     fd, tmp = tempfile.mkstemp(
         suffix=".md", prefix="table_sem_", dir=str(path.parent)
@@ -420,15 +325,7 @@ def augment_markdown_file(
     try:
         tmp_path.write_text(new_text, encoding="utf-8")
         tmp_path.replace(path)
-        log_event(
-            log,
-            logging.INFO,
-            "table_semantic.file.wrote",
-            zh="增强后的 Markdown 已写入",
-            path=src,
-            chars_after=len(new_text),
-            elapsed_sec=round(time.perf_counter() - t0, 3),
-        )
+        log.info(f"文件已更新: {path.name} | 新大小: {len(new_text)}字符 | 耗时: {round(time.perf_counter() - t0, 3)}秒")
     except OSError:
         tmp_path.unlink(missing_ok=True)
         raise
