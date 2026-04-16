@@ -140,10 +140,16 @@ def _llm_one_block(
     # 计算总输入大小
     full_input = json.dumps(messages, ensure_ascii=False)
     
-    # 打印输入信息
-    log.info(f"\n{'='*100}")
-    log.info(f"🔵 [表格{table_index}/{table_total}] 开始调用大模型 | 表格: {len(block.raw)}字符 | System: {len(_SYSTEM_PROMPT)}字符 | User: {len(user_content)}字符 | 总输入: {len(full_input)}字符")
-    log.info(f"{'='*100}")
+    # 打印输入信息 - 一次调用，避免被并发打断
+    log.info(
+        f"\n{'='*100}\n"
+        f"🔵 [表格{table_index}/{table_total}] 开始调用大模型 | "
+        f"表格: {len(block.raw)}字符 | "
+        f"System: {len(_SYSTEM_PROMPT)}字符 | "
+        f"User: {len(user_content)}字符 | "
+        f"总输入: {len(full_input)}字符\n"
+        f"{'='*100}"
+    )
     
     prompt_chars_estimated = _calc_prompt_chars(messages)
     data, usage_meta = chat_completion_json_object_with_meta(cfg=cfg, messages=messages)
@@ -162,9 +168,17 @@ def _llm_one_block(
         f"<!-- /table-semantic -->\n"
     )
     
-    # 打印输出信息 - 一行搞定！
-    log.info(f"🟢 [表格{table_index}/{table_total}] 成功 | ⏱️ {elapsed_sec}秒 | 📥 输入: {len(full_input)}字符 | 📤 输出: {len(summary)}字符 | Prompt: {usage_meta.prompt_tokens or '-'} | Completion: {usage_meta.completion_tokens or '-'} | 总计: {usage_meta.total_tokens or '-'} tokens")
-    log.info(f"   输出内容: {summary[:200]}{'...' if len(summary) > 200 else ''}")
+    # 打印输出信息 - 一次调用，避免被并发打断
+    log.info(
+        f"🟢 [表格{table_index}/{table_total}] 成功 | "
+        f"⏱️ {elapsed_sec}秒 | "
+        f"📥 输入: {len(full_input)}字符 | "
+        f"📤 输出: {len(summary)}字符 | "
+        f"Prompt: {usage_meta.prompt_tokens or '-'} | "
+        f"Completion: {usage_meta.completion_tokens or '-'} | "
+        f"总计: {usage_meta.total_tokens or '-'} tokens\n"
+        f"   输出内容: {summary[:300]}{'...' if len(summary) > 300 else ''}"
+    )
     
     return block.end, insert
 
