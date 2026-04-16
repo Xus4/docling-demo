@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from src.table_semantic.augment import augment_markdown_file, augment_markdown_text
-from src.table_semantic.llm_client import OpenAICompatibleConfig
+from src.table_semantic.llm_client import ChatCompletionMeta, OpenAICompatibleConfig
 
 
 class TestAugmentMarkdownText(unittest.TestCase):
@@ -21,11 +21,11 @@ class TestAugmentMarkdownText(unittest.TestCase):
             timeout_sec=5.0,
         )
 
-        def fake_json(*_a: object, **_k: object) -> dict[str, object]:
-            return {"summary": "这是表格语义。"}
+        def fake_json(*_a: object, **_k: object) -> tuple[dict[str, object], ChatCompletionMeta]:
+            return {"summary": "这是表格语义。"}, ChatCompletionMeta()
 
         with mock.patch(
-            "src.table_semantic.augment.chat_completion_json_object",
+            "src.table_semantic.augment.chat_completion_json_object_with_meta",
             side_effect=fake_json,
         ):
             out1 = augment_markdown_text(
@@ -35,7 +35,7 @@ class TestAugmentMarkdownText(unittest.TestCase):
         self.assertIn("table-semantic", out1)
 
         with mock.patch(
-            "src.table_semantic.augment.chat_completion_json_object",
+            "src.table_semantic.augment.chat_completion_json_object_with_meta",
         ) as p2:
             out2 = augment_markdown_text(
                 out1, cfg=cfg, max_concurrency=1
@@ -54,14 +54,14 @@ class TestAugmentMarkdownFile(unittest.TestCase):
             timeout_sec=5.0,
         )
 
-        def fake_json(*_a: object, **_k: object) -> dict[str, object]:
-            return {"summary": "文件内语义"}
+        def fake_json(*_a: object, **_k: object) -> tuple[dict[str, object], ChatCompletionMeta]:
+            return {"summary": "文件内语义"}, ChatCompletionMeta()
 
         with tempfile.TemporaryDirectory() as td:
             p = Path(td) / "t.md"
             p.write_text(md, encoding="utf-8")
             with mock.patch(
-                "src.table_semantic.augment.chat_completion_json_object",
+                "src.table_semantic.augment.chat_completion_json_object_with_meta",
                 side_effect=fake_json,
             ):
                 augment_markdown_file(p, cfg=cfg, max_concurrency=1)

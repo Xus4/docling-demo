@@ -16,13 +16,38 @@ from typing import Any
 
 from src.logging_utils import log_event
 from src.table_semantic.llm_client import (
+    ChatCompletionMeta,
     LLMClientError,
     OpenAICompatibleConfig,
-    chat_completion_json_object,
+    chat_completion_json_object_with_meta,
 )
 from src.table_semantic.table_blocks import TableBlock, iter_table_blocks
 
 log = logging.getLogger(__name__)
+
+
+def _calc_prompt_chars(messages: list[dict[str, str]]) -> int:
+    total = 0
+    for msg in messages:
+        content = msg.get("content")
+        if isinstance(content, str):
+            total += len(content)
+    return total
+
+
+def _usage_log_fields(meta: ChatCompletionMeta, prompt_chars_estimated: int) -> dict[str, int]:
+    fields: dict[str, int] = {"prompt_chars": prompt_chars_estimated}
+    if meta.prompt_tokens is not None:
+        fields["prompt_tokens"] = meta.prompt_tokens
+    if meta.completion_tokens is not None:
+        fields["completion_tokens"] = meta.completion_tokens
+    if meta.total_tokens is not None:
+        fields["total_tokens"] = meta.total_tokens
+    if meta.prompt_chars is not None:
+        fields["prompt_chars"] = meta.prompt_chars
+    if meta.completion_chars is not None:
+        fields["completion_chars"] = meta.completion_chars
+    return fields
 
 _SYSTEM_PROMPT = (
     "你是文档结构化助手，输出用于 RAG 检索的「表格信息等价转写」。\n"
@@ -147,8 +172,10 @@ def _llm_one_block(
         model=cfg.model,
         thinking_enable=cfg.thinking_enable,
     )
-    data = chat_completion_json_object(cfg=cfg, messages=messages)
+    prompt_chars_estimated = _calc_prompt_chars(messages)
+    data, usage_meta = chat_completion_json_object_with_meta(cfg=cfg, messages=messages)
     elapsed_sec = round(time.perf_counter() - t0, 3)
+    usage_fields = _usage_log_fields(usage_meta, prompt_chars_estimated)
     summary = _extract_equivalent_text(data)
     if not summary:
         log_event(
@@ -164,6 +191,7 @@ def _llm_one_block(
             span_end=block.end,
             elapsed_sec=elapsed_sec,
             model_elapsed_sec=elapsed_sec,
+            **usage_fields,
             keys_sample=",".join(sorted(data.keys()))[:200] if isinstance(data, dict) else "",
         )
         return None
@@ -188,6 +216,7 @@ def _llm_one_block(
         insert_chars=len(insert),
         elapsed_sec=elapsed_sec,
         model_elapsed_sec=elapsed_sec,
+        **usage_fields,
     )
     return block.end, insert
 
