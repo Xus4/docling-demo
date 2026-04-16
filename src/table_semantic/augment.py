@@ -22,6 +22,29 @@ from src.table_semantic.table_blocks import TableBlock, iter_table_blocks
 
 log = logging.getLogger(__name__)
 
+# INFO 给人看（短、中文）；DEBUG 保留英文 key=value 便于 grep / 对账。
+_LOG_PREFIX = "[table_semantic]"
+
+
+def _fmt_opt_int(value: int | None) -> str:
+    return "—" if value is None else str(value)
+
+
+def _fmt_token_brief(usage: ChatCompletionMeta) -> str:
+    return (
+        f"{_fmt_opt_int(usage.prompt_tokens)}+"
+        f"{_fmt_opt_int(usage.completion_tokens)}="
+        f"{_fmt_opt_int(usage.total_tokens)}"
+    )
+
+
+def _fmt_table_result_cn(status: str) -> str:
+    if status == "ok":
+        return "成功"
+    if status == "empty":
+        return "空输出"
+    return status
+
 
 INTERNAL_TABLE_CAPTION_REASONING = (
     "\n\n【内化核对（严禁写入输出）】"
@@ -147,6 +170,7 @@ def _not_reported(value: int | None) -> str | int:
 
 def _log_llm_table_outcome(
     *,
+    source_hint: str,
     table_index: int,
     table_total: int,
     model: str,
@@ -157,20 +181,37 @@ def _log_llm_table_outcome(
     local_caption_character_count: int | None,
     result_status: str,
 ) -> None:
-    """One line per model call: full English keys, tokens first, then character counts (Python len)."""
+    """INFO 单行摘要；DEBUG 保留完整英文指标（兼容旧检索与对账）。"""
     caption_out = (
         local_caption_character_count
         if local_caption_character_count is not None
         else "not_applicable"
     )
+    cap_cn = (
+        f"{local_caption_character_count}字"
+        if local_caption_character_count is not None
+        else "—"
+    )
     log.info(
+        "%s 单表 LLM | 来源=%s | 进度 %s/%s | 模型=%s | %s | %.2fs | token %s | 说明 %s",
+        _LOG_PREFIX,
+        source_hint,
+        table_index,
+        table_total,
+        model,
+        _fmt_table_result_cn(result_status),
+        elapsed_seconds,
+        _fmt_token_brief(usage),
+        cap_cn,
+    )
+    log.debug(
         "table_semantic large_language_model_round_complete "
         "table_index=%s table_count=%s model_name=%s elapsed_seconds=%s "
         "usage_prompt_token_count=%s usage_completion_token_count=%s usage_total_token_count=%s "
         "local_prompt_character_count=%s local_completion_response_character_count=%s "
         "local_caption_character_count=%s "
         "usage_reported_prompt_character_count=%s usage_reported_completion_character_count=%s "
-        "result_status=%s",
+        "result_status=%s source_file_name=%s",
         table_index,
         table_total,
         model,
@@ -184,6 +225,7 @@ def _log_llm_table_outcome(
         _not_reported(usage.prompt_chars),
         _not_reported(usage.completion_chars),
         result_status,
+        source_hint,
     )
 
 
@@ -195,6 +237,7 @@ def _llm_one_block(
     caption_params: TableCaptionParams,
     table_index: int,
     table_total: int,
+    source_hint: str,
 ) -> tuple[int, str] | None:
     prefix, suffix = _slice_context(
         full_text,
@@ -224,6 +267,7 @@ def _llm_one_block(
     status = "ok" if summary else "empty"
     prompt_nchars = sys_len + usr_len
     _log_llm_table_outcome(
+        source_hint=source_hint,
         table_index=table_index,
         table_total=table_total,
         model=cfg.model,
@@ -249,6 +293,15 @@ def _llm_one_block(
 
     if not summary:
         log.warning(
+            "%s 单表 LLM 返回空 | 来源=%s | 进度 %s/%s | 模型=%s | 原文预览=%s",
+            _LOG_PREFIX,
+            source_hint,
+            table_index,
+            table_total,
+            cfg.model,
+            _log_preview(raw_content or "", max_chars=120),
+        )
+        log.debug(
             "table_semantic large_language_model_empty_response "
             "table_index=%s table_count=%s response_preview=%s",
             table_index,
@@ -303,6 +356,17 @@ def augment_markdown_text(
 
     file_hint = Path(source).name if source.strip() else "-"
     log.info(
+        "%s 批量开始 | 文件=%s | 文内表格=%s | 待调用模型=%s | 跳过已有说明=%s | 超大跳过=%s | 模型=%s | 并发=%s",
+        _LOG_PREFIX,
+        file_hint,
+        len(blocks),
+        len(pending),
+        skipped_already,
+        skipped_oversize,
+        cfg.model,
+        workers,
+    )
+    log.debug(
         "table_semantic batch_started "
         "source_file_name=%s table_count=%s tables_pending_model_calls=%s "
         "tables_skipped_already_augmented=%s tables_skipped_over_size_limit=%s "
@@ -328,8 +392,9 @@ def augment_markdown_text(
     )
     if oversized:
         log.info(
-            "table_semantic tables_skipped_over_size_limit "
-            "skipped_table_count=%s maximum_table_body_character_count=%s",
+            "%s 超大表跳过（不调模型）| 文件=%s | 跳过张数=%s | 表体上限=%s 字",
+            _LOG_PREFIX,
+            file_hint,
             skipped_oversize,
             cap.max_table_chars,
         )
@@ -350,13 +415,18 @@ def augment_markdown_text(
     if not pending:
         if pending_need_llm and skipped_oversize == len(pending_need_llm):
             log.info(
-                "table_semantic batch_skipped_all_tables_over_size_limit "
-                "tables_that_would_need_model_calls=%s maximum_table_body_character_count=%s",
+                "%s 本批无需调用模型（表均超大）| 文件=%s | 本可处理=%s 张 | 表体上限=%s 字",
+                _LOG_PREFIX,
+                file_hint,
                 len(pending_need_llm),
                 cap.max_table_chars,
             )
         else:
-            log.info("table_semantic batch_no_tables_required_processing")
+            log.info(
+                "%s 无需处理（无待补充表格）| 文件=%s",
+                _LOG_PREFIX,
+                file_hint,
+            )
         return text
 
     inserts: dict[int, str] = {}
@@ -373,9 +443,19 @@ def augment_markdown_text(
                 caption_params=cap,
                 table_index=idx,
                 table_total=len(pending),
+                source_hint=file_hint,
             )
         except (LLMClientError, OSError, ValueError, TypeError, RuntimeError) as exc:
             log.warning(
+                "%s 单表调用失败已跳过 | 文件=%s | 进度 %s/%s | %s | %s",
+                _LOG_PREFIX,
+                file_hint,
+                idx,
+                len(pending),
+                type(exc).__name__,
+                _log_preview(str(exc), max_chars=160),
+            )
+            log.debug(
                 "table_semantic large_language_model_call_skipped_due_to_exception "
                 "table_index=%s table_count=%s exception_type=%s exception_message=%s",
                 idx,
@@ -393,6 +473,13 @@ def augment_markdown_text(
                 got = fut.result()
             except (LLMClientError, OSError, ValueError, TypeError, RuntimeError) as exc:
                 log.warning(
+                    "%s 线程池任务异常已忽略 | 文件=%s | %s | %s",
+                    _LOG_PREFIX,
+                    file_hint,
+                    type(exc).__name__,
+                    _log_preview(str(exc), max_chars=160),
+                )
+                log.debug(
                     "table_semantic thread_pool_worker_exception_ignored "
                     "exception_type=%s exception_message=%s",
                     type(exc).__name__,
@@ -425,6 +512,13 @@ def augment_markdown_text(
     elapsed_sec = round(time.perf_counter() - t_all, 3)
     if not inserts:
         log.info(
+            "%s 批量结束 | 文件=%s | 插入=0 | 已调模型=%s 次 | 总耗时=%.2fs",
+            _LOG_PREFIX,
+            file_hint,
+            len(pending),
+            elapsed_sec,
+        )
+        log.debug(
             "table_semantic batch_finished inserted_table_count=0 "
             "tables_sent_to_model=%s elapsed_seconds=%s",
             len(pending),
@@ -437,6 +531,14 @@ def augment_markdown_text(
         out = out[:end_pos] + inserts[end_pos] + out[end_pos:]
 
     log.info(
+        "%s 批量结束 | 文件=%s | 插入成功=%s | 已调模型=%s 次 | 总耗时=%.2fs",
+        _LOG_PREFIX,
+        file_hint,
+        len(inserts),
+        len(pending),
+        elapsed_sec,
+    )
+    log.debug(
         "table_semantic batch_finished inserted_table_count=%s tables_sent_to_model=%s elapsed_seconds=%s",
         len(inserts),
         len(pending),
@@ -483,7 +585,8 @@ def augment_markdown_file(
     )
     if new_text == raw:
         log.info(
-            "table_semantic file_write_skipped_no_content_change file_name=%s",
+            "%s 写盘跳过（内容未变）| 文件=%s",
+            _LOG_PREFIX,
             path.name,
         )
         return
@@ -496,9 +599,10 @@ def augment_markdown_file(
         tmp_path.write_text(new_text, encoding="utf-8")
         tmp_path.replace(path)
         log.info(
-            "table_semantic file_write_completed file_name=%s elapsed_seconds=%s",
+            "%s 写盘完成 | 文件=%s | 耗时=%.2fs",
+            _LOG_PREFIX,
             path.name,
-            round(time.perf_counter() - t0, 3),
+            time.perf_counter() - t0,
         )
     except OSError:
         tmp_path.unlink(missing_ok=True)
