@@ -20,8 +20,8 @@ log = logging.getLogger("job_worker")
 # 与 mineru_client / ConversionService 的 processing_stage 键一致，用于同步 progress_note
 _STAGE_NOTES: dict[str, str] = {
     "mineru_prepare": "准备解析…",
-    "mineru_upload": "正在提交至 MinerU…",
-    "mineru_remote": "MinerU 正在解析…",
+    "mineru_upload": "正在提交至解析服务…",
+    "mineru_remote": "正在解析…",
     "mineru_download": "正在拉取解析结果…",
     "mineru_materialize": "正在整理输出文件…",
     "semantic_enhance": "表格语义补充中…",

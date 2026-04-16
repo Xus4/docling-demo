@@ -127,6 +127,14 @@ def _normalize_caption_output(raw: str) -> str:
     return s
 
 
+def _log_preview(text: str, *, max_chars: int = 100) -> str:
+    """单行、限长预览，避免日志里换行或过长正文导致显示截断或乱码。"""
+    collapsed = " ".join(text.split())
+    if len(collapsed) <= max_chars:
+        return collapsed
+    return collapsed[: max_chars - 1] + "…"
+
+
 def _llm_one_block(
     *,
     full_text: str,
@@ -154,9 +162,15 @@ def _llm_one_block(
     full_input = json.dumps(messages, ensure_ascii=False)
     sys_len = len(messages[0]["content"])
     usr_len = len(messages[1]["content"])
-    log.info(
-        f"[INPUT] [表格{table_index}/{table_total}] 表:{len(block.raw)}c | "
-        f"上下文:{len(context_text)}c | System:{sys_len}c | User:{usr_len}c | 总:{len(full_input)}c"
+    log.debug(
+        "表格语义 | 请求明细 | 表 %s/%s | 表体=%s字 上下文=%s字 | system=%s user=%s 合计=%s",
+        table_index,
+        table_total,
+        len(block.raw),
+        len(context_text),
+        sys_len,
+        usr_len,
+        len(full_input),
     )
 
     raw_content, usage_meta = chat_completion_text_with_meta(cfg=cfg, messages=messages)
@@ -164,9 +178,12 @@ def _llm_one_block(
     summary = _normalize_caption_output(raw_content)
 
     if not summary:
-        preview = raw_content[:200] if raw_content else ""
         log.warning(
-            f"[ERROR] [表格{table_index}/{table_total}] 空结果 | {elapsed_sec}s | 返回:{preview!r}"
+            "表格语义 | 表 %s/%s | 失败 | 用时=%ss | 模型返回空或仅空白 | 片段=%s",
+            table_index,
+            table_total,
+            elapsed_sec,
+            _log_preview(raw_content or "", max_chars=120),
         )
         return None
 
@@ -177,12 +194,21 @@ def _llm_one_block(
         f"<!-- /table-semantic -->\n"
     )
 
+    pt, ct, tt = (
+        usage_meta.prompt_tokens,
+        usage_meta.completion_tokens,
+        usage_meta.total_tokens,
+    )
+    tok = f"{pt or '-'}/{ct or '-'}/{tt or '-'}"
     log.info(
-        f"[OUTPUT] [表格{table_index}/{table_total}] {elapsed_sec}s | "
-        f"输入:{len(full_input)}c | 输出:{len(summary)}c | "
-        f"Tokens:{usage_meta.prompt_tokens or '-'}/"
-        f"{usage_meta.completion_tokens or '-'}/"
-        f"{usage_meta.total_tokens or '-'} | {summary[:150]}..."
+        "表格语义 | 表 %s/%s | 完成 | 用时=%ss | prompt≈%s字 说明=%s字 | tok p/c/t=%s | %s",
+        table_index,
+        table_total,
+        elapsed_sec,
+        len(full_input),
+        len(summary),
+        tok,
+        _log_preview(summary, max_chars=100),
     )
 
     return block.end, insert
@@ -206,14 +232,20 @@ def augment_markdown_text(
     workers = max(1, int(max_concurrency))
     pool_workers = min(workers, len(pending)) if pending else 0
 
+    file_hint = Path(source).name if source.strip() else "—"
     log.info(
-        f"========== 开始表格语义增强 ==========\n"
-        f"文档大小: {len(text)}字符\n"
-        f"表格总数: {len(blocks)} | 待处理: {len(pending)} | 已跳过: {skipped}\n"
-        f"并发数: {workers}\n"
-        f"模型: {cfg.model}\n"
-        f"上下文截取: 前{cap.context_before_chars}/后{cap.context_after_chars}字 | "
-        f"目标长度提示: 约{cap.caption_target_chars}字"
+        "表格语义 | 开始 | 文件=%s | 文档=%s字 | 表共%s 待处理%s 已跳过%s | 模型=%s | 并发=%s | "
+        "上下文前/后=%s/%s字 目标约%s字",
+        file_hint,
+        len(text),
+        len(blocks),
+        len(pending),
+        skipped,
+        cfg.model,
+        workers,
+        cap.context_before_chars,
+        cap.context_after_chars,
+        cap.caption_target_chars,
     )
     if progress_callback is not None:
         try:
@@ -242,8 +274,11 @@ def augment_markdown_text(
             )
         except (LLMClientError, OSError, ValueError, TypeError, RuntimeError) as exc:
             log.warning(
-                f"[表格{idx}/{len(pending)}] 处理失败，已跳过 | "
-                f"错误: {type(exc).__name__}: {str(exc)[:200]}"
+                "表格语义 | 表 %s/%s | 跳过 | %s: %s",
+                idx,
+                len(pending),
+                type(exc).__name__,
+                _log_preview(str(exc), max_chars=160),
             )
             return None
 
@@ -254,7 +289,11 @@ def augment_markdown_text(
             try:
                 got = fut.result()
             except (LLMClientError, OSError, ValueError, TypeError, RuntimeError) as exc:
-                log.warning(f"并发任务异常，已忽略 | 错误: {type(exc).__name__}: {str(exc)[:200]}")
+                log.warning(
+                    "表格语义 | 并发任务异常已忽略 | %s: %s",
+                    type(exc).__name__,
+                    _log_preview(str(exc), max_chars=160),
+                )
                 continue
             if got is None:
                 done_count += 1
@@ -281,7 +320,11 @@ def augment_markdown_text(
 
     elapsed_sec = round(time.perf_counter() - t_all, 3)
     if not inserts:
-        log.info(f"未生成可插入的语义内容 | 耗时: {elapsed_sec}秒")
+        log.info(
+            "表格语义 | 结束 | 无插入 | 待处理=%s | 总耗时=%ss",
+            len(pending),
+            elapsed_sec,
+        )
         return text
 
     out = text
@@ -289,10 +332,12 @@ def augment_markdown_text(
         out = out[:end_pos] + inserts[end_pos] + out[end_pos:]
 
     log.info(
-        f"========== 表格语义增强完成 ==========\n"
-        f"处理表格: {len(inserts)}/{len(pending)} | "
-        f"文档变化: {len(text)} -> {len(out)}字符 | "
-        f"总耗时: {elapsed_sec}秒"
+        "表格语义 | 结束 | 成功=%s/%s | 文档 %s→%s字 | 总耗时=%ss",
+        len(inserts),
+        len(pending),
+        len(text),
+        len(out),
+        elapsed_sec,
     )
     return out
 
@@ -320,7 +365,6 @@ def augment_markdown_file(
     src = str(path.resolve())
     t0 = time.perf_counter()
     raw = path.read_text(encoding="utf-8")
-    log.info(f"读取文件: {path.name} | 大小: {len(raw)}字符")
     new_text = augment_markdown_text(
         raw,
         cfg=cfg,
@@ -330,7 +374,7 @@ def augment_markdown_file(
         progress_callback=progress_callback,
     )
     if new_text == raw:
-        log.info("文件无需改动，未写回")
+        log.info("表格语义 | 写回 | 跳过 | 无变化 | %s", path.name)
         return
     fd, tmp = tempfile.mkstemp(
         suffix=".md", prefix="table_sem_", dir=str(path.parent)
@@ -341,8 +385,10 @@ def augment_markdown_file(
         tmp_path.write_text(new_text, encoding="utf-8")
         tmp_path.replace(path)
         log.info(
-            f"文件已更新: {path.name} | 新大小: {len(new_text)}字符 | "
-            f"耗时: {round(time.perf_counter() - t0, 3)}秒"
+            "表格语义 | 写回 | 已保存 | %s | %s字 | 耗时=%ss",
+            path.name,
+            len(new_text),
+            round(time.perf_counter() - t0, 3),
         )
     except OSError:
         tmp_path.unlink(missing_ok=True)

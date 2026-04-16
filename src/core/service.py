@@ -170,13 +170,6 @@ class ConversionService:
                 max_tokens=self.app_config.table_semantic_max_tokens,
                 temperature=self.app_config.table_semantic_temperature,
             )
-            base_url = str(self.app_config.table_semantic_base_url).strip()
-            log.info(
-                f"开始表格语义增强 | "
-                f"模型: {self.app_config.table_semantic_model} | "
-                f"并发数: {self.app_config.table_semantic_max_concurrency} | "
-                f"超时: {self.app_config.table_semantic_timeout_sec}秒"
-            )
             try:
                 augment_markdown_file(
                     dst,
@@ -189,12 +182,12 @@ class ConversionService:
                     ),
                     progress_callback=semantic_progress_callback,
                 )
-                log.info("表格语义增强完成")
             except Exception as exc:  # noqa: BLE001
                 log.error(
-                    f"表格语义增强失败 | "
-                    f"错误: {type(exc).__name__}: {str(exc)[:200]} | "
-                    f"策略: {self.app_config.table_semantic_on_error}"
+                    "表格语义 | 阶段失败 | %s: %s | on_error=%s",
+                    type(exc).__name__,
+                    str(exc)[:400],
+                    self.app_config.table_semantic_on_error,
                 )
                 if self.app_config.table_semantic_on_error == "fail":
                     raise ConversionError(f"表格语义增强失败: {exc!s}") from exc
