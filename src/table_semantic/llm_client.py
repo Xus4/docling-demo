@@ -117,12 +117,14 @@ def chat_completion_text(
     client = http_client or httpx.Client(timeout=timeout)
     try:
         resp = client.post(url, headers=headers, json=body)
-        try:
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise LLMClientError(f"HTTP {resp.status_code}: {resp.text[:2000]}") from exc
-        except httpx.RequestError as exc:
-            raise LLMClientError(str(exc)) from exc
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        r = exc.response
+        body_preview = (r.text if r is not None else "")[:2000]
+        code = r.status_code if r is not None else "?"
+        raise LLMClientError(f"HTTP {code}: {body_preview}") from exc
+    except httpx.RequestError as exc:
+        raise LLMClientError(str(exc)) from exc
     finally:
         if owns_client:
             client.close()
@@ -169,12 +171,14 @@ def chat_completion_text_with_meta(
     client = http_client or httpx.Client(timeout=timeout)
     try:
         resp = client.post(url, headers=headers, json=body)
-        try:
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise LLMClientError(f"HTTP {resp.status_code}: {resp.text[:2000]}") from exc
-        except httpx.RequestError as exc:
-            raise LLMClientError(str(exc)) from exc
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        r = exc.response
+        body_preview = (r.text if r is not None else "")[:2000]
+        code = r.status_code if r is not None else "?"
+        raise LLMClientError(f"HTTP {code}: {body_preview}") from exc
+    except httpx.RequestError as exc:
+        raise LLMClientError(str(exc)) from exc
     finally:
         if owns_client:
             client.close()

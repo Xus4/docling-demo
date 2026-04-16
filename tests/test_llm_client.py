@@ -58,6 +58,27 @@ class TestOpenAICompatibleClient(unittest.TestCase):
                     http_client=client,
                 )
 
+    def test_connect_error_on_post_becomes_llm_client_error(self) -> None:
+        """POST 阶段抛出的 RequestError（非 HTTPStatusError）须包装为 LLMClientError。"""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("simulated network failure", request=request)
+
+        cfg = OpenAICompatibleConfig(
+            base_url="http://x.com/v1",
+            api_key=None,
+            model="m",
+            timeout_sec=5.0,
+        )
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            with self.assertRaises(LLMClientError) as ctx:
+                chat_completion_text(
+                    cfg=cfg,
+                    messages=[{"role": "user", "content": "a"}],
+                    http_client=client,
+                )
+        self.assertIn("simulated network failure", str(ctx.exception))
+
     def test_chat_completion_json_object(self) -> None:
         payload = {
             "choices": [
