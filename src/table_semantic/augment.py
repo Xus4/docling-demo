@@ -140,16 +140,8 @@ def _llm_one_block(
     # 计算总输入大小
     full_input = json.dumps(messages, ensure_ascii=False)
     
-    # 打印输入信息 - 一次调用，避免被并发打断
-    log.info(
-        f"\n{'='*100}\n"
-        f"🔵 [表格{table_index}/{table_total}] 开始调用大模型 | "
-        f"表格: {len(block.raw)}字符 | "
-        f"System: {len(_SYSTEM_PROMPT)}字符 | "
-        f"User: {len(user_content)}字符 | "
-        f"总输入: {len(full_input)}字符\n"
-        f"{'='*100}"
-    )
+    # 打印输入信息 - 真正的单行，用 | 分隔
+    log.info(f"[INPUT] [表格{table_index}/{table_total}] 表格:{len(block.raw)}c | System:{len(_SYSTEM_PROMPT)}c | User:{len(user_content)}c | 总:{len(full_input)}c")
     
     prompt_chars_estimated = _calc_prompt_chars(messages)
     data, usage_meta = chat_completion_json_object_with_meta(cfg=cfg, messages=messages)
@@ -158,7 +150,7 @@ def _llm_one_block(
     summary = _extract_equivalent_text(data)
     
     if not summary:
-        log.warning(f"🔴 [表格{table_index}/{table_total}] 返回空结果 | 耗时: {elapsed_sec}秒 | 原始返回: {str(data)[:300]}")
+        log.warning(f"[ERROR] [表格{table_index}/{table_total}] 空结果 | {elapsed_sec}s | 返回:{str(data)[:200]}")
         return None
     
     mid = _marker_prefix(block)
@@ -168,17 +160,8 @@ def _llm_one_block(
         f"<!-- /table-semantic -->\n"
     )
     
-    # 打印输出信息 - 一次调用，避免被并发打断
-    log.info(
-        f"🟢 [表格{table_index}/{table_total}] 成功 | "
-        f"⏱️ {elapsed_sec}秒 | "
-        f"📥 输入: {len(full_input)}字符 | "
-        f"📤 输出: {len(summary)}字符 | "
-        f"Prompt: {usage_meta.prompt_tokens or '-'} | "
-        f"Completion: {usage_meta.completion_tokens or '-'} | "
-        f"总计: {usage_meta.total_tokens or '-'} tokens\n"
-        f"   输出内容: {summary[:300]}{'...' if len(summary) > 300 else ''}"
-    )
+    # 打印输出信息 - 真正的单行
+    log.info(f"[OUTPUT] [表格{table_index}/{table_total}] {elapsed_sec}s | 输入:{len(full_input)}c | 输出:{len(summary)}c | Tokens:{usage_meta.prompt_tokens or '-'}/{usage_meta.completion_tokens or '-'}/{usage_meta.total_tokens or '-'} | {summary[:150]}...")
     
     return block.end, insert
 
