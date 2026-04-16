@@ -104,9 +104,11 @@ def _run_single_file_conversion(
             pages_done=None,
             pages_total=None,
         )
+        # 轮询极频繁，默认只打 DEBUG；阶段完成（d>=t）再打 INFO，避免刷屏
+        _lvl = logging.INFO if d >= t else logging.DEBUG
         log_event(
             log,
-            logging.INFO,
+            _lvl,
             "job.stage.progress",
             job=short_job_id(jid),
             user=user,
@@ -146,9 +148,10 @@ def _run_single_file_conversion(
         if eta_sec is not None and eta_sec > 1:
             note += f" 预计剩余 {int(round(eta_sec))} 秒"
         auth.update_job_progress(job_id, percent=pct, note=note)
+        _sem_lvl = logging.INFO if t > 0 and d >= t else logging.DEBUG
         log_event(
             log,
-            logging.INFO,
+            _sem_lvl,
             "job.stage.progress",
             job=short_job_id(jid),
             user=user,
@@ -305,9 +308,10 @@ def _run_directory_conversion(
                     pages_total=None,
                     current_file_name=file_name,
                 )
+                _lvl = logging.INFO if d >= t else logging.DEBUG
                 log_event(
                     log,
-                    logging.INFO,
+                    _lvl,
                     "job.stage.progress",
                     job=short_job_id(jid),
                     user=user,
@@ -361,9 +365,10 @@ def _run_directory_conversion(
                 note=note,
                 current_file_name=src.name,
             )
+            _sem_lvl = logging.INFO if t > 0 and d >= t else logging.DEBUG
             log_event(
                 log,
-                logging.INFO,
+                _sem_lvl,
                 "job.stage.progress",
                 job=short_job_id(jid),
                 user=user,

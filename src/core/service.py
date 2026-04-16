@@ -185,7 +185,8 @@ class ConversionService:
                 )
             except Exception as exc:  # noqa: BLE001
                 log.error(
-                    "表格语义 | 阶段失败 | %s: %s | on_error=%s",
+                    "table_semantic conversion_stage_failed "
+                    "exception_type=%s exception_message=%s on_error_policy=%s",
                     type(exc).__name__,
                     str(exc)[:400],
                     self.app_config.table_semantic_on_error,

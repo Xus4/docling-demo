@@ -114,13 +114,16 @@ async def ingest_uploads_create_job(
                 mineru_backend=backend_value,
             )
             job_worker.enqueue(paths.job_id)
-            log.info(
-                "单文件任务已创建并入队 job_id=%s user=%s role=%s file=%s size_bytes=%s",
-                paths.job_id,
-                user.username,
-                user.role,
-                filename,
-                total_size,
+            log_event(
+                log,
+                logging.INFO,
+                "job.created",
+                job=short_job_id(paths.job_id),
+                user=user.username,
+                role=user.role,
+                file=filename,
+                size_bytes=total_size,
+                kind="file",
             )
             return paths.job_id
 
@@ -180,6 +183,7 @@ async def ingest_uploads_create_job(
             role=user.role,
             file=normalized_root,
             size_bytes=total_size,
+            kind="folder",
         )
 
         return paths.job_id

@@ -141,72 +141,49 @@ def _log_preview(text: str, *, max_chars: int = 100) -> str:
     return collapsed[: max_chars - 1] + "…"
 
 
-def _log_table_llm_request(
+def _not_reported(value: int | None) -> str | int:
+    return "not_reported" if value is None else value
+
+
+def _log_llm_table_outcome(
     *,
     table_index: int,
     table_total: int,
     model: str,
-    context_chars: int,
-    table_chars: int,
-    system_chars: int,
-    user_chars: int,
-    cap: TableCaptionParams,
+    elapsed_seconds: float,
+    usage: ChatCompletionMeta,
+    local_prompt_character_count: int,
+    local_completion_response_character_count: int,
+    local_caption_character_count: int | None,
+    result_status: str,
 ) -> None:
-    """调用接口前：单行记录本次请求的字数构成（token 尚未产生）。"""
-    req = system_chars + user_chars
+    """One line per model call: full English keys, tokens first, then character counts (Python len)."""
+    caption_out = (
+        local_caption_character_count
+        if local_caption_character_count is not None
+        else "not_applicable"
+    )
     log.info(
-        "表格语义 | LLM请求 | 表 %s/%s | model=%s | 上下文=%s字 表体=%s字 "
-        "system=%s字 user=%s字 请求合计=%s字 | 截断前/后上限=%s/%s 目标约%s字",
+        "table_semantic large_language_model_round_complete "
+        "table_index=%s table_count=%s model_name=%s elapsed_seconds=%s "
+        "usage_prompt_token_count=%s usage_completion_token_count=%s usage_total_token_count=%s "
+        "local_prompt_character_count=%s local_completion_response_character_count=%s "
+        "local_caption_character_count=%s "
+        "usage_reported_prompt_character_count=%s usage_reported_completion_character_count=%s "
+        "result_status=%s",
         table_index,
         table_total,
         model,
-        context_chars,
-        table_chars,
-        system_chars,
-        user_chars,
-        req,
-        cap.context_before_chars,
-        cap.context_after_chars,
-        cap.caption_target_chars,
-    )
-
-
-def _log_table_llm_response(
-    *,
-    table_index: int,
-    table_total: int,
-    elapsed_sec: float,
-    usage: ChatCompletionMeta,
-    context_chars: int,
-    table_chars: int,
-    system_chars: int,
-    user_chars: int,
-    response_chars: int,
-    caption_chars: int | None,
-) -> None:
-    """调用接口后：单行记录耗时、token（整段计费）、与请求/响应字数。"""
-    pt = usage.prompt_tokens
-    ct = usage.completion_tokens
-    tt = usage.total_tokens
-    req = system_chars + user_chars
-    cap_note = f" 转写有效={caption_chars}字" if caption_chars is not None else ""
-    log.info(
-        "表格语义 | LLM响应 | 表 %s/%s | 耗时=%ss | prompt_token=%s completion_token=%s total_token=%s | "
-        "上下文=%s字 表体=%s字 请求=%s字(system=%s+user=%s) 响应原文=%s字%s | "
-        "说明：prompt_token 为网关对整段请求的计费输入，含上下文+表+模板",
-        table_index,
-        table_total,
-        elapsed_sec,
-        pt if pt is not None else "-",
-        ct if ct is not None else "-",
-        tt if tt is not None else "-",
-        context_chars,
-        table_chars,
-        req,
-        system_chars,
-        user_chars,
-        response_chars,
-        cap_note,
+        elapsed_seconds,
+        _not_reported(usage.prompt_tokens),
+        _not_reported(usage.completion_tokens),
+        _not_reported(usage.total_tokens),
+        local_prompt_character_count,
+        local_completion_response_character_count,
+        caption_out,
+        _not_reported(usage.prompt_chars),
+        _not_reported(usage.completion_chars),
+        result_status,
     )
 
 
@@ -237,41 +214,43 @@ def _llm_one_block(
     ctx_len = len(context_text)
     tbl_len = len(block.raw)
 
-    _log_table_llm_request(
-        table_index=table_index,
-        table_total=table_total,
-        model=cfg.model,
-        context_chars=ctx_len,
-        table_chars=tbl_len,
-        system_chars=sys_len,
-        user_chars=usr_len,
-        cap=caption_params,
-    )
-
     t0 = time.perf_counter()
     raw_content, usage_meta = chat_completion_text_with_meta(cfg=cfg, messages=messages)
     elapsed_sec = round(time.perf_counter() - t0, 3)
     completion_chars_raw = len(raw_content) if isinstance(raw_content, str) else 0
 
     summary = _normalize_caption_output(raw_content)
-    caption_chars = len(summary) if summary else None
-
-    _log_table_llm_response(
+    caption_nchars = len(summary) if summary else None
+    status = "ok" if summary else "empty"
+    prompt_nchars = sys_len + usr_len
+    _log_llm_table_outcome(
         table_index=table_index,
         table_total=table_total,
-        elapsed_sec=elapsed_sec,
+        model=cfg.model,
+        elapsed_seconds=elapsed_sec,
         usage=usage_meta,
-        context_chars=ctx_len,
-        table_chars=tbl_len,
-        system_chars=sys_len,
-        user_chars=usr_len,
-        response_chars=completion_chars_raw,
-        caption_chars=caption_chars,
+        local_prompt_character_count=prompt_nchars,
+        local_completion_response_character_count=completion_chars_raw,
+        local_caption_character_count=caption_nchars,
+        result_status=status,
+    )
+    log.debug(
+        "table_semantic large_language_model_message_character_breakdown "
+        "table_index=%s table_count=%s "
+        "context_section_character_count=%s table_body_character_count=%s "
+        "system_message_character_count=%s user_message_character_count=%s",
+        table_index,
+        table_total,
+        ctx_len,
+        tbl_len,
+        sys_len,
+        usr_len,
     )
 
     if not summary:
         log.warning(
-            "表格语义 | 表 %s/%s | 失败 | 模型返回空或仅空白 | 片段=%s",
+            "table_semantic large_language_model_empty_response "
+            "table_index=%s table_count=%s response_preview=%s",
             table_index,
             table_total,
             _log_preview(raw_content or "", max_chars=120),
@@ -286,7 +265,7 @@ def _llm_one_block(
     )
 
     log.debug(
-        "表格语义 | 表 %s/%s | 转写预览 | %s",
+        "table_semantic caption_text_preview table_index=%s table_count=%s preview=%s",
         table_index,
         table_total,
         _log_preview(summary, max_chars=200),
@@ -322,15 +301,12 @@ def augment_markdown_text(
     workers = max(1, int(max_concurrency))
     pool_workers = min(workers, len(pending)) if pending else 0
 
-    file_hint = Path(source).name if source.strip() else "—"
-    limit_note = (
-        f"表体上限={cap.max_table_chars}字(超出跳过)"
-        if cap.max_table_chars > 0
-        else "表体上限=不限制"
-    )
+    file_hint = Path(source).name if source.strip() else "-"
     log.info(
-        "表格语义 | 批次开始 | 文件=%s | 表共%s 待调用LLM=%s 已增强跳过=%s 超大跳过=%s | model=%s | 并发=%s | "
-        "截断前/后=%s/%s 目标约%s字 | %s",
+        "table_semantic batch_started "
+        "source_file_name=%s table_count=%s tables_pending_model_calls=%s "
+        "tables_skipped_already_augmented=%s tables_skipped_over_size_limit=%s "
+        "model_name=%s worker_thread_count=%s",
         file_hint,
         len(blocks),
         len(pending),
@@ -338,21 +314,33 @@ def augment_markdown_text(
         skipped_oversize,
         cfg.model,
         workers,
+    )
+    log.debug(
+        "table_semantic configuration_limits "
+        "context_before_character_limit=%s context_after_character_limit=%s "
+        "caption_target_character_count=%s maximum_table_body_character_count=%s "
+        "document_character_count=%s",
         cap.context_before_chars,
         cap.context_after_chars,
         cap.caption_target_chars,
-        limit_note,
+        cap.max_table_chars,
+        len(text),
     )
     if oversized:
+        log.info(
+            "table_semantic tables_skipped_over_size_limit "
+            "skipped_table_count=%s maximum_table_body_character_count=%s",
+            skipped_oversize,
+            cap.max_table_chars,
+        )
         for b in oversized:
-            log.info(
-                "表格语义 | 跳过超大表 | kind=%s 表体=%s字 > 阈值%s字 | start=%s",
+            log.debug(
+                "table_semantic table_skipped_over_size_limit_detail "
+                "block_kind=%s table_body_character_count=%s document_character_offset=%s",
                 b.kind,
                 len(b.raw),
-                cap.max_table_chars,
                 b.start,
             )
-    log.debug("表格语义 | 批次 | 整篇文档=%s字（仅调试）", len(text))
     if progress_callback is not None:
         try:
             progress_callback(0, len(pending), None)
@@ -362,12 +350,13 @@ def augment_markdown_text(
     if not pending:
         if pending_need_llm and skipped_oversize == len(pending_need_llm):
             log.info(
-                "表格语义 | 无LLM调用 | 待增强的%s张表均超过表体上限(%s字)",
+                "table_semantic batch_skipped_all_tables_over_size_limit "
+                "tables_that_would_need_model_calls=%s maximum_table_body_character_count=%s",
                 len(pending_need_llm),
                 cap.max_table_chars,
             )
         else:
-            log.info("表格语义 | 无待处理表格")
+            log.info("table_semantic batch_no_tables_required_processing")
         return text
 
     inserts: dict[int, str] = {}
@@ -387,7 +376,8 @@ def augment_markdown_text(
             )
         except (LLMClientError, OSError, ValueError, TypeError, RuntimeError) as exc:
             log.warning(
-                "表格语义 | 表 %s/%s | 跳过 | %s: %s",
+                "table_semantic large_language_model_call_skipped_due_to_exception "
+                "table_index=%s table_count=%s exception_type=%s exception_message=%s",
                 idx,
                 len(pending),
                 type(exc).__name__,
@@ -403,7 +393,8 @@ def augment_markdown_text(
                 got = fut.result()
             except (LLMClientError, OSError, ValueError, TypeError, RuntimeError) as exc:
                 log.warning(
-                    "表格语义 | 并发任务异常已忽略 | %s: %s",
+                    "table_semantic thread_pool_worker_exception_ignored "
+                    "exception_type=%s exception_message=%s",
                     type(exc).__name__,
                     _log_preview(str(exc), max_chars=160),
                 )
@@ -434,7 +425,8 @@ def augment_markdown_text(
     elapsed_sec = round(time.perf_counter() - t_all, 3)
     if not inserts:
         log.info(
-            "表格语义 | 批次结束 | 无插入 | 待处理=%s张表 | 总耗时=%ss",
+            "table_semantic batch_finished inserted_table_count=0 "
+            "tables_sent_to_model=%s elapsed_seconds=%s",
             len(pending),
             elapsed_sec,
         )
@@ -445,13 +437,13 @@ def augment_markdown_text(
         out = out[:end_pos] + inserts[end_pos] + out[end_pos:]
 
     log.info(
-        "表格语义 | 批次结束 | 成功=%s/%s张表 | 总耗时=%ss",
+        "table_semantic batch_finished inserted_table_count=%s tables_sent_to_model=%s elapsed_seconds=%s",
         len(inserts),
         len(pending),
         elapsed_sec,
     )
     log.debug(
-        "表格语义 | 批次 | 整篇字数变化 %s→%s（仅调试）",
+        "table_semantic batch_document_character_count_before=%s after=%s",
         len(text),
         len(out),
     )
@@ -490,7 +482,10 @@ def augment_markdown_file(
         progress_callback=progress_callback,
     )
     if new_text == raw:
-        log.info("表格语义 | 写回 | 跳过 | 无变化 | %s", path.name)
+        log.info(
+            "table_semantic file_write_skipped_no_content_change file_name=%s",
+            path.name,
+        )
         return
     fd, tmp = tempfile.mkstemp(
         suffix=".md", prefix="table_sem_", dir=str(path.parent)
@@ -501,7 +496,7 @@ def augment_markdown_file(
         tmp_path.write_text(new_text, encoding="utf-8")
         tmp_path.replace(path)
         log.info(
-            "表格语义 | 写回 | 已保存 | %s | 耗时=%ss",
+            "table_semantic file_write_completed file_name=%s elapsed_seconds=%s",
             path.name,
             round(time.perf_counter() - t0, 3),
         )
