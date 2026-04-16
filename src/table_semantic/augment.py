@@ -137,14 +137,13 @@ def _llm_one_block(
     ]
     t0 = time.perf_counter()
     
+    # 计算总输入大小
+    full_input = json.dumps(messages, ensure_ascii=False)
+    
     # 打印输入信息
-    log.info("=" * 80)
-    log.info(f"🔵 [表格{table_index}/{table_total}] 开始调用大模型")
-    log.info(f"   表格类型: {block.kind}")
-    log.info(f"   表格大小: {len(block.raw)}字符")
-    log.info(f"   输入总大小: {len(user_content)}字符")
-    log.info(f"   输入内容预览:\n{user_content[:500]}{'...' if len(user_content) > 500 else ''}")
-    log.info("=" * 80)
+    log.info(f"\n{'='*100}")
+    log.info(f"🔵 [表格{table_index}/{table_total}] 开始调用大模型 | 表格: {len(block.raw)}字符 | System: {len(_SYSTEM_PROMPT)}字符 | User: {len(user_content)}字符 | 总输入: {len(full_input)}字符")
+    log.info(f"{'='*100}")
     
     prompt_chars_estimated = _calc_prompt_chars(messages)
     data, usage_meta = chat_completion_json_object_with_meta(cfg=cfg, messages=messages)
@@ -153,13 +152,7 @@ def _llm_one_block(
     summary = _extract_equivalent_text(data)
     
     if not summary:
-        log.warning(
-            f"\n{'=' * 80}\n"
-            f"🔴 [表格{table_index}/{table_total}] 大模型返回空结果，已跳过\n"
-            f"   耗时: {elapsed_sec}秒\n"
-            f"   原始返回: {str(data)[:500]}\n"
-            f"{'=' * 80}"
-        )
+        log.warning(f"🔴 [表格{table_index}/{table_total}] 返回空结果 | 耗时: {elapsed_sec}秒 | 原始返回: {str(data)[:300]}")
         return None
     
     mid = _marker_prefix(block)
@@ -169,17 +162,9 @@ def _llm_one_block(
         f"<!-- /table-semantic -->\n"
     )
     
-    # 打印输出信息
-    log.info(
-        f"\n{'=' * 80}\n"
-        f"🟢 [表格{table_index}/{table_total}] 大模型返回成功\n"
-        f"   ⏱️  耗时: {elapsed_sec}秒\n"
-        f"   📥 输入: {len(user_content)}字符 | Prompt Tokens: {usage_meta.prompt_tokens or 'N/A'}\n"
-        f"   📤 输出: {len(summary)}字符 | Completion Tokens: {usage_meta.completion_tokens or 'N/A'}\n"
-        f"   📊 总Tokens: {usage_meta.total_tokens or 'N/A'}\n"
-        f"   输出内容预览:\n{summary[:500]}{'...' if len(summary) > 500 else ''}\n"
-        f"{'=' * 80}"
-    )
+    # 打印输出信息 - 一行搞定！
+    log.info(f"🟢 [表格{table_index}/{table_total}] 成功 | ⏱️ {elapsed_sec}秒 | 📥 输入: {len(full_input)}字符 | 📤 输出: {len(summary)}字符 | Prompt: {usage_meta.prompt_tokens or '-'} | Completion: {usage_meta.completion_tokens or '-'} | 总计: {usage_meta.total_tokens or '-'} tokens")
+    log.info(f"   输出内容: {summary[:200]}{'...' if len(summary) > 200 else ''}")
     
     return block.end, insert
 
