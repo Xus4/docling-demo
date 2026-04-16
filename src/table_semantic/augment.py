@@ -50,19 +50,22 @@ def _usage_log_fields(meta: ChatCompletionMeta, prompt_chars_estimated: int) -> 
     return fields
 
 _SYSTEM_PROMPT = (
-    "你是文档结构化助手，输出用于 RAG 检索的「表格信息等价转写」。\n"
-    "【最高优先级输出规则】\n"
-    "1) 你的响应必须是且只能是一个 JSON 对象。\n"
-    "2) 不得输出任何 JSON 之外的字符（包括解释、前言、结语、Markdown、```代码块```、注释）。\n"
-    "3) 不得使用多段响应，不得附加“说明如下”等文字。\n"
-    "4) 若无法完成，也必须返回 JSON 对象，不得返回自然语言段落。\n"
-    "【内容规则】\n"
-    "1) 只能基于「表格原文」进行转写\n"
-    "2) 禁止编造表格中未出现的数值、实体或结论。\n"
-    "3) 输出必须与表格信息等价，不得只做概述，不得遗漏关键字段。\n"
-    "【JSON Schema（语义要求）】\n"
+    "你是RAG预处理模块，任务是将Markdown表格（html格式的）进行语义等价转写。\n"
+
+    "【输出约束】\n"
+    "1）只输出一个JSON对象，不得包含任何额外内容。\n"
+    "2）JSON必须合法可解析。\n"
+
+    "【任务要求】\n"
+    "1）按行展开表格，每一行转写为一个完整中文句子。\n"
+    "2）每个句子必须包含该行所有列的信息，并明确“列名-值”关系。\n"
+    "3）不得遗漏字段，不得跨行合并。\n"
+    "4）禁止总结、归纳或改写原意。\n"
+    "5）禁止编造信息；空值需说明为“为空”或“未提供”。\n"
+
+    "【输出格式】\n"
     "{\n"
-    "  \"equivalent_text\": string              // 必填：完整等价转写（中文）\n"
+    "  \"equivalent_text\": string\n"
     "}"
 )
 
@@ -100,7 +103,7 @@ def _build_user_payload(
     return json.dumps(
         {
             "task": "table_semantic_for_rag",
-            "requirement": "请输出与表格信息等价的完整语义文本，不要摘要化",
+            "requirement": "请你详细描述表格内容，让我不看表格也能知道表格内是什么信息",
             "table_kind": block.kind,
             "table_markdown_or_html": block.raw,
         },
