@@ -211,12 +211,40 @@
         gap: 12px;
       }
 
-      .brand h1 {
+      /* 企业 + 产品锁标：世方 ● 智枢文档 */
+      .brand h1.brand-title {
         margin: 0;
-        font-size: clamp(32px, 4vw, 44px);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0 0.08em;
         line-height: 1.16;
-        letter-spacing: 0.2px;
+      }
+
+      .brand .brand-company {
+        /* 与「智枢文档」同档字号，保证「世方」不小于「智枢」视觉体量 */
+        font-size: clamp(32px, 4vw, 44px);
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        color: color-mix(in srgb, var(--text-main) 70%, var(--text-sub) 30%);
+      }
+
+      .brand .brand-title-sep {
+        flex-shrink: 0;
+        width: 7px;
+        height: 7px;
+        margin: 0 0.38em;
+        border-radius: 50%;
+        background: color-mix(in srgb, var(--brand) 78%, var(--text-sub) 22%);
+        box-shadow: 0 0 14px color-mix(in srgb, var(--brand) 42%, transparent);
+        opacity: 0.92;
+      }
+
+      .brand .brand-product {
+        font-size: clamp(32px, 4vw, 44px);
         font-weight: 760;
+        letter-spacing: 0.2px;
         text-shadow: var(--title-shadow);
       }
 
@@ -258,9 +286,25 @@
         gap: 10px 14px;
       }
 
-      body.task-page .brand h1 {
-        font-size: clamp(20px, 2.4vw, 24px);
+      body.task-page .brand h1.brand-title {
         line-height: 1.2;
+        gap: 0 0.04em;
+      }
+
+      body.task-page .brand .brand-company {
+        font-size: clamp(20px, 2.4vw, 24px);
+        letter-spacing: 0.08em;
+      }
+
+      body.task-page .brand .brand-title-sep {
+        width: 5px;
+        height: 5px;
+        margin: 0 0.32em;
+        box-shadow: 0 0 10px color-mix(in srgb, var(--brand) 36%, transparent);
+      }
+
+      body.task-page .brand .brand-product {
+        font-size: clamp(20px, 2.4vw, 24px);
         letter-spacing: 0.12px;
       }
 
@@ -3625,13 +3669,45 @@
       .task-file-icon.image { background: linear-gradient(145deg, #0891b2, #0e7490) !important; }
       .task-file-icon.other { background: linear-gradient(145deg, #334155, #1f2937) !important; }
 
-      .brand h1,
-      body[data-theme="dark"] .brand h1 {
+      /* 锁标拆字后：渐变落在子级，避免 flex 子元素继承透明字色失效 */
+      .brand h1.brand-title,
+      body[data-theme="dark"] .brand h1.brand-title {
+        background: none !important;
+        color: inherit !important;
+        -webkit-background-clip: border-box !important;
+        background-clip: border-box !important;
+        text-shadow: none !important;
+      }
+
+      .brand .brand-product,
+      body[data-theme="dark"] .brand .brand-product {
         background: linear-gradient(95deg, #1d4ed8 0%, #2563eb 48%, #4f46e5 100%) !important;
         color: transparent !important;
         -webkit-background-clip: text !important;
         background-clip: text !important;
         text-shadow: 0 0 18px rgba(37, 99, 235, 0.24) !important;
+      }
+
+      body[data-theme="light"] .brand .brand-product {
+        background: linear-gradient(95deg, #1d4ed8 0%, #2563eb 48%, #4f46e5 100%) !important;
+        color: transparent !important;
+        -webkit-background-clip: text !important;
+        background-clip: text !important;
+      }
+
+      .brand .brand-company,
+      body[data-theme="dark"] .brand .brand-company {
+        background: linear-gradient(100deg, #64748b 0%, #60a5fa 52%, #94a3b8 100%) !important;
+        color: transparent !important;
+        -webkit-background-clip: text !important;
+        background-clip: text !important;
+      }
+
+      body[data-theme="light"] .brand .brand-company {
+        background: linear-gradient(100deg, #475569 0%, #2563eb 50%, #64748b 100%) !important;
+        color: transparent !important;
+        -webkit-background-clip: text !important;
+        background-clip: text !important;
       }
 
       .brand-slogan,

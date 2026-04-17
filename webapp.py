@@ -208,7 +208,7 @@ async def _lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="智枢文档",
+    title="世方·智枢文档",
     debug=config.debug,
     lifespan=_lifespan,
 )
