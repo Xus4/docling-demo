@@ -289,6 +289,60 @@
                     </div>
                   </div>
                 </div>
+                <div id="taskQueuedActions" class="task-completed-actions hidden" aria-label="排队任务批量操作">
+                  <button id="cancelAllQueuedBtn" type="button" class="task-muted-btn" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                    </svg>
+                    <span>取消全部排队</span>
+                  </button>
+                </div>
+                <div id="taskRunningActions" class="task-completed-actions hidden" aria-label="处理中任务批量操作">
+                  <button id="cancelAllRunningBtn" type="button" class="task-muted-btn" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                    </svg>
+                    <span>全部取消</span>
+                  </button>
+                </div>
+                <div id="taskFailedActions" class="task-completed-actions task-failed-actions hidden" aria-label="失败任务批量操作">
+                  <button id="retryAllFailedBtn" class="task-primary-btn" type="button" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M21 12A9 9 0 1 1 18.4 5.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path>
+                      <path d="M21 4V10H15" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                    <span>全部重试</span>
+                  </button>
+                  <button id="deleteAllFailedBtn" class="task-primary-btn danger" type="button" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M4 7H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                      <path d="M10 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                      <path d="M14 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                      <path d="M6 7L7 20H17L18 7" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
+                      <path d="M9 7V5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5V7" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                    </svg>
+                    <span>全部删除</span>
+                  </button>
+                </div>
+                <div id="taskCancelledActions" class="task-completed-actions hidden" aria-label="已取消任务批量操作">
+                  <button id="retryAllCancelledBtn" class="task-primary-btn" type="button" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M21 12A9 9 0 1 1 18.4 5.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path>
+                      <path d="M21 4V10H15" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                    <span>全部重试</span>
+                  </button>
+                  <button id="deleteAllCancelledBtn" class="task-primary-btn danger" type="button" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M4 7H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                      <path d="M10 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                      <path d="M14 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                      <path d="M6 7L7 20H17L18 7" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
+                      <path d="M9 7V5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5V7" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                    </svg>
+                    <span>全部删除</span>
+                  </button>
+                </div>
               </div>
 
               <div id="historyList" class="task-list"></div>
@@ -451,7 +505,17 @@ const selectedList = document.getElementById("selectedList");
       const taskOwnerFilter = document.getElementById("taskOwnerFilter");
       const resetTaskFiltersBtn = document.getElementById("resetTaskFiltersBtn");
       const taskSectionTitle = document.getElementById("taskSectionTitle");
+      const taskQueuedActions = document.getElementById("taskQueuedActions");
+      const cancelAllQueuedBtn = document.getElementById("cancelAllQueuedBtn");
+      const taskRunningActions = document.getElementById("taskRunningActions");
+      const cancelAllRunningBtn = document.getElementById("cancelAllRunningBtn");
       const taskCompletedActions = document.getElementById("taskCompletedActions");
+      const taskFailedActions = document.getElementById("taskFailedActions");
+      const retryAllFailedBtn = document.getElementById("retryAllFailedBtn");
+      const deleteAllFailedBtn = document.getElementById("deleteAllFailedBtn");
+      const taskCancelledActions = document.getElementById("taskCancelledActions");
+      const retryAllCancelledBtn = document.getElementById("retryAllCancelledBtn");
+      const deleteAllCancelledBtn = document.getElementById("deleteAllCancelledBtn");
       const taskSelectedLabel = document.getElementById("taskSelectedLabel");
       const taskSelectAllCb = document.getElementById("taskSelectAllCb");
       const taskPageNumbers = document.getElementById("taskPageNumbers");
@@ -478,6 +542,16 @@ const selectedList = document.getElementById("selectedList");
         batchDownloadBtn.style.whiteSpace = "nowrap";
         batchDownloadBtn.style.minWidth = "96px";
       }
+      [
+        cancelAllQueuedBtn,
+        cancelAllRunningBtn,
+        retryAllFailedBtn,
+        deleteAllFailedBtn,
+        retryAllCancelledBtn,
+        deleteAllCancelledBtn,
+      ].forEach(function (el) {
+        if (el) el.style.whiteSpace = "nowrap";
+      });
 
       const STORAGE_KEYS = {
         theme: "docparse_theme",
@@ -521,6 +595,8 @@ const selectedList = document.getElementById("selectedList");
       let taskListAbortController = null;
       let taskPageSize = 10;
       let taskTotal = 0;
+      /** 与 Tab 角标同源，含关键词/提交人筛选 */
+      let lastTaskStatusCounts = {};
       let taskSearchQuery = "";
       let taskSearchTimer = 0;
       let activeTaskStatus = "all";
@@ -556,15 +632,149 @@ const selectedList = document.getElementById("selectedList");
       function syncBatchDownloadButton() {
         if (!batchDownloadBtn) return;
         const n = selectedJobIds.size;
-        const enabled = activeTaskStatus === "succeeded";
+        const visible = activeTaskStatus === "succeeded" && taskTotal > 0;
         if (taskCompletedActions) {
-          taskCompletedActions.classList.toggle("hidden", !enabled);
+          taskCompletedActions.classList.toggle("hidden", !visible);
         }
-        batchDownloadBtn.disabled = !enabled || n <= 0;
+        batchDownloadBtn.disabled = !visible || n <= 0;
         if (batchDownloadSplitBtn) {
-          batchDownloadSplitBtn.disabled = !enabled;
+          batchDownloadSplitBtn.disabled = !visible;
         }
         if (taskSelectedLabel) taskSelectedLabel.textContent = "已选择 " + n + " 项";
+      }
+
+      function taskListFilterHintSuffix() {
+        const hintParts = [];
+        if (taskSearchQuery) hintParts.push("关键词");
+        if (currentUser && currentUser.role === "admin" && taskOwnerFilter && taskOwnerFilter.value) {
+          hintParts.push("提交人");
+        }
+        return hintParts.length ? "（将包含" + hintParts.join("、") + "筛选）" : "";
+      }
+
+      function syncTaskBulkToolbars() {
+        syncBatchDownloadButton();
+        syncQueuedBulkCancelActions();
+        syncRunningBulkCancelActions();
+        syncFailedBulkActions();
+        syncCancelledBulkActions();
+      }
+
+      function syncQueuedBulkCancelActions() {
+        if (!taskQueuedActions) return;
+        const visible = activeTaskStatus === "queued" && taskTotal > 0;
+        taskQueuedActions.classList.toggle("hidden", !visible);
+        if (cancelAllQueuedBtn) cancelAllQueuedBtn.disabled = !visible;
+      }
+
+      function syncRunningBulkCancelActions() {
+        if (!taskRunningActions) return;
+        const visible = activeTaskStatus === "running" && taskTotal > 0;
+        taskRunningActions.classList.toggle("hidden", !visible);
+        if (cancelAllRunningBtn) cancelAllRunningBtn.disabled = !visible;
+      }
+
+      function syncFailedBulkActions() {
+        if (!taskFailedActions) return;
+        const visible = activeTaskStatus === "failed" && taskTotal > 0;
+        taskFailedActions.classList.toggle("hidden", !visible);
+        if (deleteAllFailedBtn) deleteAllFailedBtn.disabled = !visible;
+        if (retryAllFailedBtn) retryAllFailedBtn.disabled = !visible;
+      }
+
+      function syncCancelledBulkActions() {
+        if (!taskCancelledActions) return;
+        const visible = activeTaskStatus === "cancelled" && taskTotal > 0;
+        taskCancelledActions.classList.toggle("hidden", !visible);
+        if (deleteAllCancelledBtn) deleteAllCancelledBtn.disabled = !visible;
+        if (retryAllCancelledBtn) retryAllCancelledBtn.disabled = !visible;
+      }
+
+      async function collectJobIdsForCurrentFilters(statusFilter) {
+        const pageSize = 100;
+        let page = 1;
+        const ids = [];
+        let total = 0;
+        while (true) {
+          const params = new URLSearchParams();
+          params.set("page", String(page));
+          params.set("page_size", String(pageSize));
+          params.set("status", statusFilter);
+          if (taskSearchQuery) {
+            params.set("q", taskSearchQuery);
+          }
+          if (currentUser && currentUser.role === "admin" && taskOwnerFilter && taskOwnerFilter.value) {
+            params.set("owner", taskOwnerFilter.value);
+          }
+          const resp = await fetch("/jobs?" + params.toString(), {
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: mergeAuthHeaders({}),
+          });
+          const data = await resp.json().catch(function () {
+            return {};
+          });
+          if (resp.status === 401) {
+            setAuthState(null);
+            return { error: "unauthorized", ids: [], total: 0 };
+          }
+          if (!resp.ok) {
+            return { error: data.detail || "加载任务列表失败", ids: [], total: 0 };
+          }
+          total = Number(data.total) || 0;
+          const items = data.items || [];
+          for (let i = 0; i < items.length; i++) {
+            const jid = items[i] && items[i].job_id;
+            if (jid) ids.push(jid);
+          }
+          if (ids.length >= total || !items.length) {
+            break;
+          }
+          page += 1;
+          if (page > 5000) {
+            break;
+          }
+        }
+        return { error: null, ids: ids, total: total };
+      }
+
+      async function postCancelJob(jobId) {
+        const resp = await fetch("/jobs/" + encodeURIComponent(jobId) + "/cancel", {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: mergeAuthHeaders({}),
+        });
+        const data = await resp.json().catch(function () {
+          return {};
+        });
+        return { resp: resp, data: data };
+      }
+
+      async function postRetryJob(jobId) {
+        const resp = await fetch("/jobs/" + encodeURIComponent(jobId) + "/retry", {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: mergeAuthHeaders({}),
+        });
+        const data = await resp.json().catch(function () {
+          return {};
+        });
+        return { resp: resp, data: data };
+      }
+
+      async function deleteJobById(jobId) {
+        const resp = await fetch("/jobs/" + encodeURIComponent(jobId), {
+          method: "DELETE",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: mergeAuthHeaders({}),
+        });
+        const data = await resp.json().catch(function () {
+          return {};
+        });
+        return { resp: resp, data: data };
       }
 
       function localDatetimeLocalToIso(val) {
@@ -755,7 +965,7 @@ const selectedList = document.getElementById("selectedList");
           taskSelectAllCb.checked = false;
           taskSelectAllCb.indeterminate = false;
         }
-        syncBatchDownloadButton();
+        syncTaskBulkToolbars();
       }
 
       function normalizeTaskStatusKey(value) {
@@ -794,8 +1004,13 @@ const selectedList = document.getElementById("selectedList");
       }
 
       function updateTaskStatusTabCounts(counts) {
-        if (!taskStatusTabs) return;
         const src = counts && typeof counts === "object" ? counts : {};
+        lastTaskStatusCounts = {};
+        Object.keys(src).forEach(function (k) {
+          const raw = Number(src[k]);
+          lastTaskStatusCounts[k] = Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 0;
+        });
+        if (!taskStatusTabs) return;
         taskStatusTabs.querySelectorAll("[data-task-status]").forEach((btn) => {
           const key = btn.getAttribute("data-task-status") || "";
           let base = btn.getAttribute("data-base-label");
@@ -817,7 +1032,7 @@ const selectedList = document.getElementById("selectedList");
         if (taskSectionTitle) {
           taskSectionTitle.textContent = label + "：" + taskTotal + "条";
         }
-        syncBatchDownloadButton();
+        syncTaskBulkToolbars();
       }
 
       function formatSupportedFormatsLine(allowedTypes) {
@@ -1391,17 +1606,17 @@ function removeSelectedFileAt(index) {
           }
           updateConvertButtonState();
           syncTaskStatusTabs();
-          updateTaskStatusTabCounts({});
           if (opts.initialJobs && Array.isArray(opts.initialJobs.items)) {
             setCurrentTaskPage(Number(opts.initialJobs.page) || 1);
             taskPageSize = Number(opts.initialJobs.page_size) || taskPageSize;
-            taskTotal = Number(opts.initialJobs.total) || 0;
-            updateTaskSectionHeader();
             updateTaskStatusTabCounts(opts.initialJobs.status_counts || {});
+            taskTotal = Number(opts.initialJobs.total) || 0;
             renderTaskItems(opts.initialJobs.items);
             updateTaskPollingFromItems(opts.initialJobs.items);
+            updateTaskSectionHeader();
             syncTaskPager();
           } else {
+            updateTaskStatusTabCounts({});
             refreshTaskList();
           }
           return;
@@ -1641,7 +1856,7 @@ if (selectedList) selectedList.innerHTML = "";
             taskSelectAllCb.checked = false;
             taskSelectAllCb.indeterminate = false;
           }
-          syncBatchDownloadButton();
+          syncTaskBulkToolbars();
           return;
         }
         historyWrap.classList.add("show");
@@ -1929,7 +2144,7 @@ if (selectedList) selectedList.innerHTML = "";
           taskSelectAllCb.checked = totalSelectable > 0 && selectedSelectable === totalSelectable;
           taskSelectAllCb.indeterminate = selectedSelectable > 0 && selectedSelectable < totalSelectable;
         }
-        syncBatchDownloadButton();
+        syncTaskBulkToolbars();
       }
 
       function syncTaskPager() {
@@ -2053,11 +2268,11 @@ if (selectedList) selectedList.innerHTML = "";
             return;
           }
           updateTaskStatusTabCounts(data.status_counts || {});
+          taskTotal = Number(data.total) || 0;
           renderTaskItems(data.items || []);
           updateTaskPollingFromItems(data.items || []);
           setCurrentTaskPage(Number(data.page) || getCurrentTaskPage());
           taskPageSize = normalizeTaskPageSize(data.page_size);
-          taskTotal = Number(data.total) || 0;
           updateTaskSectionHeader();
           syncTaskPager();
         } catch (e) {
@@ -2272,7 +2487,367 @@ if (selectedList) selectedList.innerHTML = "";
           } catch (e) {
             showToast("error", "批量下载失败");
           } finally {
-            syncBatchDownloadButton();
+            syncTaskBulkToolbars();
+          }
+        });
+      }
+
+      function setFailedBulkButtonsBusy(busy) {
+        if (!busy) return;
+        if (retryAllFailedBtn) retryAllFailedBtn.disabled = true;
+        if (deleteAllFailedBtn) deleteAllFailedBtn.disabled = true;
+      }
+
+      function setCancelledBulkButtonsBusy(busy) {
+        if (!busy) return;
+        if (retryAllCancelledBtn) retryAllCancelledBtn.disabled = true;
+        if (deleteAllCancelledBtn) deleteAllCancelledBtn.disabled = true;
+      }
+
+      if (cancelAllQueuedBtn) {
+        cancelAllQueuedBtn.addEventListener("click", async function () {
+          if (activeTaskStatus !== "queued" || !currentUser) return;
+          const ok = await openThemedConfirm({
+            title: "取消全部排队任务",
+            message:
+              "将取消当前筛选条件下全部排队中的任务" +
+              taskListFilterHintSuffix() +
+              "。列表中显示共 " +
+              taskTotal +
+              " 条。将立即标记为已取消。",
+            confirmText: "全部取消排队",
+            cancelText: "返回",
+            danger: true,
+          });
+          if (!ok) return;
+          cancelAllQueuedBtn.disabled = true;
+          try {
+            const pack = await collectJobIdsForCurrentFilters("queued");
+            if (pack.error === "unauthorized") return;
+            if (pack.error) {
+              showToast("error", pack.error);
+              return;
+            }
+            if (!pack.ids.length) {
+              showToast("success", "没有可取消的排队任务");
+              await refreshTaskList();
+              return;
+            }
+            let okCount = 0;
+            let failCount = 0;
+            for (let j = 0; j < pack.ids.length; j++) {
+              const jobId = pack.ids[j];
+              try {
+                const r = await postCancelJob(jobId);
+                if (r.resp.status === 401) {
+                  setAuthState(null);
+                  return;
+                }
+                if (r.resp.ok) okCount += 1;
+                else failCount += 1;
+              } catch (e) {
+                failCount += 1;
+              }
+            }
+            if (failCount) {
+              showToast("error", "已取消 " + okCount + " 条，" + failCount + " 条取消失败");
+            } else {
+              showToast("success", "已取消 " + okCount + " 条排队任务");
+            }
+            await refreshTaskList();
+          } finally {
+            syncTaskBulkToolbars();
+          }
+        });
+      }
+
+      if (cancelAllRunningBtn) {
+        cancelAllRunningBtn.addEventListener("click", async function () {
+          if (activeTaskStatus !== "running" || !currentUser) return;
+          const ok = await openThemedConfirm({
+            title: "取消全部处理中任务",
+            message:
+              "将取消当前筛选条件下全部处理中的任务" +
+              taskListFilterHintSuffix() +
+              "。列表中显示共 " +
+              taskTotal +
+              " 条。将立即标记为已取消；若底层转换仍在进行，结束后不会保留结果。",
+            confirmText: "全部取消",
+            cancelText: "返回",
+            danger: true,
+          });
+          if (!ok) return;
+          cancelAllRunningBtn.disabled = true;
+          try {
+            const pack = await collectJobIdsForCurrentFilters("running");
+            if (pack.error === "unauthorized") return;
+            if (pack.error) {
+              showToast("error", pack.error);
+              return;
+            }
+            if (!pack.ids.length) {
+              showToast("success", "没有可取消的处理中任务");
+              await refreshTaskList();
+              return;
+            }
+            let okCount = 0;
+            let failCount = 0;
+            for (let ri = 0; ri < pack.ids.length; ri++) {
+              const jobId = pack.ids[ri];
+              try {
+                const res = await postCancelJob(jobId);
+                if (res.resp.status === 401) {
+                  setAuthState(null);
+                  return;
+                }
+                if (res.resp.ok) okCount += 1;
+                else failCount += 1;
+              } catch (e) {
+                failCount += 1;
+              }
+            }
+            if (failCount) {
+              showToast("error", "已取消 " + okCount + " 条，" + failCount + " 条取消失败");
+            } else {
+              showToast("success", "已取消 " + okCount + " 条处理中任务");
+            }
+            await refreshTaskList();
+          } finally {
+            syncTaskBulkToolbars();
+          }
+        });
+      }
+
+      if (retryAllFailedBtn) {
+        retryAllFailedBtn.addEventListener("click", async function () {
+          if (activeTaskStatus !== "failed" || !currentUser) return;
+          const ok = await openThemedConfirm({
+            title: "全部重试失败任务",
+            message:
+              "将清理当前筛选条件下全部失败任务的已有输出并重新排队执行" +
+              taskListFilterHintSuffix() +
+              "。列表中显示共 " +
+              taskTotal +
+              " 条，确定吗？",
+            confirmText: "全部重试",
+            cancelText: "取消",
+          });
+          if (!ok) return;
+          setFailedBulkButtonsBusy(true);
+          try {
+            const pack = await collectJobIdsForCurrentFilters("failed");
+            if (pack.error === "unauthorized") return;
+            if (pack.error) {
+              showToast("error", pack.error);
+              return;
+            }
+            if (!pack.ids.length) {
+              showToast("success", "没有可重试的失败任务");
+              await refreshTaskList();
+              return;
+            }
+            let okCount = 0;
+            let failCount = 0;
+            for (let k = 0; k < pack.ids.length; k++) {
+              const jobId = pack.ids[k];
+              try {
+                const r = await postRetryJob(jobId);
+                if (r.resp.status === 401) {
+                  setAuthState(null);
+                  return;
+                }
+                if (r.resp.ok) okCount += 1;
+                else failCount += 1;
+              } catch (e) {
+                failCount += 1;
+              }
+            }
+            if (failCount) {
+              showToast("error", "已重试 " + okCount + " 条，" + failCount + " 条重试失败");
+            } else {
+              showToast("success", "已重试 " + okCount + " 条失败任务");
+            }
+            await refreshTaskList();
+          } finally {
+            syncTaskBulkToolbars();
+          }
+        });
+      }
+
+      if (retryAllCancelledBtn) {
+        retryAllCancelledBtn.addEventListener("click", async function () {
+          if (activeTaskStatus !== "cancelled" || !currentUser) return;
+          const ok = await openThemedConfirm({
+            title: "全部重试已取消任务",
+            message:
+              "将清理当前筛选条件下全部已取消任务的已有输出并重新排队执行" +
+              taskListFilterHintSuffix() +
+              "。列表中显示共 " +
+              taskTotal +
+              " 条，确定吗？",
+            confirmText: "全部重试",
+            cancelText: "取消",
+          });
+          if (!ok) return;
+          setCancelledBulkButtonsBusy(true);
+          try {
+            const pack = await collectJobIdsForCurrentFilters("cancelled");
+            if (pack.error === "unauthorized") return;
+            if (pack.error) {
+              showToast("error", pack.error);
+              return;
+            }
+            if (!pack.ids.length) {
+              showToast("success", "没有可重试的已取消任务");
+              await refreshTaskList();
+              return;
+            }
+            let okCount = 0;
+            let failCount = 0;
+            for (let m = 0; m < pack.ids.length; m++) {
+              const jobId = pack.ids[m];
+              try {
+                const r = await postRetryJob(jobId);
+                if (r.resp.status === 401) {
+                  setAuthState(null);
+                  return;
+                }
+                if (r.resp.ok) okCount += 1;
+                else failCount += 1;
+              } catch (e) {
+                failCount += 1;
+              }
+            }
+            if (failCount) {
+              showToast("error", "已重试 " + okCount + " 条，" + failCount + " 条重试失败");
+            } else {
+              showToast("success", "已重试 " + okCount + " 条已取消任务");
+            }
+            await refreshTaskList();
+          } finally {
+            syncTaskBulkToolbars();
+          }
+        });
+      }
+
+      if (deleteAllCancelledBtn) {
+        deleteAllCancelledBtn.addEventListener("click", async function () {
+          if (activeTaskStatus !== "cancelled" || !currentUser) return;
+          const ok = await openThemedConfirm({
+            title: "删除全部已取消任务",
+            message:
+              "将删除当前筛选条件下全部已取消任务记录" +
+              taskListFilterHintSuffix() +
+              "，并尝试移除服务器上对应的输入、输出目录（若仍存在）。列表中显示共 " +
+              taskTotal +
+              " 条，此操作不可恢复。",
+            confirmText: "全部删除",
+            cancelText: "取消",
+            danger: true,
+          });
+          if (!ok) return;
+          setCancelledBulkButtonsBusy(true);
+          try {
+            const pack = await collectJobIdsForCurrentFilters("cancelled");
+            if (pack.error === "unauthorized") return;
+            if (pack.error) {
+              showToast("error", pack.error);
+              return;
+            }
+            if (!pack.ids.length) {
+              showToast("success", "没有可删除的已取消任务");
+              await refreshTaskList();
+              return;
+            }
+            let okCount = 0;
+            let failCount = 0;
+            for (let n = 0; n < pack.ids.length; n++) {
+              const jobId = pack.ids[n];
+              try {
+                const r = await deleteJobById(jobId);
+                if (r.resp.status === 401) {
+                  setAuthState(null);
+                  return;
+                }
+                if (r.resp.ok) {
+                  okCount += 1;
+                  selectedJobIds.delete(jobId);
+                } else failCount += 1;
+              } catch (e) {
+                failCount += 1;
+              }
+            }
+            if (failCount) {
+              showToast("error", "已删除 " + okCount + " 条，" + failCount + " 条删除失败");
+            } else {
+              showToast("success", "已删除 " + okCount + " 条已取消任务");
+            }
+            await refreshTaskList();
+          } finally {
+            syncTaskBulkToolbars();
+          }
+        });
+      }
+
+      if (deleteAllFailedBtn) {
+        deleteAllFailedBtn.addEventListener("click", async function () {
+          if (activeTaskStatus !== "failed" || !currentUser) return;
+          const ok = await openThemedConfirm({
+            title: "删除全部失败任务",
+            message:
+              "将删除当前列表条件下全部失败任务记录" +
+              taskListFilterHintSuffix() +
+              "，并尝试移除服务器上对应的输入、输出目录（若仍存在）。列表中显示共 " +
+              taskTotal +
+              " 条，此操作不可恢复。",
+            confirmText: "全部删除",
+            cancelText: "取消",
+            danger: true,
+          });
+          if (!ok) return;
+          setFailedBulkButtonsBusy(true);
+          try {
+            const pack = await collectJobIdsForCurrentFilters("failed");
+            if (pack.error === "unauthorized") {
+              return;
+            }
+            if (pack.error) {
+              showToast("error", pack.error);
+              return;
+            }
+            if (!pack.ids.length) {
+              showToast("success", "没有可删除的失败任务");
+              await refreshTaskList();
+              return;
+            }
+            let okCount = 0;
+            let failCount = 0;
+            for (let i = 0; i < pack.ids.length; i++) {
+              const jobId = pack.ids[i];
+              try {
+                const r = await deleteJobById(jobId);
+                if (r.resp.status === 401) {
+                  setAuthState(null);
+                  return;
+                }
+                if (r.resp.ok) {
+                  okCount += 1;
+                  selectedJobIds.delete(jobId);
+                } else {
+                  failCount += 1;
+                }
+              } catch (e) {
+                failCount += 1;
+              }
+            }
+            if (failCount) {
+              showToast("error", "已删除 " + okCount + " 条，" + failCount + " 条删除失败");
+            } else {
+              showToast("success", "已删除 " + okCount + " 条失败任务");
+            }
+            await refreshTaskList();
+          } finally {
+            syncTaskBulkToolbars();
           }
         });
       }
@@ -2455,7 +3030,7 @@ if (selectedList) selectedList.innerHTML = "";
           historyList.querySelectorAll('input.task-select-cb[data-job-select]:not([disabled])').forEach((el) => {
             el.checked = target;
           });
-          syncBatchDownloadButton();
+          syncTaskBulkToolbars();
           const totalSelectable = lastRenderableSelectableJobIds.length;
           const selectedSelectable = lastRenderableSelectableJobIds.filter((id) => selectedJobIds.has(id)).length;
           taskSelectAllCb.checked = totalSelectable > 0 && selectedSelectable === totalSelectable;
@@ -2486,7 +3061,7 @@ if (selectedList) selectedList.innerHTML = "";
         } else {
           selectedJobIds.delete(jobId);
         }
-        syncBatchDownloadButton();
+        syncTaskBulkToolbars();
         if (taskSelectAllCb) {
           const totalSelectable = lastRenderableSelectableJobIds.length;
           const selectedSelectable = lastRenderableSelectableJobIds.filter((id) => selectedJobIds.has(id)).length;
@@ -2540,7 +3115,7 @@ if (selectedList) selectedList.innerHTML = "";
               return;
             }
             selectedJobIds.delete(jobId);
-            syncBatchDownloadButton();
+            syncTaskBulkToolbars();
             showToast("success", data.message || "已删除");
             await refreshTaskList();
           } catch (e) {

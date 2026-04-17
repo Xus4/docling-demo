@@ -3822,6 +3822,42 @@
         font-size: 12px !important;
       }
 
+      /* 工具栏「全部删除」：与「全部重试」同高宽体系（task-primary-btn），配色对齐「删除记录」（danger） */
+      .task-primary-btn.danger {
+        background: #fee2e2 !important;
+        border: 1px solid #dc2626 !important;
+        color: #991b1b !important;
+        box-shadow: none !important;
+        filter: none !important;
+      }
+
+      .task-primary-btn.danger:hover {
+        background: #fecaca !important;
+        border-color: #b91c1c !important;
+        box-shadow: none !important;
+        filter: none !important;
+      }
+
+      body[data-theme="light"] .task-primary-btn.danger:disabled {
+        opacity: 1 !important;
+        filter: none !important;
+        border-color: rgba(203, 213, 225, 0.95) !important;
+        background: rgba(226, 232, 240, 1) !important;
+        color: rgba(100, 116, 139, 1) !important;
+      }
+
+      body[data-theme="dark"] .task-primary-btn.danger {
+        background: color-mix(in srgb, #ef4444 24%, rgba(17, 24, 39, 0.92)) !important;
+        border: 1px solid color-mix(in srgb, #f87171 58%, transparent) !important;
+        color: #fecaca !important;
+        box-shadow: none !important;
+      }
+
+      body[data-theme="dark"] .task-primary-btn.danger:hover {
+        background: color-mix(in srgb, #ef4444 34%, rgba(17, 24, 39, 0.92)) !important;
+        border-color: #fca5a5 !important;
+      }
+
       @media (max-width: 680px) {
         .shell { padding: 16px; }
         .auth-view { padding: 16px 6px 10px; }
