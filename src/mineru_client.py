@@ -420,7 +420,7 @@ def _run_sync_parse(
     on_processing_stage: Callable[[str], None] | None,
 ) -> None:
     if progress_callback:
-        progress_callback(1, 10)
+        progress_callback(2, 100)
     _emit_processing_stage(on_processing_stage, "mineru_upload")
     resp = _httpx_call_with_retry(
         lambda: client.post("/file_parse", files=multipart_items),
@@ -434,7 +434,7 @@ def _run_sync_parse(
         raise MinerUError(_parse_error_body(resp))
     resp.raise_for_status()
     if progress_callback:
-        progress_callback(9, 10)
+        progress_callback(8, 100)
     ct = (resp.headers.get("content-type") or "").lower()
     body = resp.content
     if "application/zip" in ct or body.startswith(b"PK\x03\x04"):
@@ -450,7 +450,7 @@ def _run_sync_parse(
         _emit_processing_stage(on_processing_stage, "mineru_materialize")
         output_path.write_text(md, encoding="utf-8")
     if progress_callback:
-        progress_callback(10, 10)
+        progress_callback(100, 100)
 
 
 def _run_async_parse(
@@ -526,14 +526,15 @@ def _run_async_parse(
 
         phase += 1
         if progress_callback:
-            pct = min(90, 5 + min(phase * 3, 85))
+            # 轮询阶段仅占 2–10%，避免短时间等待却显示八九十
+            pct = min(10, 2 + min(phase // 12, 8))
             progress_callback(pct, 100)
         time.sleep(poll)
     else:
         raise MinerUError(f"MinerU 任务在 {cfg.max_wait_sec:.0f}s 内未完成")
 
     if progress_callback:
-        progress_callback(92, 100)
+        progress_callback(18, 100)
 
     res_resp = _httpx_call_with_retry(
         lambda: client.get(f"/tasks/{task_id}/result"),

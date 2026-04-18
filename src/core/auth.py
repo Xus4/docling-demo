@@ -1082,6 +1082,7 @@ class AuthStore:
         note: str | None = None,
         pages_done: int | None = None,
         pages_total: int | None = None,
+        clear_progress_pages: bool = False,
         current_file_name: str | None = None,
     ) -> None:
         sets: list[str] = []
@@ -1092,12 +1093,16 @@ class AuthStore:
         if note is not None:
             sets.append("progress_note = :progress_note")
             params["progress_note"] = str(note)[:500]
-        if pages_done is not None:
-            sets.append("progress_pages_done = :progress_pages_done")
-            params["progress_pages_done"] = int(pages_done)
-        if pages_total is not None:
-            sets.append("progress_pages_total = :progress_pages_total")
-            params["progress_pages_total"] = int(pages_total)
+        if clear_progress_pages:
+            sets.append("progress_pages_done = NULL")
+            sets.append("progress_pages_total = NULL")
+        else:
+            if pages_done is not None:
+                sets.append("progress_pages_done = :progress_pages_done")
+                params["progress_pages_done"] = int(pages_done)
+            if pages_total is not None:
+                sets.append("progress_pages_total = :progress_pages_total")
+                params["progress_pages_total"] = int(pages_total)
         if current_file_name is not None:
             sets.append("current_file_name = :current_file_name")
             params["current_file_name"] = str(current_file_name)[:500]

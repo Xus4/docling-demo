@@ -107,17 +107,20 @@ def _run_single_file_conversion(
             raise RuntimeError("任务已取消")
         t = max(int(total), 1)
         d = max(0, min(int(done), t))
-        pct = int(round(100.0 * d / t))
-        pct = max(0, min(99, pct))
+        raw_pct = int(round(100.0 * d / t))
+        raw_pct = max(0, min(99, raw_pct))
         note = "任务已提交，等待调度…"
         if d >= t:
             pct = 99
             note = "解析完成，正在整理结果…"
-        elif d * 100 >= 90 * t:
-            # 接近完成：仍归为解析阶段（不再单独显示「拉取结果」）
-            note = "正在解析中…"
-        elif pct >= 10:
-            note = "正在解析中…"
+        else:
+            # 解析未完成：进度条不超过 10%，避免远程轮询稍久就显示八九成
+            pct = min(10, raw_pct)
+            if d * 100 >= 90 * t:
+                # 接近完成：仍归为解析阶段（不再单独显示「拉取结果」）
+                note = "正在解析中…"
+            elif raw_pct >= 10:
+                note = "正在解析中…"
         if parse_t0["t"] is None:
             parse_t0["t"] = time.time()
         eta_sec = None
@@ -131,8 +134,7 @@ def _run_single_file_conversion(
             job_id,
             percent=pct,
             note=note,
-            pages_done=None,
-            pages_total=None,
+            clear_progress_pages=True,
         )
         # 轮询极频繁，默认只打 DEBUG；阶段完成（d>=t）再打 INFO，避免刷屏
         _lvl = logging.INFO if d >= t else logging.DEBUG
@@ -162,11 +164,11 @@ def _run_single_file_conversion(
         _emit_processing_stage_note(auth, job_id, name)
         _log_stage_enter(jid, user, fname, name)
 
-    def on_semantic_progress(done: int, total: int, eta_sec: float | None) -> None:
+    def on_semantic_progress(done: int, tables_total: int, eta_sec: float | None) -> None:
         j = auth.get_job(job_id)
         if not j or j.status != "running":
             raise RuntimeError("任务已取消")
-        t = max(int(total), 0)
+        t = max(int(tables_total), 0)
         d = max(0, min(int(done), t if t > 0 else int(done)))
         if t > 0:
             pct = 93 + int(math.floor((d / t) * 6))
@@ -177,7 +179,14 @@ def _run_single_file_conversion(
             note = "表格语义补充中…"
         if eta_sec is not None and eta_sec > 1:
             note += f" 预计剩余 {int(round(eta_sec))} 秒"
-        auth.update_job_progress(job_id, percent=pct, note=note)
+        auth.update_job_progress(
+            job_id,
+            percent=pct,
+            note=note,
+            pages_done=d if t > 0 else None,
+            pages_total=t if t > 0 else None,
+            clear_progress_pages=t <= 0,
+        )
         _sem_lvl = logging.INFO if t > 0 and d >= t else logging.DEBUG
         log_event(
             log,
@@ -335,11 +344,24 @@ def _run_directory_conversion(
                     raise RuntimeError("任务已取消")
                 t = max(int(total), 1)
                 d = max(0, min(int(done), t))
-                combined_pct = int(round(100.0 * ((file_idx - 1) + (d / t)) / file_total))
+                if d >= t:
+                    file_inner = 1.0
+                else:
+                    # 单文件内解析未完成：最多折算为本文件的 10%，避免条一下子顶到八九十
+                    file_inner = min(0.10, d / t)
+                combined_pct = int(
+                    round(100.0 * ((file_idx - 1) + file_inner) / file_total)
+                )
                 combined_pct = max(0, min(99, combined_pct))
                 note = f"正在解析（{file_idx}/{file_total}）…"
                 if d >= t:
-                    combined_pct = min(99, max(combined_pct, int(round(100.0 * file_idx / file_total)) - 1))
+                    combined_pct = min(
+                        99,
+                        max(
+                            combined_pct,
+                            int(round(100.0 * file_idx / file_total)) - 1,
+                        ),
+                    )
                     note = f"文件解析完成（{file_idx}/{file_total}），正在整理结果…"
                 elif d * 100 >= 90 * t:
                     note = f"正在解析（{file_idx}/{file_total}）…"
@@ -356,8 +378,7 @@ def _run_directory_conversion(
                     job_id,
                     percent=combined_pct,
                     note=note,
-                    pages_done=None,
-                    pages_total=None,
+                    clear_progress_pages=True,
                     current_file_name=file_name,
                 )
                 _lvl = logging.INFO if d >= t else logging.DEBUG
@@ -385,8 +406,7 @@ def _run_directory_conversion(
             job_id,
             percent=max(0, min(99, pct)),
             note=f"正在处理 {idx}/{total}：{rel.as_posix()}",
-            pages_done=None,
-            pages_total=None,
+            clear_progress_pages=True,
             current_file_name=src.name,
         )
 
@@ -394,11 +414,11 @@ def _run_directory_conversion(
             _emit_processing_stage_note(auth, job_id, name)
             _log_stage_enter(jid, user, rel.as_posix(), name)
 
-        def on_semantic_progress(done: int, total: int, eta_sec: float | None) -> None:
+        def on_semantic_progress(done: int, tables_total: int, eta_sec: float | None) -> None:
             j = auth.get_job(job_id)
             if not j or j.status != "running":
                 raise RuntimeError("任务已取消")
-            t = max(int(total), 0)
+            t = max(int(tables_total), 0)
             d = max(0, min(int(done), t if t > 0 else int(done)))
             if t > 0:
                 file_inner = d / t
@@ -415,6 +435,9 @@ def _run_directory_conversion(
                 job_id,
                 percent=combined_pct,
                 note=note,
+                pages_done=d if t > 0 else None,
+                pages_total=t if t > 0 else None,
+                clear_progress_pages=t <= 0,
                 current_file_name=src.name,
             )
             _sem_lvl = logging.INFO if t > 0 and d >= t else logging.DEBUG
@@ -467,6 +490,7 @@ def _run_directory_conversion(
             job_id,
             percent=pct_done,
             note=f"已完成 {processed}/{total} 个文件（成功 {succeeded}，失败 {failed}）",
+            clear_progress_pages=True,
         )
 
     latest = auth.get_job(job_id)
