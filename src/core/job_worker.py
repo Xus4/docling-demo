@@ -8,7 +8,6 @@ import queue
 import threading
 import time
 from pathlib import Path
-import math
 
 import httpx
 
@@ -86,6 +85,24 @@ def _should_requeue_network_instead_of_fail(exc: BaseException) -> bool:
     return any(m in text for m in markers)
 
 
+def _semantic_pct_from_table_ratio(
+    *,
+    done: int,
+    tables_total: int,
+    floor_pct: int,
+    span_pct: int,
+) -> int:
+    """按 ``done/tables_total`` 在 ``[floor_pct, floor_pct+span_pct]`` 内线性映射（封顶 99）。"""
+    t = max(int(tables_total), 0)
+    d = max(0, min(int(done), t if t > 0 else int(done)))
+    if t <= 0:
+        return min(99, max(0, int(floor_pct) + max(1, int(span_pct))))
+    lo = max(0, min(99, int(floor_pct)))
+    span = max(1, min(int(span_pct), 99 - lo))
+    out = lo + int(round(span * (d / t)))
+    return min(99, max(lo, out))
+
+
 def _run_single_file_conversion(
     *,
     job_id: str,
@@ -111,7 +128,8 @@ def _run_single_file_conversion(
         raw_pct = max(0, min(99, raw_pct))
         note = "任务已提交，等待调度…"
         if d >= t:
-            pct = 99
+            # 与解析阶段封顶 10% 对齐，语义阶段再按表格比例铺到 99%
+            pct = 10
             note = "解析完成，正在整理结果…"
         else:
             # 解析未完成：进度条不超过 10%，避免远程轮询稍久就显示八九成
@@ -171,12 +189,17 @@ def _run_single_file_conversion(
         t = max(int(tables_total), 0)
         d = max(0, min(int(done), t if t > 0 else int(done)))
         if t > 0:
-            pct = 93 + int(math.floor((d / t) * 6))
-            pct = max(93, min(99, pct))
+            # 与解析结束刻度 10% 衔接，按表格完成比例线性映射到 99%（PDF/Word/图/xlsx 等同路径）
+            pct = _semantic_pct_from_table_ratio(
+                done=d,
+                tables_total=t,
+                floor_pct=10,
+                span_pct=89,
+            )
             note = f"表格语义补充中（{d}/{t}）…"
         else:
-            pct = 95
-            note = "表格语义补充中…"
+            pct = 99
+            note = "表格语义补充（无待处理表格）…"
         if eta_sec is not None and eta_sec > 1:
             note += f" 预计剩余 {int(round(eta_sec))} 秒"
         auth.update_job_progress(
@@ -332,6 +355,8 @@ def _run_directory_conversion(
         if not latest or latest.status != "running":
             return
 
+        sem_anchor_pct: dict[str, int | None] = {"v": None}
+
         rel = src.relative_to(input_root)
         dst = (output_root / rel).with_suffix(".md")
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -420,14 +445,30 @@ def _run_directory_conversion(
                 raise RuntimeError("任务已取消")
             t = max(int(tables_total), 0)
             d = max(0, min(int(done), t if t > 0 else int(done)))
+            if sem_anchor_pct["v"] is None:
+                cur = auth.get_job(job_id)
+                raw_lo = (
+                    int(cur.progress_percent)
+                    if cur and cur.progress_percent is not None
+                    else int(round(100.0 * (idx - 1) / max(total, 1)))
+                )
+                sem_anchor_pct["v"] = max(0, min(99, raw_lo))
+            lo = int(sem_anchor_pct["v"])
             if t > 0:
-                file_inner = d / t
-                combined_pct = int(round(100.0 * ((idx - 1) + file_inner) / total))
-                combined_pct = max(0, min(99, combined_pct))
+                slot = max(1, int(round(100.0 / max(total, 1))))
+                span = max(1, min(slot, 99 - lo))
+                combined_pct = _semantic_pct_from_table_ratio(
+                    done=d,
+                    tables_total=t,
+                    floor_pct=lo,
+                    span_pct=span,
+                )
                 note = f"表格语义补充中（{idx}/{total}，表格 {d}/{t}）…"
             else:
-                combined_pct = int(round(100.0 * ((idx - 1) + 0.5) / total))
-                combined_pct = max(0, min(99, combined_pct))
+                combined_pct = min(
+                    99,
+                    max(lo, int(round(100.0 * ((idx - 1) + 0.5) / max(total, 1)))),
+                )
                 note = f"表格语义补充中（{idx}/{total}）…"
             if eta_sec is not None and eta_sec > 1:
                 note += f" 预计剩余 {int(round(eta_sec))} 秒"
