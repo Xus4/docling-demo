@@ -193,7 +193,7 @@ def _log_llm_table_outcome(
         else "—"
     )
     log.info(
-        "%s 单表 LLM | 来源=%s | 进度 %s/%s | 模型=%s | %s | %.2fs | token %s | 说明 %s",
+        "%s  %s | 进度 %s/%s | %.2fs | token %s | 模型=%s | 语义补充 %s | 文件=%s ",
         _LOG_PREFIX,
         source_hint,
         table_index,
@@ -293,7 +293,7 @@ def _llm_one_block(
 
     if not summary:
         log.warning(
-            "%s 单表 LLM 返回空 | 来源=%s | 进度 %s/%s | 模型=%s | 原文预览=%s",
+            "%s 返回空 | 文件=%s | 进度 %s/%s | 模型=%s | 原文预览=%s",
             _LOG_PREFIX,
             source_hint,
             table_index,
@@ -356,7 +356,7 @@ def augment_markdown_text(
 
     file_hint = Path(source).name if source.strip() else "-"
     log.info(
-        "%s 批量开始 | 文件=%s | 文内表格=%s | 待调用模型=%s | 跳过已有说明=%s | 超大跳过=%s | 模型=%s | 并发=%s",
+        "%s 表格语义补充开始 | 文内表格=%s | 跳过已有说明=%s | 超大跳过=%s | 模型=%s | 并发=%s | 文件=%s ",
         _LOG_PREFIX,
         file_hint,
         len(blocks),
@@ -392,7 +392,7 @@ def augment_markdown_text(
     )
     if oversized:
         log.info(
-            "%s 超大表跳过（不调模型）| 文件=%s | 跳过张数=%s | 表体上限=%s 字",
+            "%s 表格字符数超限跳过语义补充 | 表格字符数上限=%s 字 | 跳过表格数=%s | 文件=%s",
             _LOG_PREFIX,
             file_hint,
             skipped_oversize,
@@ -415,7 +415,7 @@ def augment_markdown_text(
     if not pending:
         if pending_need_llm and skipped_oversize == len(pending_need_llm):
             log.info(
-                "%s 本批无需调用模型（表均超大）| 文件=%s | 本可处理=%s 张 | 表体上限=%s 字",
+                "%s 跳过表格语义补充（表均超大）| 文件=%s | 本可处理=%s 张 | 表体上限=%s 字",
                 _LOG_PREFIX,
                 file_hint,
                 len(pending_need_llm),
@@ -512,7 +512,7 @@ def augment_markdown_text(
     elapsed_sec = round(time.perf_counter() - t_all, 3)
     if not inserts:
         log.info(
-            "%s 批量结束 | 文件=%s | 插入=0 | 已调模型=%s 次 | 总耗时=%.2fs",
+            "%s 表格语义补充结束 | 插入=0 | 已调模型=%s 次 | 总耗时=%.2fs | 文件=%s ",
             _LOG_PREFIX,
             file_hint,
             len(pending),
@@ -531,7 +531,7 @@ def augment_markdown_text(
         out = out[:end_pos] + inserts[end_pos] + out[end_pos:]
 
     log.info(
-        "%s 批量结束 | 文件=%s | 插入成功=%s | 已调模型=%s 次 | 总耗时=%.2fs",
+        "%s 表格语义补充结束 | 插入成功=%s | 已调模型=%s 次 | 总耗时=%.2fs | 文件=%s ",
         _LOG_PREFIX,
         file_hint,
         len(inserts),
