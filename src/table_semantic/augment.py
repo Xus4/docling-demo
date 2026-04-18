@@ -193,16 +193,15 @@ def _log_llm_table_outcome(
         else "—"
     )
     log.info(
-        "%s  %s | 进度 %s/%s | %.2fs | token %s | 模型=%s | 语义补充 %s | 文件=%s ",
+        "%s | 文件=%s | 进度 %s/%s | %.2fs | token %s | 模型=%s | 语义补充 %s ",
         _LOG_PREFIX,
         source_hint,
         table_index,
         table_total,
-        model,
-        _fmt_table_result_cn(result_status),
         elapsed_seconds,
         _fmt_token_brief(usage),
-        cap_cn,
+        model,
+        f"{_fmt_table_result_cn(result_status)}，{cap_cn}",
     )
     log.debug(
         "table_semantic large_language_model_round_complete "
@@ -356,15 +355,15 @@ def augment_markdown_text(
 
     file_hint = Path(source).name if source.strip() else "-"
     log.info(
-        "%s 表格语义补充开始 | 文内表格=%s | 跳过已有说明=%s | 超大跳过=%s | 模型=%s | 并发=%s | 文件=%s ",
+        "%s 表格语义补充开始 | 文内表格=%s | 跳过已有说明=%s | 超大跳过=%s | 待调用LLM=%s | 模型=%s | 并发=%s | 文件=%s ",
         _LOG_PREFIX,
-        file_hint,
         len(blocks),
-        len(pending),
         skipped_already,
         skipped_oversize,
+        len(pending),
         cfg.model,
         workers,
+        file_hint,
     )
     log.debug(
         "table_semantic batch_started "
@@ -394,9 +393,9 @@ def augment_markdown_text(
         log.info(
             "%s 表格字符数超限跳过语义补充 | 表格字符数上限=%s 字 | 跳过表格数=%s | 文件=%s",
             _LOG_PREFIX,
-            file_hint,
-            skipped_oversize,
             cap.max_table_chars,
+            skipped_oversize,
+            file_hint,
         )
         for b in oversized:
             log.debug(
@@ -514,9 +513,9 @@ def augment_markdown_text(
         log.info(
             "%s 表格语义补充结束 | 插入=0 | 已调模型=%s 次 | 总耗时=%.2fs | 文件=%s ",
             _LOG_PREFIX,
-            file_hint,
             len(pending),
             elapsed_sec,
+            file_hint,
         )
         log.debug(
             "table_semantic batch_finished inserted_table_count=0 "
@@ -533,10 +532,10 @@ def augment_markdown_text(
     log.info(
         "%s 表格语义补充结束 | 插入成功=%s | 已调模型=%s 次 | 总耗时=%.2fs | 文件=%s ",
         _LOG_PREFIX,
-        file_hint,
         len(inserts),
         len(pending),
         elapsed_sec,
+        file_hint,
     )
     log.debug(
         "table_semantic batch_finished inserted_table_count=%s tables_sent_to_model=%s elapsed_seconds=%s",
