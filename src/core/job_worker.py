@@ -126,7 +126,6 @@ def _run_single_file_conversion(
         d = max(0, min(int(done), t))
         raw_pct = int(round(100.0 * d / t))
         raw_pct = max(0, min(99, raw_pct))
-        note = "任务已提交，等待调度…"
         if d >= t:
             # 与解析阶段封顶 10% 对齐，语义阶段再按表格比例铺到 99%
             pct = 10
@@ -134,11 +133,12 @@ def _run_single_file_conversion(
         else:
             # 解析未完成：进度条不超过 10%，避免远程轮询稍久就显示八九成
             pct = min(10, raw_pct)
-            if d * 100 >= 90 * t:
-                # 接近完成：仍归为解析阶段（不再单独显示「拉取结果」）
-                note = "正在解析中…"
-            elif raw_pct >= 10:
-                note = "正在解析中…"
+            # 有进度即视为已调度并在解析；仅 done=0 时保留「等待调度」以免误导
+            note = (
+                "正在解析中…"
+                if d > 0
+                else "任务已提交，等待调度…"
+            )
         if parse_t0["t"] is None:
             parse_t0["t"] = time.time()
         eta_sec = None

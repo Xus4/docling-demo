@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
 import os
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
+
+log = logging.getLogger("config")
 
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env", override=False)
@@ -366,6 +370,47 @@ class AppConfig:
             ),
         )
 
+    def _validate(self) -> None:
+        """Warn on insecure defaults or suspicious configurations."""
+        if self.session_secret == "change-me-in-production":
+            log.warning(
+                "SECURITY: SESSION_SECRET is still the default value "
+                "(%r). Set a strong random secret in .env before deploying.",
+                self.session_secret,
+            )
+        if self.access_token_secret == "change-me-in-production":
+            log.warning(
+                "SECURITY: ACCESS_TOKEN_SECRET fell back to SESSION_SECRET "
+                "(still default). Set a strong random secret in .env.",
+            )
+        # Warn on private-network MinerU URLs (likely dev-only)
+        mineru_url = self.mineru_base_url.lower()
+        if any(
+            mineru_url.startswith(prefix)
+            for prefix in ("http://127.0.0.1", "http://192.168.", "http://10.")
+        ):
+            log.warning(
+                "MINERU_BASE_URL points to a private address (%r). "
+                "Verify this is intentional for your deployment target.",
+                self.mineru_base_url,
+            )
+        if self.table_semantic_enable and not self.table_semantic_api_key:
+            log.warning(
+                "TABLE_SEMANTIC_ENABLE=true but TABLE_SEMANTIC_API_KEY is empty. "
+                "Table semantic enhancement will be skipped at runtime."
+            )
+        if self.table_semantic_enable and not self.table_semantic_model:
+            log.warning(
+                "TABLE_SEMANTIC_ENABLE=true but TABLE_SEMANTIC_MODEL is empty. "
+                "A model name is required for table semantic enhancement."
+            )
+
     def ensure_dirs(self) -> None:
         self.input_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+
+# Module-level validation hook: called after AppConfig.from_env() in webapp.py
+def validate_config(cfg: AppConfig) -> None:
+    """Run startup checks on the loaded configuration."""
+    cfg._validate()

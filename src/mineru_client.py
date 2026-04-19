@@ -174,12 +174,29 @@ def markdown_from_zip_bytes(zb: bytes, prefer_stem: str) -> str:
         raise MinerUError("MinerU 返回的 ZIP 无效") from exc
 
 
-def _safe_zip_rel_path(name: str) -> Path | None:
+def _safe_zip_rel_path(name: str, *, root: Path | None = None) -> Path | None:
+    """校验 ZIP 条目路径不会逃逸到目标目录之外。
+
+    双重检查：先做静态分析（绝对路径、``..``、空组件），再做动态校验
+    （resolve 后必须位于 ``root`` 之下）。
+    """
     rel = Path(name)
+    # 1) 静态检查
+    if not name or not name.strip():
+        return None
     if rel.is_absolute():
         return None
     if ".." in rel.parts:
         return None
+    if "" in rel.parts:
+        return None
+    # 2) 动态校验（resolve 后必须在 root 之下）
+    if root is not None:
+        candidate = (root / rel).resolve()
+        try:
+            candidate.relative_to(root.resolve())
+        except ValueError:
+            return None
     return rel
 
 
@@ -192,14 +209,20 @@ def persist_zip_artifacts(
     out_root = output_path.parent
     out_root.mkdir(parents=True, exist_ok=True)
     try:
+        root_resolved = out_root.resolve()
         with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
             for info in zf.infolist():
                 if info.is_dir():
                     continue
-                rel = _safe_zip_rel_path(info.filename)
+                rel = _safe_zip_rel_path(info.filename, root=out_root)
                 if rel is None:
                     continue
                 dst = out_root / rel
+                # 二次校验：写入前确认 resolve 后仍在 out_root 下（防御符号链接逃逸）
+                try:
+                    dst.resolve().relative_to(root_resolved)
+                except ValueError:
+                    continue
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 with zf.open(info, "r") as src, dst.open("wb") as out:
                     shutil.copyfileobj(src, out)
@@ -233,6 +256,11 @@ def persist_zip_artifacts(
                 continue
             rel = item.relative_to(source_images)
             dst = keep_images / rel
+            # 确保目标路径仍在 out_root 下（防御 ZIP 内符号链接逃逸）
+            try:
+                dst.resolve().relative_to(root_resolved)
+            except ValueError:
+                continue
             try:
                 if item.resolve() == dst.resolve():
                     continue

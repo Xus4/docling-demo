@@ -18,6 +18,8 @@ from fastapi import (
     Request,
     UploadFile,
 )
+from sqlalchemy import text
+
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -27,7 +29,7 @@ from src.core.access_token import (
     create_access_token,
 )
 from src.core.auth import AuthStore, AuthUser
-from config import AppConfig
+from config import AppConfig, validate_config
 from src.core.oa_auth import authenticate_with_oa
 from src.core.job_worker import JobQueueWorker
 from src.core.service import ConversionService
@@ -62,6 +64,7 @@ STATIC_DIR = ROOT / "static"
 
 config = AppConfig.from_env()
 config.ensure_dirs()
+validate_config(config)
 service = ConversionService(config)
 auth_store = AuthStore(config.database_url)
 if config.oa_auth_enabled:
@@ -281,8 +284,18 @@ def index() -> str:
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict[str, object]:
+    db_ok = False
+    try:
+        with auth_store._engine.begin() as conn:
+            conn.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        pass
+    return {
+        "status": "ok" if db_ok else "degraded",
+        "db": "connected" if db_ok else "unreachable",
+    }
 
 
 @app.get("/app/config")
