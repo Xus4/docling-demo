@@ -7,7 +7,7 @@ fi
 
 # 定义变量方便维护
 ENV_NAME="doc2md_env"
-APP_DIR="/data/docling-demo"
+APP_DIR="/data/gitlab/smartmd"
 LOG_FILE="app.log"
 LOG_DIR="${LOG_DIR:-$APP_DIR/data/logs}"
 

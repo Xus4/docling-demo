@@ -218,6 +218,8 @@ class AppConfig:
     xlsx_max_cols: int
     xlsx_skip_hidden_sheets: bool
     xlsx_cancel_check_row_stride: int
+    # --- MD 表格自动导出为 Excel（附带在下载 ZIP 中）---
+    md_to_xlsx_enable: bool
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -368,6 +370,7 @@ class AppConfig:
             xlsx_cancel_check_row_stride=max(
                 1, env_int("XLSX_CANCEL_CHECK_ROW_STRIDE", 256)
             ),
+            md_to_xlsx_enable=env_bool("MD_TO_XLSX_ENABLE", True),
         )
 
     def _validate(self) -> None:

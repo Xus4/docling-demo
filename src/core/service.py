@@ -218,6 +218,15 @@ class ConversionService:
                 if self.app_config.table_semantic_on_error == "fail":
                     raise ConversionError(f"表格语义增强失败: {exc!s}") from exc
 
+        if self.app_config.md_to_xlsx_enable:
+            from src.md_to_xlsx import md_to_xlsx
+
+            xlsx_path = dst.with_suffix(".xlsx")
+            try:
+                md_to_xlsx(dst, xlsx_path)
+            except Exception:
+                log.exception("md_to_xlsx_failed output=%s", dst)
+
         return ConvertToMarkdownResult(dst)
 
     def iter_supported_files(self, input_root: Path):
