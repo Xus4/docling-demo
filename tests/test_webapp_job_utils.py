@@ -93,6 +93,17 @@ class TestWebappJobUtils(unittest.TestCase):
         out = job_to_api_dict(job)
         self.assertIsNone(out["processing_stage"])
 
+    def test_job_to_api_dict_includes_preview_urls(self) -> None:
+        queued = job_to_api_dict(_build_job(status="queued"))
+        self.assertEqual(queued["source_preview_url"], "/jobs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/preview/source")
+        self.assertIsNone(queued["output_preview_url"])
+
+        succeeded = job_to_api_dict(_build_job(status="succeeded"))
+        self.assertEqual(
+            succeeded["output_preview_url"],
+            "/jobs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/preview/output",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

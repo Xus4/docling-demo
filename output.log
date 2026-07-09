@@ -1,0 +1,14 @@
+D:\python3.13\Lib\site-packages\requests\__init__.py:113: RequestsDependencyWarning: urllib3 (2.6.3) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+MINERU_BASE_URL points to a private address ('http://127.0.0.1:8011'). Verify this is intentional for your deployment target.
+2026-07-07 17:57:21 | INFO    | webapp | event=logger.ready log_level=INFO
+INFO:     Started server process [124536]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:64566 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58850 - "POST /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50454 - "POST /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50464 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50465 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63657 - "POST /auth/login HTTP/1.1" 200 OK

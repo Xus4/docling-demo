@@ -52,6 +52,10 @@ from src.web.webapp_downloads import (
     build_batch_download_response,
     build_single_download_response,
 )
+from src.web.webapp_preview import (
+    build_output_preview_response,
+    build_source_preview_response,
+)
 from src.web.webapp_login import auth_bootstrap_payload, handle_login
 from src.web.webapp_job_actions import (
     cancel_job_payload,
@@ -463,6 +467,41 @@ def get_job_detail(job_id: str, request: Request) -> dict[str, object]:
         auth_store=auth_store,
         can_access_job=_can_access_job,
         job_to_api_dict=_job_to_api_dict,
+    )
+
+
+@app.get("/jobs/{job_id}/preview/source")
+def preview_job_source(
+    job_id: str,
+    request: Request,
+    path: str | None = Query(None, description="文件夹任务中的输入文件相对路径"),
+) -> FileResponse:
+    jid = _normalize_job_id(job_id)
+    user = _require_auth_user(request)
+    return build_source_preview_response(
+        jid=jid,
+        user=user,
+        auth_store=auth_store,
+        can_access_job=_can_access_job,
+        relative_path=path,
+    )
+
+
+@app.get("/jobs/{job_id}/preview/output")
+def preview_job_output(
+    job_id: str,
+    request: Request,
+    path: str | None = Query(None, description="输出目录中的结果文件相对路径"),
+) -> FileResponse:
+    jid = _normalize_job_id(job_id)
+    user = _require_auth_user(request)
+    return build_output_preview_response(
+        jid=jid,
+        user=user,
+        auth_store=auth_store,
+        can_access_job=_can_access_job,
+        workspace_output_root=config.output_dir,
+        relative_path=path,
     )
 
 

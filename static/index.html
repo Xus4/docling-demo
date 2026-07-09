@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>世方·智枢文档</title>
+    <link rel="stylesheet" href="/static/vendor/jit-viewer/jit-viewer.min.css" />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body data-theme="dark">
@@ -194,6 +195,7 @@
             <p class="section-title">转换结果</p>
             <div class="result-card">
               <span id="resultFilename" class="filename"></span>
+              <button id="resultPreviewBtn" class="download-btn result-preview-btn hidden" type="button">预览 Markdown</button>
               <a id="downloadBtn" class="download-btn" href="#" target="_blank" rel="noopener">下载结果（ZIP）</a>
             </div>
           </div>
@@ -448,6 +450,32 @@
       </div>
     </div>
 
+    <div
+      id="previewModal"
+      class="modal-overlay preview-modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="previewModalTitle"
+      hidden
+    >
+      <div class="preview-dialog" role="document">
+        <div class="preview-header">
+          <div class="preview-heading">
+            <h2 id="previewModalTitle" class="modal-title preview-title">文档预览</h2>
+            <p id="previewFilename" class="preview-filename"></p>
+          </div>
+          <button type="button" class="preview-close" id="previewCloseBtn" aria-label="关闭预览">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="20" height="20">
+              <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            </svg>
+          </button>
+        </div>
+        <div id="previewStatus" class="preview-status" role="status" aria-live="polite">正在加载预览…</div>
+        <div id="jitViewerContainer" class="preview-viewer"></div>
+      </div>
+    </div>
+
+    <script src="/static/vendor/jit-viewer/jit-viewer.min.js"></script>
     <script>
 
       const folderInput = document.getElementById("folderInput");
@@ -469,6 +497,7 @@ const selectedList = document.getElementById("selectedList");
       const statusBox = document.getElementById("statusBox");
       const result = document.getElementById("result");
       const resultFilename = document.getElementById("resultFilename");
+      const resultPreviewBtn = document.getElementById("resultPreviewBtn");
       const downloadBtn = document.getElementById("downloadBtn");
       const toast = document.getElementById("toast");
       const confirmModal = document.getElementById("confirmModal");
@@ -498,6 +527,12 @@ const selectedList = document.getElementById("selectedList");
       const rangeExportCancel = document.getElementById("rangeExportCancel");
       const rangeExportClose = document.getElementById("rangeExportClose");
       const rangeExportSubmit = document.getElementById("rangeExportSubmit");
+      const previewModal = document.getElementById("previewModal");
+      const previewModalTitle = document.getElementById("previewModalTitle");
+      const previewFilename = document.getElementById("previewFilename");
+      const previewStatus = document.getElementById("previewStatus");
+      const previewCloseBtn = document.getElementById("previewCloseBtn");
+      const jitViewerContainer = document.getElementById("jitViewerContainer");
       const taskPrevBtn = document.getElementById("taskPrevBtn");
       const taskNextBtn = document.getElementById("taskNextBtn");
       const taskPageLabel = document.getElementById("taskPageLabel");
@@ -539,6 +574,7 @@ const selectedList = document.getElementById("selectedList");
       const authFeedback = document.getElementById("authFeedback");
       const productTagline = document.getElementById("productTagline");
       const topActions = document.querySelector(".top-actions");
+      let jitViewer = null;
       if (refreshTasksBtn) {
         refreshTasksBtn.style.whiteSpace = "nowrap";
       }
@@ -1270,6 +1306,119 @@ const selectedList = document.getElementById("selectedList");
         }, ms);
       }
 
+      function destroyPreviewViewer() {
+        if (jitViewer && typeof jitViewer.destroy === "function") {
+          try {
+            jitViewer.destroy();
+          } catch (e) {
+            console.warn("destroy preview viewer failed", e);
+          }
+        }
+        jitViewer = null;
+        if (jitViewerContainer) {
+          jitViewerContainer.innerHTML = "";
+        }
+      }
+
+      function closePreviewModal() {
+        destroyPreviewViewer();
+        if (previewModal) {
+          previewModal.classList.add("hidden");
+          previewModal.hidden = true;
+        }
+        if (previewStatus) {
+          previewStatus.textContent = "";
+          previewStatus.classList.add("hidden");
+        }
+      }
+
+      function filenameFromDisposition(headerValue, fallback) {
+        const raw = String(headerValue || "");
+        const utf8Match = raw.match(/filename\*=UTF-8''([^;]+)/i);
+        if (utf8Match && utf8Match[1]) {
+          try {
+            return decodeURIComponent(utf8Match[1]);
+          } catch (e) {
+            return utf8Match[1];
+          }
+        }
+        const plainMatch = raw.match(/filename="?([^";]+)"?/i);
+        if (plainMatch && plainMatch[1]) {
+          return plainMatch[1];
+        }
+        return fallback || "preview";
+      }
+
+      async function openPreviewModal(url, filename, title) {
+        if (!url) {
+          showToast("error", "没有可预览的文件");
+          return;
+        }
+        if (!window.JitViewer || typeof window.JitViewer.createViewer !== "function") {
+          showToast("error", "预览组件未加载，请刷新页面后重试");
+          return;
+        }
+        destroyPreviewViewer();
+        if (previewModal) {
+          previewModal.classList.remove("hidden");
+          previewModal.hidden = false;
+        }
+        if (previewModalTitle) previewModalTitle.textContent = title || "文档预览";
+        if (previewFilename) previewFilename.textContent = filename || "";
+        if (previewStatus) {
+          previewStatus.textContent = "正在加载预览…";
+          previewStatus.classList.remove("hidden");
+        }
+        try {
+          const resp = await fetch(url, {
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: mergeAuthHeaders({}),
+          });
+          if (resp.status === 401) {
+            closePreviewModal();
+            setAuthState(null);
+            return;
+          }
+          if (!resp.ok) {
+            const data = await resp.json().catch(() => ({}));
+            throw new Error(data.detail || "预览文件加载失败");
+          }
+          const blob = await resp.blob();
+          const resolvedName = filenameFromDisposition(
+            resp.headers.get("content-disposition"),
+            filename
+          );
+          if (previewFilename) previewFilename.textContent = resolvedName;
+          if (previewStatus) previewStatus.classList.add("hidden");
+          jitViewer = window.JitViewer.createViewer({
+            target: jitViewerContainer,
+            file: blob,
+            filename: resolvedName,
+            theme: document.body.getAttribute("data-theme") === "light" ? "light" : "dark",
+            locale: "zh-CN",
+            toolbar: true,
+            width: "100%",
+            height: "100%",
+            onError: function (err) {
+              console.error("preview render failed", err);
+              if (previewStatus) {
+                previewStatus.textContent = "预览失败，可尝试下载文件查看。";
+                previewStatus.classList.remove("hidden");
+              }
+            },
+          });
+          await jitViewer.mount();
+        } catch (e) {
+          console.error("open preview failed", e);
+          if (previewStatus) {
+            previewStatus.textContent = e && e.message ? e.message : "预览失败";
+            previewStatus.classList.remove("hidden");
+          }
+          showToast("error", e && e.message ? e.message : "预览失败");
+        }
+      }
+
       function showDownloadProgressToast() {
         showToast("success", "正在下载，请稍后…");
       }
@@ -1557,6 +1706,11 @@ function removeSelectedFileAt(index) {
         result.classList.remove("show");
         resultFilename.textContent = "";
         downloadBtn.href = "#";
+        if (resultPreviewBtn) {
+          resultPreviewBtn.classList.add("hidden");
+          resultPreviewBtn.removeAttribute("data-preview-url");
+          resultPreviewBtn.removeAttribute("data-preview-filename");
+        }
       }
 
       function stopTaskPolling() {
@@ -1972,6 +2126,25 @@ if (selectedList) selectedList.innerHTML = "";
                   job.download_url +
                   '" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3V14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M8 10L12 14L16 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 17.5C4 18.8807 5.11929 20 6.5 20H17.5C18.8807 20 20 18.8807 20 17.5V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span>下载 md</span></a>'
                 : "";
+            const baseName = (function() {
+              let displayName = job.current_file_name || job.current_filename || job.original_filename || "";
+              return String(displayName).split('/').pop().split('\\').pop().replace(/</g, "&lt;");
+            })();
+            const sourcePreviewBtn = job.source_preview_url
+              ? '<button type="button" class="task-inline-btn" data-preview-url="'
+                + escapeAttr(job.source_preview_url)
+                + '" data-preview-title="预览原文件" data-preview-filename="'
+                + escapeAttr(job.original_filename || baseName || "原文件")
+                + '"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5C4 4.11929 5.11929 3 6.5 3H17.5C18.8807 3 20 4.11929 20 5.5V18.5C20 19.8807 18.8807 21 17.5 21H6.5C5.11929 21 4 19.8807 4 18.5V5.5Z" stroke="currentColor" stroke-width="1.8"></path><path d="M8 8H16M8 12H16M8 16H13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg><span>预览原文</span></button>'
+              : "";
+            const outputPreviewBtn =
+              job.output_preview_url && job.status === "succeeded"
+                ? '<button type="button" class="task-inline-btn" data-preview-url="'
+                  + escapeAttr(job.output_preview_url)
+                  + '" data-preview-title="预览 Markdown" data-preview-filename="'
+                  + escapeAttr((baseName ? baseName.replace(/\.[^.]+$/, "") : "result") + ".md")
+                  + '"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4H19V20H5V4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M8 15V9L11 13L14 9V15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M16 9V15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg><span>预览MD</span></button>'
+                : "";
             const canSelect = selectionEnabled && job.status === "succeeded" && job.download_url;
             const checked = canSelect && selectedJobIds.has(job.job_id) ? " checked" : "";
             const disabled = canSelect ? "" : " disabled";
@@ -2006,10 +2179,6 @@ if (selectedList) selectedList.innerHTML = "";
                     : iconKind === "image"
                       ? '<div class="task-file-icon image" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" rx="2.4" stroke="currentColor" stroke-width="1.8"></rect><circle cx="9" cy="10" r="1.6" fill="currentColor"></circle><path d="M6.5 16L10.2 12.5L13.2 15.2L15.6 13.1L18 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>'
                     : '<div class="task-file-icon other" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M6 12H6.01M12 12H12.01M18 12H18.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path></svg></div>';
-            const baseName = (function() {
-              let displayName = job.current_file_name || job.current_filename || job.original_filename || "";
-              return String(displayName).split('/').pop().split('\\').pop().replace(/</g, "&lt;");
-            })();
             const pillClass = job.status === "succeeded" ? "succeeded" : job.status === "running" ? "running" : job.status === "queued" ? "queued" : job.status === "failed" ? "failed" : "cancelled";
             const pillText = job.status === "running" ? "处理中" : statusLabel(job.status);
             const pillIndicator =
@@ -2132,6 +2301,8 @@ if (selectedList) selectedList.innerHTML = "";
               err +
               "</div>" +
               '<div class="task-row-actions">' +
+              sourcePreviewBtn +
+              outputPreviewBtn +
               dl +
               retryBtn +
               cancelBtn +
@@ -2254,6 +2425,7 @@ if (selectedList) selectedList.innerHTML = "";
             credentials: "same-origin",
             cache: "no-store",
             signal: taskListAbortController.signal,
+            headers: mergeAuthHeaders({}),
           });
           if (requestSeq !== taskListRequestSeq) return;
           if (resp.status === 401) {
@@ -2342,6 +2514,18 @@ if (selectedList) selectedList.innerHTML = "";
     setStatus("success", msg);
     resultFilename.textContent = job.original_filename || "";
     downloadBtn.href = job.download_url || "#";
+    if (resultPreviewBtn) {
+      const previewUrl = job.output_preview_url || "";
+      if (previewUrl) {
+        const stem = String(job.original_filename || "result").replace(/\.[^.]+$/, "");
+        resultPreviewBtn.setAttribute("data-preview-url", previewUrl);
+        resultPreviewBtn.setAttribute("data-preview-title", "预览 Markdown");
+        resultPreviewBtn.setAttribute("data-preview-filename", stem + ".md");
+        resultPreviewBtn.classList.remove("hidden");
+      } else {
+        resultPreviewBtn.classList.add("hidden");
+      }
+    }
     result.classList.add("show");
     progressWrap.classList.remove("show");
     resetProgressBar();
@@ -3075,6 +3259,15 @@ if (selectedList) selectedList.innerHTML = "";
       });
 
       historyList.addEventListener("click", async (event) => {
+        const previewBtn = event.target.closest("[data-preview-url]");
+        if (previewBtn) {
+          const url = previewBtn.getAttribute("data-preview-url");
+          const filename = previewBtn.getAttribute("data-preview-filename") || "";
+          const title = previewBtn.getAttribute("data-preview-title") || "文档预览";
+          await openPreviewModal(url, filename, title);
+          return;
+        }
+
         const menuBtn = event.target.closest("[data-task-menu-btn]");
         if (menuBtn) {
           const jobId = menuBtn.getAttribute("data-task-menu-btn");
@@ -3203,6 +3396,34 @@ if (selectedList) selectedList.innerHTML = "";
           refreshTaskList();
         } catch (e) {
           showToast("error", "取消请求失败");
+        }
+      });
+
+      if (previewCloseBtn) {
+        previewCloseBtn.addEventListener("click", closePreviewModal);
+      }
+
+      if (resultPreviewBtn) {
+        resultPreviewBtn.addEventListener("click", async function () {
+          await openPreviewModal(
+            resultPreviewBtn.getAttribute("data-preview-url"),
+            resultPreviewBtn.getAttribute("data-preview-filename") || "",
+            resultPreviewBtn.getAttribute("data-preview-title") || "预览 Markdown"
+          );
+        });
+      }
+
+      if (previewModal) {
+        previewModal.addEventListener("click", function (event) {
+          if (event.target === previewModal) {
+            closePreviewModal();
+          }
+        });
+      }
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && previewModal && !previewModal.classList.contains("hidden")) {
+          closePreviewModal();
         }
       });
 

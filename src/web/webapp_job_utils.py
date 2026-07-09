@@ -52,8 +52,12 @@ def job_to_api_dict(
     }
     if job.status == "succeeded":
         out["download_url"] = f"/jobs/{job.job_id}/download"
+        out["output_preview_url"] = f"/jobs/{job.job_id}/preview/output"
     else:
         out["download_url"] = None
+        out["output_preview_url"] = None
+
+    out["source_preview_url"] = f"/jobs/{job.job_id}/preview/source"
 
     out["queue_position"] = queue_position
     out["queue_total"] = queue_total
