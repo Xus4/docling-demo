@@ -706,8 +706,8 @@
       }
 
       .preview-dialog {
-        width: min(1180px, 100%);
-        height: min(820px, calc(100vh - 36px));
+        width: min(1500px, 100%);
+        height: min(94vh, 1000px);
         border-radius: 14px;
         border: 1px solid var(--stroke);
         background: var(--glass-strong);
