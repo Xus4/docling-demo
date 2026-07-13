@@ -195,7 +195,7 @@
             <p class="section-title">转换结果</p>
             <div class="result-card">
               <span id="resultFilename" class="filename"></span>
-              <button id="resultPreviewBtn" class="download-btn result-preview-btn hidden" type="button">预览 Markdown</button>
+              <button id="resultPreviewBtn" class="download-btn result-preview-btn hidden" type="button">预览</button>
               <a id="downloadBtn" class="download-btn" href="#" target="_blank" rel="noopener">下载结果（ZIP）</a>
             </div>
           </div>
@@ -471,7 +471,18 @@
           </button>
         </div>
         <div id="previewStatus" class="preview-status" role="status" aria-live="polite">正在加载预览…</div>
-        <div id="jitViewerContainer" class="preview-viewer"></div>
+        <div class="preview-panes">
+          <section class="preview-pane" aria-labelledby="sourcePreviewPaneTitle">
+            <h3 id="sourcePreviewPaneTitle" class="preview-pane-title">原文</h3>
+            <div id="sourcePreviewStatus" class="preview-pane-status" role="status" aria-live="polite">等待加载</div>
+            <div id="sourceViewerContainer" class="preview-viewer"></div>
+          </section>
+          <section class="preview-pane" aria-labelledby="outputPreviewPaneTitle">
+            <h3 id="outputPreviewPaneTitle" class="preview-pane-title">转换后的 Markdown</h3>
+            <div id="outputPreviewStatus" class="preview-pane-status" role="status" aria-live="polite">等待加载</div>
+            <div id="outputViewerContainer" class="preview-viewer"></div>
+          </section>
+        </div>
       </div>
     </div>
 
@@ -531,8 +542,11 @@ const selectedList = document.getElementById("selectedList");
       const previewModalTitle = document.getElementById("previewModalTitle");
       const previewFilename = document.getElementById("previewFilename");
       const previewStatus = document.getElementById("previewStatus");
+      const sourcePreviewStatus = document.getElementById("sourcePreviewStatus");
+      const outputPreviewStatus = document.getElementById("outputPreviewStatus");
       const previewCloseBtn = document.getElementById("previewCloseBtn");
-      const jitViewerContainer = document.getElementById("jitViewerContainer");
+      const sourceViewerContainer = document.getElementById("sourceViewerContainer");
+      const outputViewerContainer = document.getElementById("outputViewerContainer");
       const taskPrevBtn = document.getElementById("taskPrevBtn");
       const taskNextBtn = document.getElementById("taskNextBtn");
       const taskPageLabel = document.getElementById("taskPageLabel");
@@ -574,7 +588,8 @@ const selectedList = document.getElementById("selectedList");
       const authFeedback = document.getElementById("authFeedback");
       const productTagline = document.getElementById("productTagline");
       const topActions = document.querySelector(".top-actions");
-      let jitViewer = null;
+      let sourceViewer = null;
+      let outputViewer = null;
       if (refreshTasksBtn) {
         refreshTasksBtn.style.whiteSpace = "nowrap";
       }
@@ -1307,17 +1322,16 @@ const selectedList = document.getElementById("selectedList");
       }
 
       function destroyPreviewViewer() {
-        if (jitViewer && typeof jitViewer.destroy === "function") {
-          try {
-            jitViewer.destroy();
-          } catch (e) {
-            console.warn("destroy preview viewer failed", e);
-          }
+        if (sourceViewer && typeof sourceViewer.destroy === "function") {
+          try { sourceViewer.destroy(); } catch (e) { console.warn("destroy sourceViewer failed", e); }
         }
-        jitViewer = null;
-        if (jitViewerContainer) {
-          jitViewerContainer.innerHTML = "";
+        if (outputViewer && typeof outputViewer.destroy === "function") {
+          try { outputViewer.destroy(); } catch (e) { console.warn("destroy outputViewer failed", e); }
         }
+        sourceViewer = null;
+        outputViewer = null;
+        if (sourceViewerContainer) sourceViewerContainer.innerHTML = "";
+        if (outputViewerContainer) outputViewerContainer.innerHTML = "";
       }
 
       function closePreviewModal() {
@@ -1330,6 +1344,9 @@ const selectedList = document.getElementById("selectedList");
           previewStatus.textContent = "";
           previewStatus.classList.add("hidden");
         }
+        [sourcePreviewStatus, outputPreviewStatus].forEach(function (status) {
+          if (status) status.textContent = "等待加载";
+        });
       }
 
       function filenameFromDisposition(headerValue, fallback) {
@@ -1343,15 +1360,34 @@ const selectedList = document.getElementById("selectedList");
           }
         }
         const plainMatch = raw.match(/filename="?([^";]+)"?/i);
-        if (plainMatch && plainMatch[1]) {
-          return plainMatch[1];
-        }
+        if (plainMatch && plainMatch[1]) return plainMatch[1];
         return fallback || "preview";
       }
 
-      async function openPreviewModal(url, filename, title) {
-        if (!url) {
-          showToast("error", "没有可预览的文件");
+      async function fetchPreviewFile(url, filename) {
+        const resp = await fetch(url, {
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: mergeAuthHeaders({}),
+        });
+        if (resp.status === 401) {
+          const error = new Error("unauthorized");
+          error.code = 401;
+          throw error;
+        }
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          throw new Error(data.detail || "预览文件加载失败");
+        }
+        return {
+          blob: await resp.blob(),
+          filename: filenameFromDisposition(resp.headers.get("content-disposition"), filename),
+        };
+      }
+
+      async function openPreviewModal(sourceUrl, sourceFilename, outputUrl, outputFilename, title) {
+        if (!sourceUrl || !outputUrl) {
+          showToast("error", "没有完整的预览文件");
           return;
         }
         if (!window.JitViewer || typeof window.JitViewer.createViewer !== "function") {
@@ -1364,37 +1400,23 @@ const selectedList = document.getElementById("selectedList");
           previewModal.hidden = false;
         }
         if (previewModalTitle) previewModalTitle.textContent = title || "文档预览";
-        if (previewFilename) previewFilename.textContent = filename || "";
+        if (previewFilename) previewFilename.textContent = sourceFilename || "";
         if (previewStatus) {
           previewStatus.textContent = "正在加载预览…";
           previewStatus.classList.remove("hidden");
         }
+        if (sourcePreviewStatus) sourcePreviewStatus.textContent = "正在加载…";
+        if (outputPreviewStatus) outputPreviewStatus.textContent = "正在加载…";
         try {
-          const resp = await fetch(url, {
-            credentials: "same-origin",
-            cache: "no-store",
-            headers: mergeAuthHeaders({}),
-          });
-          if (resp.status === 401) {
-            closePreviewModal();
-            setAuthState(null);
-            return;
-          }
-          if (!resp.ok) {
-            const data = await resp.json().catch(() => ({}));
-            throw new Error(data.detail || "预览文件加载失败");
-          }
-          const blob = await resp.blob();
-          const resolvedName = filenameFromDisposition(
-            resp.headers.get("content-disposition"),
-            filename
-          );
-          if (previewFilename) previewFilename.textContent = resolvedName;
-          if (previewStatus) previewStatus.classList.add("hidden");
-          jitViewer = window.JitViewer.createViewer({
-            target: jitViewerContainer,
-            file: blob,
-            filename: resolvedName,
+          const [sourceFile, outputFile] = await Promise.all([
+            fetchPreviewFile(sourceUrl, sourceFilename),
+            fetchPreviewFile(outputUrl, outputFilename),
+          ]);
+          if (previewFilename) previewFilename.textContent = sourceFile.filename + " \u2192 " + outputFile.filename;
+          sourceViewer = window.JitViewer.createViewer({
+            target: sourceViewerContainer,
+            file: sourceFile.blob,
+            filename: sourceFile.filename,
             theme: document.body.getAttribute("data-theme") === "light" ? "light" : "dark",
             locale: "zh-CN",
             toolbar: true,
@@ -1402,16 +1424,36 @@ const selectedList = document.getElementById("selectedList");
             width: "100%",
             height: "100%",
             onError: function (err) {
-              console.error("preview render failed", err);
-              if (previewStatus) {
-                previewStatus.textContent = "预览失败，可尝试下载文件查看。";
-                previewStatus.classList.remove("hidden");
-              }
+              console.error("source preview render failed", err);
+              if (sourcePreviewStatus) sourcePreviewStatus.textContent = "原文预览失败";
             },
           });
-          await jitViewer.mount();
+          outputViewer = window.JitViewer.createViewer({
+            target: outputViewerContainer,
+            file: outputFile.blob,
+            filename: outputFile.filename,
+            theme: document.body.getAttribute("data-theme") === "light" ? "light" : "dark",
+            locale: "zh-CN",
+            toolbar: true,
+            pdfRender: "native",
+            width: "100%",
+            height: "100%",
+            onError: function (err) {
+              console.error("output preview render failed", err);
+              if (outputPreviewStatus) outputPreviewStatus.textContent = "Markdown 预览失败";
+            },
+          });
+          await Promise.all([sourceViewer.mount(), outputViewer.mount()]);
+          if (sourcePreviewStatus) sourcePreviewStatus.textContent = "";
+          if (outputPreviewStatus) outputPreviewStatus.textContent = "";
+          if (previewStatus) previewStatus.classList.add("hidden");
         } catch (e) {
           console.error("open preview failed", e);
+          if (e && e.code === 401) {
+            closePreviewModal();
+            setAuthState(null);
+            return;
+          }
           if (previewStatus) {
             previewStatus.textContent = e && e.message ? e.message : "预览失败";
             previewStatus.classList.remove("hidden");
@@ -1709,8 +1751,10 @@ function removeSelectedFileAt(index) {
         downloadBtn.href = "#";
         if (resultPreviewBtn) {
           resultPreviewBtn.classList.add("hidden");
-          resultPreviewBtn.removeAttribute("data-preview-url");
-          resultPreviewBtn.removeAttribute("data-preview-filename");
+          resultPreviewBtn.removeAttribute("data-source-preview-url");
+          resultPreviewBtn.removeAttribute("data-output-preview-url");
+          resultPreviewBtn.removeAttribute("data-source-preview-filename");
+          resultPreviewBtn.removeAttribute("data-output-preview-filename");
         }
       }
 
@@ -2131,21 +2175,18 @@ if (selectedList) selectedList.innerHTML = "";
               let displayName = job.current_file_name || job.current_filename || job.original_filename || "";
               return String(displayName).split('/').pop().split('\\').pop().replace(/</g, "&lt;");
             })();
-            const sourcePreviewBtn = job.source_preview_url
-              ? '<button type="button" class="task-inline-btn" data-preview-url="'
+            const canPreview = job.source_preview_url && job.output_preview_url && job.status === "succeeded";
+            const previewBtn = canPreview
+              ? '<button type="button" class="task-inline-btn" data-source-preview-url="'
                 + escapeAttr(job.source_preview_url)
-                + '" data-preview-title="预览原文件" data-preview-filename="'
+                + '" data-output-preview-url="'
+                + escapeAttr(job.output_preview_url)
+                + '" data-preview-title="预览" data-source-preview-filename="'
                 + escapeAttr(job.original_filename || baseName || "原文件")
-                + '"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5C4 4.11929 5.11929 3 6.5 3H17.5C18.8807 3 20 4.11929 20 5.5V18.5C20 19.8807 18.8807 21 17.5 21H6.5C5.11929 21 4 19.8807 4 18.5V5.5Z" stroke="currentColor" stroke-width="1.8"></path><path d="M8 8H16M8 12H16M8 16H13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg><span>预览原文</span></button>'
+                + '" data-output-preview-filename="'
+                + escapeAttr((baseName ? baseName.replace(/\.[^.]+$/, "") : "result") + ".md")
+                + '"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5C4 4.11929 5.11929 3 6.5 3H17.5C18.8807 3 20 4.11929 20 5.5V18.5C20 19.8807 18.8807 21 17.5 21H6.5C5.11929 21 4 19.8807 4 18.5V5.5Z" stroke="currentColor" stroke-width="1.8"></path><path d="M8 8H16M8 12H16M8 16H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg><span>预览</span></button>'
               : "";
-            const outputPreviewBtn =
-              job.output_preview_url && job.status === "succeeded"
-                ? '<button type="button" class="task-inline-btn" data-preview-url="'
-                  + escapeAttr(job.output_preview_url)
-                  + '" data-preview-title="预览 Markdown" data-preview-filename="'
-                  + escapeAttr((baseName ? baseName.replace(/\.[^.]+$/, "") : "result") + ".md")
-                  + '"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4H19V20H5V4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M8 15V9L11 13L14 9V15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M16 9V15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg><span>预览MD</span></button>'
-                : "";
             const canSelect = selectionEnabled && job.status === "succeeded" && job.download_url;
             const checked = canSelect && selectedJobIds.has(job.job_id) ? " checked" : "";
             const disabled = canSelect ? "" : " disabled";
@@ -2302,8 +2343,7 @@ if (selectedList) selectedList.innerHTML = "";
               err +
               "</div>" +
               '<div class="task-row-actions">' +
-              sourcePreviewBtn +
-              outputPreviewBtn +
+              previewBtn +
               dl +
               retryBtn +
               cancelBtn +
@@ -2517,11 +2557,14 @@ if (selectedList) selectedList.innerHTML = "";
     downloadBtn.href = job.download_url || "#";
     if (resultPreviewBtn) {
       const previewUrl = job.output_preview_url || "";
-      if (previewUrl) {
+      const sourcePreviewUrl = job.source_preview_url || "";
+      if (previewUrl && sourcePreviewUrl) {
         const stem = String(job.original_filename || "result").replace(/\.[^.]+$/, "");
-        resultPreviewBtn.setAttribute("data-preview-url", previewUrl);
-        resultPreviewBtn.setAttribute("data-preview-title", "预览 Markdown");
-        resultPreviewBtn.setAttribute("data-preview-filename", stem + ".md");
+        resultPreviewBtn.setAttribute("data-source-preview-url", sourcePreviewUrl);
+        resultPreviewBtn.setAttribute("data-output-preview-url", previewUrl);
+        resultPreviewBtn.setAttribute("data-preview-title", "预览");
+        resultPreviewBtn.setAttribute("data-source-preview-filename", job.original_filename || "原文件");
+        resultPreviewBtn.setAttribute("data-output-preview-filename", stem + ".md");
         resultPreviewBtn.classList.remove("hidden");
       } else {
         resultPreviewBtn.classList.add("hidden");
@@ -3260,12 +3303,15 @@ if (selectedList) selectedList.innerHTML = "";
       });
 
       historyList.addEventListener("click", async (event) => {
-        const previewBtn = event.target.closest("[data-preview-url]");
+        const previewBtn = event.target.closest("[data-source-preview-url]");
         if (previewBtn) {
-          const url = previewBtn.getAttribute("data-preview-url");
-          const filename = previewBtn.getAttribute("data-preview-filename") || "";
-          const title = previewBtn.getAttribute("data-preview-title") || "文档预览";
-          await openPreviewModal(url, filename, title);
+          await openPreviewModal(
+            previewBtn.getAttribute("data-source-preview-url"),
+            previewBtn.getAttribute("data-source-preview-filename") || "",
+            previewBtn.getAttribute("data-output-preview-url"),
+            previewBtn.getAttribute("data-output-preview-filename") || "",
+            previewBtn.getAttribute("data-preview-title") || "预览"
+          );
           return;
         }
 
@@ -3407,9 +3453,11 @@ if (selectedList) selectedList.innerHTML = "";
       if (resultPreviewBtn) {
         resultPreviewBtn.addEventListener("click", async function () {
           await openPreviewModal(
-            resultPreviewBtn.getAttribute("data-preview-url"),
-            resultPreviewBtn.getAttribute("data-preview-filename") || "",
-            resultPreviewBtn.getAttribute("data-preview-title") || "预览 Markdown"
+            resultPreviewBtn.getAttribute("data-source-preview-url"),
+            resultPreviewBtn.getAttribute("data-source-preview-filename") || "",
+            resultPreviewBtn.getAttribute("data-output-preview-url"),
+            resultPreviewBtn.getAttribute("data-output-preview-filename") || "",
+            resultPreviewBtn.getAttribute("data-preview-title") || "预览"
           );
         });
       }

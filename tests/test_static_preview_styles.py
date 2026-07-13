@@ -17,6 +17,12 @@ class TestStaticPreviewStyles(unittest.TestCase):
         self.assertIn("height: 100%", rule)
         self.assertIn("overflow: auto", rule)
 
+    def test_preview_panes_are_two_columns_on_wide_screens(self) -> None:
+        css = Path("static/styles.css").read_text(encoding="utf-8")
+
+        self.assertIn(".preview-panes", css)
+        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr))", css)
+
 
 if __name__ == "__main__":
     unittest.main()
